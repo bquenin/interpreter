@@ -13,9 +13,10 @@ const (
 )
 
 type Configuration struct {
-	WindowTitle string `mapstructure:"window-title"`
-	RefreshRate string `mapstructure:"refresh-rate"`
-	TranslateTo string `mapstructure:"translate-to"`
+	WindowTitle         string  `mapstructure:"window-title"`
+	RefreshRate         string  `mapstructure:"refresh-rate"`
+	TranslateTo         string  `mapstructure:"translate-to"`
+	ConfidenceThreshold float32 `mapstructure:"confidence-threshold"`
 }
 
 func NewConfiguration() *Configuration {
