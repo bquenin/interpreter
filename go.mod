@@ -11,6 +11,7 @@ require (
 	github.com/spf13/viper v1.12.0
 	golang.org/x/image v0.0.0-20220601225756-64ec528b34cd
 	golang.org/x/text v0.3.7
+	google.golang.org/genproto v0.0.0-20220602131408-e326c6e8e9c8
 )
 
 require (
@@ -44,7 +45,6 @@ require (
 	golang.org/x/sys v0.0.0-20220520151302-bc2c85ada10a // indirect
 	google.golang.org/api v0.82.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto v0.0.0-20220602131408-e326c6e8e9c8 // indirect
 	google.golang.org/grpc v1.47.0 // indirect
 	google.golang.org/protobuf v1.28.0 // indirect
 	gopkg.in/ini.v1 v1.66.6 // indirect
