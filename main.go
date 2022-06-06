@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"html"
 	"image/color"
@@ -21,6 +22,7 @@ import (
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
 	"golang.org/x/text/language"
+	visionpb "google.golang.org/genproto/googleapis/cloud/vision/v1"
 )
 
 func init() {
@@ -30,14 +32,34 @@ func init() {
 }
 
 type App struct {
-	visionClient      *vision.ImageAnnotatorClient
-	translationClient *translate.Client
-	windowTitle       string
-	translateTo       language.Tag
-	refreshRate       time.Duration
-	lastUpdate        time.Time
-	subsFont          font.Face
-	subs              string
+	visionClient        *vision.ImageAnnotatorClient
+	translationClient   *translate.Client
+	windowTitle         string
+	translateTo         language.Tag
+	refreshRate         time.Duration
+	lastUpdate          time.Time
+	subsFont            font.Face
+	subs                string
+	confidenceThreshold float32
+}
+
+func filterTextByConfidence(annotation *visionpb.TextAnnotation, threshold float32) string {
+	var buffer bytes.Buffer
+	for _, page := range annotation.Pages {
+		for _, block := range page.Blocks {
+			for _, paragraph := range block.Paragraphs {
+				for _, word := range paragraph.Words {
+					if word.Confidence < threshold {
+						continue
+					}
+					for _, s := range word.Symbols {
+						buffer.WriteString(s.Text)
+					}
+				}
+			}
+		}
+	}
+	return buffer.String()
 }
 
 func (a *App) annotateAndTranslate() (string, error) {
@@ -63,16 +85,21 @@ func (a *App) annotateAndTranslate() (string, error) {
 	}
 
 	// Extract text from image
-	annotations, err := a.visionClient.DetectTexts(context.Background(), image, nil, 1)
+	annotation, err := a.visionClient.DetectDocumentText(context.Background(), image, nil)
 	if err != nil {
 		return "", err
 	}
-	if len(annotations) == 0 {
+	if annotation == nil {
 		log.Warn().Msg("no text found")
 		return "", nil
 	}
-	extractedText := annotations[0].Description
-	log.Debug().Msgf("extracted text: %s", extractedText)
+
+	extractedText := filterTextByConfidence(annotation, a.confidenceThreshold)
+	if extractedText == "" {
+		log.Warn().Msgf("no text found with confidence threshold %f", a.confidenceThreshold)
+		return "", nil
+	}
+	log.Info().Msgf("extracted text: %s", extractedText)
 
 	// Translate text
 	resp, err := a.translationClient.Translate(context.Background(), []string{extractedText}, a.translateTo, nil)
@@ -84,7 +111,7 @@ func (a *App) annotateAndTranslate() (string, error) {
 		return "", nil
 	}
 	translatedText := html.UnescapeString(resp[0].Text)
-	log.Debug().Msgf("translated text: %s", translatedText)
+	log.Info().Msgf("translated text: %s", translatedText)
 
 	return translatedText, nil
 }
@@ -174,12 +201,13 @@ func main() {
 	}
 
 	app := &App{
-		visionClient:      visionClient,
-		translationClient: translateClient,
-		subsFont:          fontFace,
-		windowTitle:       config.WindowTitle,
-		translateTo:       target,
-		refreshRate:       config.GetRefreshRate(),
+		visionClient:        visionClient,
+		translationClient:   translateClient,
+		subsFont:            fontFace,
+		windowTitle:         config.WindowTitle,
+		translateTo:         target,
+		refreshRate:         config.GetRefreshRate(),
+		confidenceThreshold: config.ConfidenceThreshold,
 	}
 	if err := ebiten.RunGame(app); err != nil {
 		log.Fatal().Err(err).Send()
