@@ -7,7 +7,7 @@ require (
 	cloud.google.com/go/vision v1.2.0
 	github.com/bquenin/captured v0.0.0-20220530153514-405b7681fdc2
 	github.com/hajimehoshi/ebiten/v2 v2.3.3
-	github.com/rs/zerolog v1.26.1
+	github.com/rs/zerolog v1.27.0
 	github.com/spf13/viper v1.12.0
 	golang.org/x/image v0.0.0-20220601225756-64ec528b34cd
 	golang.org/x/text v0.3.7
@@ -28,6 +28,8 @@ require (
 	github.com/jezek/xgb v1.0.1 // indirect
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e // indirect
 	github.com/magiconair/properties v1.8.6 // indirect
+	github.com/mattn/go-colorable v0.1.12 // indirect
+	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.1 // indirect
