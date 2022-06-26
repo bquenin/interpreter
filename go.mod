@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go/translate v1.2.0
 	cloud.google.com/go/vision v1.2.0
 	github.com/bquenin/captured v0.0.0-20220530153514-405b7681fdc2
-	github.com/hajimehoshi/ebiten/v2 v2.3.4
+	github.com/hajimehoshi/ebiten/v2 v2.3.5
 	github.com/rs/zerolog v1.27.0
 	github.com/spf13/viper v1.12.0
 	golang.org/x/image v0.0.0-20220617043117-41969df76e82

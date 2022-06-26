@@ -6,7 +6,6 @@ import (
 	"html"
 	"image/color"
 	"image/jpeg"
-	"io"
 	"os"
 	"time"
 
@@ -70,16 +69,13 @@ func (a *App) annotateAndTranslate() (string, error) {
 	}
 
 	// Encode to JPEG
-	pr, pw := io.Pipe()
-	go func() {
-		defer pw.Close()
-		if err = jpeg.Encode(pw, img, &jpeg.Options{Quality: 85}); err != nil {
-			log.Fatal().Err(err).Send()
-		}
-	}()
+	var buffer bytes.Buffer
+	if err = jpeg.Encode(&buffer, img, &jpeg.Options{Quality: 85}); err != nil {
+		log.Fatal().Err(err).Send()
+	}
 
-	// Create image from pipe output
-	image, err := vision.NewImageFromReader(pr)
+	// Create image
+	image, err := vision.NewImageFromReader(&buffer)
 	if err != nil {
 		return "", err
 	}
