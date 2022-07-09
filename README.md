@@ -1,7 +1,9 @@
 # Interpreter
 
-This application can translate text captured from any application running on your computer. You just need to specify which window you want to sample and how often.
-The application uses Google Cloud Vision and Cloud Translate APIs to:
+This app can translate text captured from any application running on your computer. You just need to 
+specify which window you want to sample and that's it.
+
+The app uses Google Cloud Vision and Cloud Translate APIs to:
 * Extract the text on-screen
 * Translate it to a given language
 
@@ -11,7 +13,14 @@ It's typically used to translate Japanese retro games unreleased in the US but y
 
 ![sample](sample.jpg)
 
-## Google Cloud
+# How to use
+
+Before you can use this app, you need some prerequisites:
+
+* A Google Cloud account
+* Go installed on your computer  
+
+## Getting a Google Cloud account 
 
 In order to use this application, you need to have a Google Cloud account:
 
@@ -41,18 +50,30 @@ In order to use this application, you need to have a Google Cloud account:
 
 * https://cloud.google.com/translate/docs/setup#using_the_service_account_key_file_in_your_environment
 
+## Installing Go
+
+In order to install go on your machine, follow the instructions here: https://go.dev/doc/install
+
+## Cloning the repository
+
+```
+git clone https://github.com/bquenin/interpreter.git
+cd interpreter
+```
+
 ## Configure Interpreter
 
-Once you have setup your Google Cloud credentials, you can update the `interpreter.yml` configuration file:
+Update the `interpreter.yml` configuration file:
 
 ```yml
-window-title: "title of the window to capture"
+window-title: "" # specify the name of the window you want to capture
 translate-to: "en"
 refresh-rate: "5s"
+confidence-threshold: 0.9
 ```
 
 ## Run Interpreter
 
 ```
-go run .
+go run ./cmd/interpreter/main.go
 ```

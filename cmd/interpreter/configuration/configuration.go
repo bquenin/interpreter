@@ -1,4 +1,4 @@
-package main
+package configuration
 
 import (
 	"strings"
@@ -19,19 +19,10 @@ type Configuration struct {
 	ConfidenceThreshold float32 `mapstructure:"confidence-threshold"`
 }
 
-func NewConfiguration() *Configuration {
-	return &Configuration{} // Default Configuration
-}
-
-// ReadConfiguration reads the configuration
-func (c *Configuration) ReadConfiguration() error {
+func Read() (*Configuration, error) {
 	// Add matching environment variables - will take precedence over config files.
 	viper.AutomaticEnv()
-
-	// Sets the String replacer for environment variables to have names with underscores only
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_", "-", "_"))
-
-	// Sets the prefix for environment variables, e.g. INTERPRETER_TITLE
 	viper.SetEnvPrefix("INTERPRETER")
 
 	// Add default config file search paths in order of decreasing precedence.
@@ -40,15 +31,16 @@ func (c *Configuration) ReadConfiguration() error {
 	viper.SetConfigType("yml")
 	viper.SetConfigName(ConfigName)
 	if err := viper.ReadInConfig(); err != nil {
-		return err
+		return nil, err
 	}
 
-	// Unmarshal config into Configuration object
-	if err := viper.Unmarshal(c); err != nil {
-		return err
+	// Unmarshal config
+	var config Configuration
+	if err := viper.Unmarshal(&config); err != nil {
+		return nil, err
 	}
 
-	return nil
+	return &config, nil
 }
 
 // GetRefreshRate returns the refresh rate as duration

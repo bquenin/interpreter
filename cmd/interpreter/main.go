@@ -6,16 +6,19 @@ import (
 	"html"
 	"image/color"
 	"image/jpeg"
+	"io"
 	"os"
 	"time"
 
 	"cloud.google.com/go/translate"
 	"cloud.google.com/go/vision/apiv1"
 	"github.com/bquenin/captured"
+	"github.com/bquenin/interpreter/cmd/interpreter/configuration"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
 	"github.com/hajimehoshi/ebiten/v2/text"
+	"github.com/k0kubun/pp/v3"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"golang.org/x/image/font"
@@ -38,6 +41,7 @@ type App struct {
 	refreshRate         time.Duration
 	lastUpdate          time.Time
 	subsFont            font.Face
+	lastText            string
 	subs                string
 	confidenceThreshold float32
 }
@@ -61,27 +65,30 @@ func filterTextByConfidence(annotation *visionpb.TextAnnotation, threshold float
 	return buffer.String()
 }
 
-func (a *App) annotateAndTranslate() (string, error) {
+func (a *App) screenshot(windowTitle string) (*bytes.Buffer, error) {
 	// Capture window
-	img, err := captured.Captured.CaptureWindowByTitle(a.windowTitle, captured.CropTitle)
+	img, err := captured.Captured.CaptureWindowByTitle(windowTitle, captured.CropTitle)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	// Encode to JPEG
 	var buffer bytes.Buffer
 	if err = jpeg.Encode(&buffer, img, &jpeg.Options{Quality: 85}); err != nil {
-		log.Fatal().Err(err).Send()
+		return nil, err
 	}
+	return &buffer, nil
+}
 
-	// Create image
-	image, err := vision.NewImageFromReader(&buffer)
+func (a *App) annotate(image io.Reader) (string, error) {
+	// Create img
+	img, err := vision.NewImageFromReader(image)
 	if err != nil {
 		return "", err
 	}
 
 	// Extract text from image
-	annotation, err := a.visionClient.DetectDocumentText(context.Background(), image, nil)
+	annotation, err := a.visionClient.DetectDocumentText(context.Background(), img, nil)
 	if err != nil {
 		return "", err
 	}
@@ -90,25 +97,30 @@ func (a *App) annotateAndTranslate() (string, error) {
 		return "", nil
 	}
 
+	// Filter out gibberish
 	extractedText := filterTextByConfidence(annotation, a.confidenceThreshold)
 	if extractedText == "" {
 		log.Warn().Msgf("no text found with confidence threshold %f", a.confidenceThreshold)
 		return "", nil
 	}
-	log.Info().Msgf("extracted text: %s", extractedText)
 
-	// Translate text
-	resp, err := a.translationClient.Translate(context.Background(), []string{extractedText}, a.translateTo, nil)
+	log.Info().Msgf("extracted text: %s", extractedText)
+	return extractedText, nil
+}
+
+func (a *App) translate(toTranslate string) (string, error) {
+	// translate text
+	translation, err := a.translationClient.Translate(context.Background(), []string{toTranslate}, a.translateTo, nil)
 	if err != nil {
 		return "", err
 	}
-	if len(resp) == 0 {
-		log.Warn().Msgf("translate returned empty response to text: %s", extractedText)
+	if len(translation) == 0 {
+		log.Warn().Msgf("translate returned empty response to text: %s", toTranslate)
 		return "", nil
 	}
-	translatedText := html.UnescapeString(resp[0].Text)
-	log.Info().Msgf("translated text: %s", translatedText)
 
+	translatedText := html.UnescapeString(translation[0].Text)
+	log.Info().Msgf("translated text: %s", translatedText)
 	return translatedText, nil
 }
 
@@ -127,10 +139,31 @@ func (a *App) Update() error {
 	a.lastUpdate = time.Now()
 
 	go func() {
-		translation, err := a.annotateAndTranslate()
+		ss, err := a.screenshot(a.windowTitle)
 		if err != nil {
 			log.Fatal().Err(err).Send()
 		}
+
+		text, err := a.annotate(ss)
+		if err != nil {
+			log.Fatal().Err(err).Send()
+		}
+
+		if text == a.lastText {
+			return
+		}
+
+		if text == "" {
+			a.subs = ""
+			return
+		}
+
+		translation, err := a.translate(text)
+		if err != nil {
+			log.Fatal().Err(err).Send()
+		}
+
+		a.lastText = text
 		a.subs = translation
 	}()
 
@@ -156,11 +189,12 @@ func main() {
 	ebiten.SetWindowFloating(true)
 	ebiten.SetScreenTransparent(true)
 
-	// Get configuration
-	config := NewConfiguration()
-	if err := config.ReadConfiguration(); err != nil {
+	// Read configuration
+	config, err := configuration.Read()
+	if err != nil {
 		log.Fatal().Err(err).Send()
 	}
+	log.Info().Msg(pp.Sprint(config))
 
 	// Vision Client
 	visionClient, err := vision.NewImageAnnotatorClient(context.Background())
@@ -169,7 +203,7 @@ func main() {
 	}
 	defer visionClient.Close()
 
-	// Translate Client
+	// translate Client
 	translateClient, err := translate.NewClient(context.Background())
 	if err != nil {
 		log.Fatal().Err(err).Send()
