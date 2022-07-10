@@ -3,17 +3,16 @@ package main
 import (
 	"bytes"
 	"context"
-	"html"
 	"image/color"
 	"image/jpeg"
 	"io"
 	"os"
 	"time"
 
-	"cloud.google.com/go/translate"
 	"cloud.google.com/go/vision/apiv1"
 	"github.com/bquenin/captured"
 	"github.com/bquenin/interpreter/cmd/interpreter/configuration"
+	"github.com/bquenin/interpreter/internal/translate"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
@@ -23,27 +22,24 @@ import (
 	"github.com/rs/zerolog/log"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
-	"golang.org/x/text/language"
 	visionpb "google.golang.org/genproto/googleapis/cloud/vision/v1"
 )
 
 func init() {
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339})
-
 }
 
 type App struct {
 	visionClient        *vision.ImageAnnotatorClient
-	translationClient   *translate.Client
 	windowTitle         string
-	translateTo         language.Tag
 	refreshRate         time.Duration
 	lastUpdate          time.Time
 	subsFont            font.Face
 	lastText            string
 	subs                string
 	confidenceThreshold float32
+	translator          translate.Translator
 }
 
 func filterTextByConfidence(annotation *visionpb.TextAnnotation, threshold float32) string {
@@ -108,22 +104,6 @@ func (a *App) annotate(image io.Reader) (string, error) {
 	return extractedText, nil
 }
 
-func (a *App) translate(toTranslate string) (string, error) {
-	// translate text
-	translation, err := a.translationClient.Translate(context.Background(), []string{toTranslate}, a.translateTo, nil)
-	if err != nil {
-		return "", err
-	}
-	if len(translation) == 0 {
-		log.Warn().Msgf("translate returned empty response to text: %s", toTranslate)
-		return "", nil
-	}
-
-	translatedText := html.UnescapeString(translation[0].Text)
-	log.Info().Msgf("translated text: %s", translatedText)
-	return translatedText, nil
-}
-
 func (a *App) Update() error {
 	// Move window handler
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
@@ -148,20 +128,19 @@ func (a *App) Update() error {
 		if err != nil {
 			log.Fatal().Err(err).Send()
 		}
-
 		if text == a.lastText {
 			return
 		}
-
 		if text == "" {
 			a.subs = ""
 			return
 		}
 
-		translation, err := a.translate(text)
+		translation, err := a.translator.Translate(text)
 		if err != nil {
 			log.Fatal().Err(err).Send()
 		}
+		log.Info().Msgf("translated text: %s", translation)
 
 		a.lastText = text
 		a.subs = translation
@@ -181,6 +160,23 @@ func (a *App) Layout(outsideWidth, outsideHeight int) (int, int) {
 	return outsideWidth, outsideHeight
 }
 
+func NewTranslator(config *configuration.Configuration) (translate.Translator, error) {
+	var translator translate.Translator
+	var err error
+	switch config.Translator.API {
+	case "google":
+		translator, err = translate.NewGoogle(config.Translator.To)
+	case "deepl":
+		translator, err = translate.NewDeepL(config.Translator.To, config.Translator.AuthenticationKey)
+	default:
+		log.Fatal().Msgf("unsupported translator api: %s", config.Translator.API)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return translator, nil
+}
+
 func main() {
 	width, height := ebiten.ScreenSizeInFullscreen()
 	ebiten.SetWindowSize(width, height*20/100)
@@ -196,25 +192,19 @@ func main() {
 	}
 	log.Info().Msg(pp.Sprint(config))
 
-	// Vision Client
+	// Vision
 	visionClient, err := vision.NewImageAnnotatorClient(context.Background())
 	if err != nil {
 		log.Fatal().Err(err).Send()
 	}
 	defer visionClient.Close()
 
-	// translate Client
-	translateClient, err := translate.NewClient(context.Background())
+	// Translator
+	translator, err := NewTranslator(config)
 	if err != nil {
 		log.Fatal().Err(err).Send()
 	}
-	defer translateClient.Close()
-
-	// Target language
-	target, err := language.Parse(config.TranslateTo)
-	if err != nil {
-		log.Fatal().Err(err).Send()
-	}
+	defer translator.Close()
 
 	// Font
 	ttf, err := opentype.Parse(fonts.MPlus1pRegular_ttf)
@@ -232,10 +222,9 @@ func main() {
 
 	app := &App{
 		visionClient:        visionClient,
-		translationClient:   translateClient,
+		translator:          translator,
 		subsFont:            fontFace,
 		windowTitle:         config.WindowTitle,
-		translateTo:         target,
 		refreshRate:         config.GetRefreshRate(),
 		confidenceThreshold: config.ConfidenceThreshold,
 	}

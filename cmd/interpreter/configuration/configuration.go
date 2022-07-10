@@ -12,11 +12,17 @@ const (
 	ConfigName = "interpreter"
 )
 
+type Translator struct {
+	To                string `mapstructure:"to"`
+	API               string `mapstructure:"api"`
+	AuthenticationKey string `mapstructure:"authentication-key"`
+}
+
 type Configuration struct {
-	WindowTitle         string  `mapstructure:"window-title"`
-	RefreshRate         string  `mapstructure:"refresh-rate"`
-	TranslateTo         string  `mapstructure:"translate-to"`
-	ConfidenceThreshold float32 `mapstructure:"confidence-threshold"`
+	WindowTitle         string     `mapstructure:"window-title"`
+	RefreshRate         string     `mapstructure:"refresh-rate"`
+	ConfidenceThreshold float32    `mapstructure:"confidence-threshold"`
+	Translator          Translator `mapstructure:"translator"`
 }
 
 func Read() (*Configuration, error) {

@@ -3,9 +3,9 @@
 This app can translate text captured from any application running on your computer. You just need to 
 specify which window you want to sample and that's it.
 
-The app uses Google Cloud Vision and Cloud Translate APIs to:
-* Extract the text on-screen
-* Translate it to a given language
+The app uses:
+* Google Cloud Vision to Extract the text on-screen
+* Google Translate or DeepL to translate it
 
 The translated text is then displayed as subtitles on a floating window that you can move anywhere.
 
@@ -17,43 +17,47 @@ It's typically used to translate Japanese retro games unreleased in the US but y
 
 Before you can use this app, you need some prerequisites:
 
-* A Google Cloud account
-* Go installed on your computer  
-
-## Getting a Google Cloud account 
-
-In order to use this application, you need to have a Google Cloud account:
-
-* Sign up to Google Cloud here for free: https://cloud.google.com/free or use your existing account.
-
-### Create or Select a Project
-
-* https://cloud.google.com/translate/docs/setup#project
-
-### Enable billing
-
-* https://cloud.google.com/translate/docs/setup#billing
-
-### Enable Cloud Vision API
-
-* https://cloud.google.com/vision/docs/setup#api
-
-### Enable Cloud Translation
-
-* https://cloud.google.com/translate/docs/setup#api
-
-### Create Service Accounts and Keys
-
-* https://cloud.google.com/translate/docs/setup#creating_service_accounts_and_keys
-
-### Use the Service Account Key File in Your Environment
-
-* https://cloud.google.com/translate/docs/setup#using_the_service_account_key_file_in_your_environment
+* Go installed on your computer.
+* A Google Cloud account.
+* Alternatively, you can use DeepL instead of Google Translate for translation.
 
 ## Installing Go
 
-In order to install go on your machine, follow the instructions here: https://go.dev/doc/install
+In order to install go on your machine, [follow the instructions here](https://go.dev/doc/install)
 
+## Setting up your Google Cloud account
+
+* [Get a free Google Cloud account here](https://cloud.google.com/free) or use your existing account.
+* [Create or Select a project](https://cloud.google.com/translate/docs/setup#project)
+* [Enable billing](https://cloud.google.com/translate/docs/setup#billing)
+* [Enable Cloud Vision API](https://cloud.google.com/vision/docs/setup#api) 
+* [Enable Cloud Translation](https://cloud.google.com/translate/docs/setup#api) (You can skip this step if you're using the DeepL API)
+* [Create Service Accounts and Keys](https://cloud.google.com/translate/docs/setup#creating_service_accounts_and_keys)
+* [Use the Service Account Key File in Your Environment](https://cloud.google.com/translate/docs/setup#using_the_service_account_key_file_in_your_environment)
+* Update the configuration file accordingly:
+```yml
+translator:
+  api: "google"
+  to: "en" # Target language
+```
+
+> Note: The list of Google Translate supported language is available [here](https://cloud.google.com/translate/docs/languages).
+
+## Setting up your DeepL Account
+
+As an alternative to Google Translate, you can use DeepL translate:
+
+* [Get a free DeepL account here](https://www.deepl.com/pro-checkout/account?productId=1200&yearly=false&trial=false) or use your existing account.
+* Update the configuration file accordingly:
+```yml
+translator:
+  api: "deepl"
+  to: "en" # Target language
+  authentication-key: "your-deepl-authentication-key"
+```
+
+> Note: The list of DeepL supported language is available [here](https://www.deepl.com/en/docs-api/translating-text).
+ 
 ## Cloning the repository
 
 ```
@@ -66,10 +70,12 @@ cd interpreter
 Update the `interpreter.yml` configuration file:
 
 ```yml
-window-title: "" # specify the name of the window you want to capture
-translate-to: "en"
+window-title: "Tales"
 refresh-rate: "5s"
 confidence-threshold: 0.9
+translator:
+  api: "google"
+  to: "en"
 ```
 
 ## Run Interpreter

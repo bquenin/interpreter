@@ -1,4 +1,7 @@
 window-title: "Tales"
-translate-to: "en"
 refresh-rate: "5s"
 confidence-threshold: 0.9
+translator:
+  api: "google"                         # "google" or "deepl"
+  to: "en"                              # Target language. For Google translate, please check here: https://cloud.google.com/translate/docs/languages. For deepL, please check here: https://www.deepl.com/en/docs-api/translating-text
+  authentication-key: "deepl-auth-key"  # required for deepL
