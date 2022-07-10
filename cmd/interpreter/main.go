@@ -3,9 +3,11 @@ package main
 import (
 	"bytes"
 	"context"
+	"flag"
+	"fmt"
+	"image"
 	"image/color"
 	"image/jpeg"
-	"io"
 	"os"
 	"time"
 
@@ -40,6 +42,7 @@ type App struct {
 	subs                string
 	confidenceThreshold float32
 	translator          translate.Translator
+	debug               bool
 }
 
 func filterTextByConfidence(annotation *visionpb.TextAnnotation, threshold float32) string {
@@ -61,24 +64,19 @@ func filterTextByConfidence(annotation *visionpb.TextAnnotation, threshold float
 	return buffer.String()
 }
 
-func (a *App) screenshot(windowTitle string) (*bytes.Buffer, error) {
-	// Capture window
-	img, err := captured.Captured.CaptureWindowByTitle(windowTitle, captured.CropTitle)
-	if err != nil {
-		return nil, err
-	}
-
-	// Encode to JPEG
-	var buffer bytes.Buffer
-	if err = jpeg.Encode(&buffer, img, &jpeg.Options{Quality: 85}); err != nil {
-		return nil, err
-	}
-	return &buffer, nil
+func (a *App) screenshot(windowTitle string) (image.Image, error) {
+	return captured.Captured.CaptureWindowByTitle(windowTitle, captured.CropTitle)
 }
 
-func (a *App) annotate(image io.Reader) (string, error) {
-	// Create img
-	img, err := vision.NewImageFromReader(image)
+func (a *App) annotate(image image.Image) (string, error) {
+	// Encode to JPEG
+	var buffer bytes.Buffer
+	if err := jpeg.Encode(&buffer, image, &jpeg.Options{Quality: 85}); err != nil {
+		return "", err
+	}
+
+	// Create image
+	img, err := vision.NewImageFromReader(&buffer)
 	if err != nil {
 		return "", err
 	}
@@ -119,12 +117,23 @@ func (a *App) Update() error {
 	a.lastUpdate = time.Now()
 
 	go func() {
-		ss, err := a.screenshot(a.windowTitle)
+		screenshot, err := a.screenshot(a.windowTitle)
 		if err != nil {
 			log.Fatal().Err(err).Send()
 		}
 
-		text, err := a.annotate(ss)
+		if a.debug { // Save screenshot to disk
+			f, err := os.Create(fmt.Sprintf("screenshot-%d.jpg", a.lastUpdate.UnixNano()))
+			if err != nil {
+				log.Fatal().Err(err).Send()
+			}
+			defer f.Close()
+			if err = jpeg.Encode(f, screenshot, &jpeg.Options{Quality: 85}); err != nil {
+				log.Fatal().Err(err).Send()
+			}
+		}
+
+		text, err := a.annotate(screenshot)
 		if err != nil {
 			log.Fatal().Err(err).Send()
 		}
@@ -190,6 +199,11 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Send()
 	}
+	debug := flag.Bool("d", false, "enable debug mode")
+	flag.Parse()
+	if *debug {
+		config.Debug = true
+	}
 	log.Info().Msg(pp.Sprint(config))
 
 	// Vision
@@ -227,6 +241,7 @@ func main() {
 		windowTitle:         config.WindowTitle,
 		refreshRate:         config.GetRefreshRate(),
 		confidenceThreshold: config.ConfidenceThreshold,
+		debug:               config.Debug,
 	}
 	if err := ebiten.RunGame(app); err != nil {
 		log.Fatal().Err(err).Send()

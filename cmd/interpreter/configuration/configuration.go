@@ -23,6 +23,7 @@ type Configuration struct {
 	RefreshRate         string     `mapstructure:"refresh-rate"`
 	ConfidenceThreshold float32    `mapstructure:"confidence-threshold"`
 	Translator          Translator `mapstructure:"translator"`
+	Debug               bool
 }
 
 func Read() (*Configuration, error) {

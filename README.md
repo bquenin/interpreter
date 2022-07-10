@@ -83,3 +83,11 @@ translator:
 ```
 go run ./cmd/interpreter/main.go
 ```
+
+## Debug mode
+
+In debug mode, `interpreter` will save the screenshots it takes to the current folder.
+
+```
+go run ./cmd/interpreter/main.go -d
+```

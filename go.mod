@@ -5,8 +5,8 @@ go 1.18
 require (
 	cloud.google.com/go/translate v1.2.0
 	cloud.google.com/go/vision v1.2.0
-	github.com/bquenin/captured v0.0.0-20220530153514-405b7681fdc2
-	github.com/hajimehoshi/ebiten/v2 v2.3.5
+	github.com/bquenin/captured v0.0.0-20220710161533-eea8853cd88e
+	github.com/hajimehoshi/ebiten/v2 v2.3.6
 	github.com/k0kubun/pp/v3 v3.1.0
 	github.com/rs/zerolog v1.27.0
 	github.com/spf13/viper v1.12.0
