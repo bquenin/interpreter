@@ -1,4 +1,4 @@
-window-title: ""                        # Title of the window you want to capture. It can be any part of the window title, for instance "Tales" for "Tales of Phantasia".
+window-title: "change me"               # Title of the window you want to capture. It can be any part of the window title, for instance "Tales" for "Tales of Phantasia".
 refresh-rate: "5s"                      # How often a screenshot is taken
 confidence-threshold: 0.9               # Between 0 and 1. Filters out any OCR character with a confidence score below the threshold.
 translator:

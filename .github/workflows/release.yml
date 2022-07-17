@@ -7,7 +7,8 @@ on:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
+    environment: build
     steps:
     - uses: actions/checkout@v3
 
@@ -17,15 +18,17 @@ jobs:
         go-version: 1.18
 
     - name: Build Darwin
-      run: GOARCH=amd64 GOOS=darwin go build -o interpreter ./cmd/interpreter/main.go
+      run: |
+        GOOS=darwin GOARCH=amd64 go build -o interpreter ./cmd/interpreter/main.go
+        zip interpreter-darwin-amd64.zip interpreter
 
     - name: Build Windows
-      run: GOARCH=amd64 GOOS=windows go build -o interpreter.exe ./cmd/interpreter/main.go
+      run: |
+        GOOS=windows GOARCH=amd64 go build -o interpreter.exe ./cmd/interpreter/main.go
+        zip interpreter-windows-amd64.zip interpreter.exe
 
     - name: Release
-      uses: softprops/action-gh-release@v1
-      if: startsWith(github.ref, 'refs/tags/')
+      uses: ncipollo/release-action@v1
       with:
-        files: |
-          interpreter
-          interpreter.exe
+        artifacts: "interpreter-darwin-amd64.zip,interpreter-windows-amd64.zip"
+        token: ${{ secrets.GH_ACCESS_TOKEN }}
