@@ -1,0 +1,24 @@
+name: Release
+
+on:
+  push:
+    tags:
+    - '*'
+
+jobs:
+
+  release:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Go
+      uses: actions/setup-go@v3
+      with:
+        go-version: 1.18
+
+    - name: Build Darwin
+      run: GOARCH=amd64 GOOS=darwin go build -o interpreter ./cmd/interpreter/main.go
+
+    - name: Build Windows
+      run: GOARCH=amd64 GOOS=windows go build -o interpreter.exe ./cmd/interpreter/main.go
