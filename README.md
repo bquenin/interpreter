@@ -17,13 +17,8 @@ It's typically used to translate Japanese retro games unreleased in the US but y
 
 Before you can use this app, you need some prerequisites:
 
-* Go installed on your computer.
 * A Google Cloud account.
 * Alternatively, you can use DeepL instead of Google Translate for translation.
-
-## Installing Go
-
-In order to install go on your machine, [follow the instructions here](https://go.dev/doc/install)
 
 ## Setting up your Google Cloud account
 
@@ -43,7 +38,7 @@ translator:
 
 > Note: The list of Google Translate supported language is available [here](https://cloud.google.com/translate/docs/languages).
 
-## Setting up your DeepL Account
+## (Optional) Setting up your DeepL account
 
 As an alternative to Google Translate, you can use DeepL translate:
 
@@ -58,13 +53,6 @@ translator:
 
 > Note: The list of DeepL supported language is available [here](https://www.deepl.com/en/docs-api/translating-text).
  
-## Cloning the repository
-
-```
-git clone https://github.com/bquenin/interpreter.git
-cd interpreter
-```
-
 ## Configure Interpreter
 
 Update the `interpreter.yml` configuration file:
@@ -81,13 +69,13 @@ translator:
 ## Run Interpreter
 
 ```
-go run ./cmd/interpreter/main.go
+./interpreter
 ```
 
-## Debug mode
+### Debug mode
 
 In debug mode, `interpreter` will save the screenshots it takes to the current folder.
 
 ```
-go run ./cmd/interpreter/main.go -d
+./interpreter -d
 ```

@@ -1,6 +1,8 @@
 package configuration
 
 import (
+	_ "embed"
+	"os"
 	"strings"
 	"time"
 
@@ -9,8 +11,11 @@ import (
 )
 
 const (
-	ConfigName = "interpreter"
+	ConfigName = "config"
 )
+
+//go:embed default.yml
+var defaultConfiguration []byte
 
 type Translator struct {
 	To                string `mapstructure:"to"`
@@ -48,6 +53,10 @@ func Read() (*Configuration, error) {
 	}
 
 	return &config, nil
+}
+
+func WriteDefault() error {
+	return os.WriteFile(ConfigName+".yml", defaultConfiguration, 0644)
 }
 
 // GetRefreshRate returns the refresh rate as duration

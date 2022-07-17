@@ -3,8 +3,10 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"flag"
 	"fmt"
+	"github.com/spf13/viper"
 	"image"
 	"image/color"
 	"image/jpeg"
@@ -197,7 +199,18 @@ func main() {
 	// Read configuration
 	config, err := configuration.Read()
 	if err != nil {
-		log.Fatal().Err(err).Send()
+		var configNotFound viper.ConfigFileNotFoundError
+		switch {
+		case errors.As(err, &configNotFound):
+			log.Info().Msg("Configuration file not found: Creating default configuration file")
+			if err = configuration.WriteDefault(); err != nil {
+				log.Fatal().Err(err).Send()
+			}
+			log.Info().Msg("Default configuration file successfully created.")
+			return
+		default:
+			log.Fatal().Err(err).Send()
+		}
 	}
 	debug := flag.Bool("d", false, "enable debug mode")
 	flag.Parse()

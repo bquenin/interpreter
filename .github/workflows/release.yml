@@ -3,10 +3,9 @@ name: Release
 on:
   push:
     tags:
-    - '*'
+    - "v*.*.*"
 
 jobs:
-
   release:
     runs-on: ubuntu-latest
     steps:
@@ -22,3 +21,11 @@ jobs:
 
     - name: Build Windows
       run: GOARCH=amd64 GOOS=windows go build -o interpreter.exe ./cmd/interpreter/main.go
+
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: |
+          interpreter
+          interpreter.exe
