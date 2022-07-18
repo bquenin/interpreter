@@ -22,6 +22,8 @@ Before you can use this app, you need some prerequisites:
 
 ## Setting up your Google Cloud account
 
+### [Check the video tutorial](https://www.youtube.com/watch?v=FLt-UyoNW9w)
+
 * [Get a free Google Cloud account here](https://cloud.google.com/free) or use your existing account.
 * [Create or Select a project](https://cloud.google.com/translate/docs/setup#project)
 * [Enable billing](https://cloud.google.com/translate/docs/setup#billing)
@@ -53,29 +55,25 @@ translator:
 
 > Note: The list of DeepL supported language is available [here](https://www.deepl.com/en/docs-api/translating-text).
  
+## Creating the default configuration file
+
+If you run `interpreter` and no configuration file is found, `interpreter` will create the default
+configuration file in the current folder and then exit.
+
+You can now make the required change to the configuration file.
+
+Once you are done, you can run `interpreter` again to start translating an application.
+
 ## Configure Interpreter
 
-Update the `interpreter.yml` configuration file:
+Update the `config.yml` configuration file:
 
 ```yml
-window-title: "Tales"
-refresh-rate: "5s"
-confidence-threshold: 0.9
+window-title: "change me"               # Title of the window you want to capture. It can be any part of the window title, for instance "Tales" for "Tales of Phantasia".
+refresh-rate: "5s"                      # How often a screenshot is taken
+confidence-threshold: 0.9               # Between 0 and 1. Filters out any OCR character with a confidence score below the threshold.
 translator:
-  api: "google"
-  to: "en"
-```
-
-## Run Interpreter
-
-```
-./interpreter
-```
-
-### Debug mode
-
-In debug mode, `interpreter` will save the screenshots it takes to the current folder.
-
-```
-./interpreter -d
+  api: "google"                         # "google" or "deepl"
+  to: "en"                              # Target language. For Google translate, please check here: https://cloud.google.com/translate/docs/languages. For deepL, please check here: https://www.deepl.com/en/docs-api/translating-text
+  authentication-key: "deepl-auth-key"  # required only for deepL
 ```
