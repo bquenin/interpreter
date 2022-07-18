@@ -3,6 +3,7 @@ package configuration
 import (
 	_ "embed"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -32,12 +33,18 @@ type Configuration struct {
 }
 
 func Read() (*Configuration, error) {
+	executable, err := os.Executable()
+	if err != nil {
+		return nil, err
+	}
+
 	// Add matching environment variables - will take precedence over config files.
 	viper.AutomaticEnv()
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_", "-", "_"))
 	viper.SetEnvPrefix("INTERPRETER")
 
 	// Add default config file search paths in order of decreasing precedence.
+	viper.AddConfigPath(filepath.Dir(executable))
 	viper.AddConfigPath(".")
 	viper.AddConfigPath("$HOME")
 	viper.SetConfigType("yml")
@@ -56,7 +63,13 @@ func Read() (*Configuration, error) {
 }
 
 func WriteDefault() error {
-	return os.WriteFile(ConfigName+".yml", defaultConfiguration, 0644)
+	executable, err := os.Executable()
+	if err != nil {
+		return err
+	}
+
+	configFilePath := filepath.Join(filepath.Dir(executable), ConfigName+".yml")
+	return os.WriteFile(configFilePath, defaultConfiguration, 0644)
 }
 
 // GetRefreshRate returns the refresh rate as duration
