@@ -5,3 +5,10 @@ translator:
   api: "google"                         # "google" or "deepl"
   to: "en"                              # Target language. For Google translate, please check here: https://cloud.google.com/translate/docs/languages. For deepL, please check here: https://www.deepl.com/en/docs-api/translating-text
   authentication-key: "deepl-auth-key"  # required only for deepL
+subs:
+  font:
+    color: "#FFFFFF"                      # RGB color code
+    size: 48                              # Font size
+  background:
+    color: "#404040"                      # RGB color code
+    opacity: 0xD0                         # Between 0x00 (transparent) and 0xFF (opaque)

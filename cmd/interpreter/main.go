@@ -6,11 +6,11 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/spf13/viper"
 	"image"
 	"image/color"
 	"image/jpeg"
 	"os"
+	"strings"
 	"time"
 
 	"cloud.google.com/go/vision/apiv1"
@@ -24,6 +24,7 @@ import (
 	"github.com/k0kubun/pp/v3"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/spf13/viper"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
 	visionpb "google.golang.org/genproto/googleapis/cloud/vision/v1"
@@ -45,6 +46,8 @@ type App struct {
 	confidenceThreshold float32
 	translator          translate.Translator
 	debug               bool
+	subsFontColor       color.RGBA
+	subsBackgroundColor color.RGBA
 }
 
 func filterTextByConfidence(annotation *visionpb.TextAnnotation, threshold float32) string {
@@ -161,41 +164,41 @@ func (a *App) Update() error {
 }
 
 func (a *App) Draw(screen *ebiten.Image) {
-	const x, y = 20, 96
-	bound := text.BoundString(a.subsFont, a.subs)
-	ebitenutil.DrawRect(screen, float64(bound.Min.X+x), float64(bound.Min.Y+y), float64(bound.Dx()), float64(bound.Dy()), color.RGBA{R: 0x40, G: 0x40, B: 0x40, A: 0xFF})
-	text.Draw(screen, a.subs, a.subsFont, x, y, color.White)
+	if a.subs == "" {
+		return
+	}
+
+	width, _ := ebiten.ScreenSizeInFullscreen()
+	var line, subtitles bytes.Buffer
+	for _, word := range strings.Fields(a.subs) {
+		bound := text.BoundString(a.subsFont, line.String()+word)
+		if bound.Dx() > width {
+			subtitles.WriteString(line.String())
+			subtitles.WriteString("\n")
+			line = bytes.Buffer{}
+		}
+		line.WriteString(word)
+		line.WriteString(" ")
+	}
+	subtitles.WriteString(line.String())
+
+	bound := text.BoundString(a.subsFont, subtitles.String())
+	boxSize := image.Point{X: bound.Max.X, Y: bound.Dy() + a.subsFont.Metrics().Height.Round()}
+
+	x := 0
+	if boxSize.X < width {
+		x = (width - boxSize.X) / 2
+	}
+	ebitenutil.DrawRect(screen, float64(x), float64(0), float64(boxSize.X), float64(boxSize.Y), a.subsBackgroundColor)
+	text.Draw(screen, subtitles.String(), a.subsFont, x, a.subsFont.Metrics().Height.Round(), a.subsFontColor)
+	ebiten.SetWindowSize(width, boxSize.Y)
 }
 
 func (a *App) Layout(outsideWidth, outsideHeight int) (int, int) {
 	return outsideWidth, outsideHeight
 }
 
-func NewTranslator(config *configuration.Configuration) (translate.Translator, error) {
-	var translator translate.Translator
-	var err error
-	switch config.Translator.API {
-	case "google":
-		translator, err = translate.NewGoogle(config.Translator.To)
-	case "deepl":
-		translator, err = translate.NewDeepL(config.Translator.To, config.Translator.AuthenticationKey)
-	default:
-		log.Fatal().Msgf("unsupported translator api: %s", config.Translator.API)
-	}
-	if err != nil {
-		return nil, err
-	}
-	return translator, nil
-}
-
 func main() {
-	width, height := ebiten.ScreenSizeInFullscreen()
-	ebiten.SetWindowSize(width, height*20/100)
-	ebiten.SetWindowTitle("Interpreter")
-	ebiten.SetWindowDecorated(false)
-	ebiten.SetWindowFloating(true)
-	ebiten.SetScreenTransparent(true)
-
 	// Read configuration
 	config, err := configuration.Read()
 	if err != nil {
@@ -227,19 +230,29 @@ func main() {
 	defer visionClient.Close()
 
 	// Translator
-	translator, err := NewTranslator(config)
+	translator, err := config.GetTranslator()
 	if err != nil {
 		log.Fatal().Err(err).Send()
 	}
 	defer translator.Close()
 
 	// Font
+	fontColor, err := config.Subs.Font.GetColor()
+	if err != nil {
+		log.Fatal().Err(err).Send()
+	}
+
+	backgroundColor, err := config.Subs.Background.GetColor()
+	if err != nil {
+		log.Fatal().Err(err).Send()
+	}
+
 	ttf, err := opentype.Parse(fonts.MPlus1pRegular_ttf)
 	if err != nil {
 		log.Fatal().Err(err).Send()
 	}
 	fontFace, err := opentype.NewFace(ttf, &opentype.FaceOptions{
-		Size:    48,
+		Size:    float64(config.Subs.Font.Size),
 		DPI:     72,
 		Hinting: font.HintingFull,
 	})
@@ -247,10 +260,17 @@ func main() {
 		log.Fatal().Err(err).Send()
 	}
 
+	ebiten.SetWindowTitle("Interpreter")
+	ebiten.SetWindowDecorated(false)
+	ebiten.SetWindowFloating(true)
+	ebiten.SetScreenTransparent(true)
+
 	app := &App{
 		visionClient:        visionClient,
 		translator:          translator,
 		subsFont:            fontFace,
+		subsFontColor:       fontColor,
+		subsBackgroundColor: backgroundColor,
 		windowTitle:         config.WindowTitle,
 		refreshRate:         config.GetRefreshRate(),
 		confidenceThreshold: config.ConfidenceThreshold,
