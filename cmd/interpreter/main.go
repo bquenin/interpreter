@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"image"
 	"image/color"
 	"image/jpeg"
@@ -108,11 +109,8 @@ func (a *App) annotate(image image.Image) (string, error) {
 }
 
 func (a *App) Update() error {
-	// Move window handler
-	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
-		x, y := ebiten.CursorPosition()
-		cx, cy := ebiten.WindowPosition()
-		ebiten.SetWindowPosition(x+cx, y+cy)
+	if inpututil.IsKeyJustPressed(ebiten.KeyT) {
+		ebiten.SetWindowDecorated(!ebiten.IsWindowDecorated())
 	}
 
 	// Check if it's time to refresh
@@ -164,11 +162,20 @@ func (a *App) Update() error {
 }
 
 func (a *App) Draw(screen *ebiten.Image) {
+	width, height := ebiten.WindowSize()
+	if ebiten.IsWindowDecorated() {
+		ebitenutil.DrawRect(screen, 0, 0, float64(width), float64(height), color.Black)
+		message := "Press T to toggle window"
+		if a.subs == "" {
+			message += "\n[no text detected]"
+		}
+		ebitenutil.DebugPrint(screen, message)
+	}
+
 	if a.subs == "" {
 		return
 	}
 
-	width, _ := ebiten.ScreenSizeInFullscreen()
 	var line, subtitles bytes.Buffer
 	for _, word := range strings.Fields(a.subs) {
 		bound := text.BoundString(a.subsFont, line.String()+word)
@@ -191,7 +198,6 @@ func (a *App) Draw(screen *ebiten.Image) {
 	}
 	ebitenutil.DrawRect(screen, float64(x), float64(0), float64(boxSize.X), float64(boxSize.Y), a.subsBackgroundColor)
 	text.Draw(screen, subtitles.String(), a.subsFont, x, a.subsFont.Metrics().Height.Round(), a.subsFontColor)
-	ebiten.SetWindowSize(width, boxSize.Y)
 }
 
 func (a *App) Layout(outsideWidth, outsideHeight int) (int, int) {
@@ -261,9 +267,9 @@ func main() {
 	}
 
 	ebiten.SetWindowTitle("Interpreter")
-	ebiten.SetWindowDecorated(false)
-	ebiten.SetWindowFloating(true)
 	ebiten.SetScreenTransparent(true)
+	ebiten.SetWindowFloating(true)
+	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 
 	app := &App{
 		visionClient:        visionClient,
