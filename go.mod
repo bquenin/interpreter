@@ -44,14 +44,14 @@ require (
 	go.opencensus.io v0.23.0 // indirect
 	golang.org/x/exp/shiny v0.0.0-20220722155223-a9213eeb770e // indirect
 	golang.org/x/mobile v0.0.0-20220722155234-aaac322e2105 // indirect
-	golang.org/x/net v0.0.0-20220726230323-06994584191e // indirect
+	golang.org/x/net v0.0.0-20220728153142-1f511ac62c11 // indirect
 	golang.org/x/oauth2 v0.0.0-20220722155238-128564f6959c // indirect
 	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4 // indirect
-	golang.org/x/sys v0.0.0-20220722155257-8c9f86f7a55f // indirect
+	golang.org/x/sys v0.0.0-20220728004956-3c1f35247d10 // indirect
 	google.golang.org/api v0.89.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/grpc v1.48.0 // indirect
-	google.golang.org/protobuf v1.28.0 // indirect
+	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/ini.v1 v1.66.6 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

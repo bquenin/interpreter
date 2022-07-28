@@ -15,14 +15,16 @@ It's typically used to translate Japanese retro games unreleased in the US but y
 
 # How to use
 
+## [Check the video tutorial](https://www.youtube.com/watch?v=FLt-UyoNW9w)
+
+## Prerequisites
+
 Before you can use this app, you need some prerequisites:
 
 * A Google Cloud account.
 * Alternatively, you can use DeepL instead of Google Translate for translation.
 
 ## Setting up your Google Cloud account
-
-### [Check the video tutorial](https://www.youtube.com/watch?v=FLt-UyoNW9w)
 
 * [Get a free Google Cloud account here](https://cloud.google.com/free) or use your existing account.
 * [Create or Select a project](https://cloud.google.com/translate/docs/setup#project)
@@ -60,7 +62,7 @@ translator:
 If you run `interpreter` and no configuration file is found, `interpreter` will create the default
 configuration file in the current folder and then exit.
 
-You can now make the required change to the configuration file.
+You can make the required change to the configuration file after that.
 
 Once you are done, you can run `interpreter` again to start translating an application.
 
@@ -84,3 +86,11 @@ subs:
     color: "#404040"                      # RGB color code
     opacity: 0xD0                         # Between 0x00 (transparent) and 0xFF (opaque)
 ```
+
+## Why does my virus-scanning software think `interpreter` is infected?
+
+This is a common occurrence, especially on Windows machines, and is always a false positive. Commercial virus
+scanning programs are often confused by the structure of Go binaries, which they don't see as often as those compiled
+from other languages.
+
+Read more about it [here](https://go.dev/doc/faq#virus)

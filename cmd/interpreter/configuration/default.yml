@@ -8,7 +8,7 @@ translator:
 subs:
   font:
     color: "#FFFFFF"                      # RGB color code
-    size: 48                              # Font size
+    size: 24                              # Font size
   background:
     color: "#404040"                      # RGB color code
     opacity: 0xD0                         # Between 0x00 (transparent) and 0xFF (opaque)
