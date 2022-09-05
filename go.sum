@@ -204,8 +204,8 @@ github.com/googleapis/google-cloud-go-testing v0.0.0-20200911160855-bcd43fbb19e8
 github.com/grpc-ecosystem/grpc-gateway v1.16.0/go.mod h1:BDjrQk3hbvj6Nolgz8mAMFbcEtjT1g+wF4CSlocrBnw=
 github.com/hajimehoshi/bitmapfont/v2 v2.2.1 h1:y7zcy02/UgO24IL3COqYtrRZzhRucNBtmCo/SNU648k=
 github.com/hajimehoshi/bitmapfont/v2 v2.2.1/go.mod h1:wjrYAy8vKgj9JsFgnYAOK346/uvE22TlmqouzdnYIs0=
-github.com/hajimehoshi/ebiten/v2 v2.4.0 h1:IDs5vvXGRgjLoRCFBi0UU0bXLzMXExY5znzADCORVsI=
-github.com/hajimehoshi/ebiten/v2 v2.4.0/go.mod h1:z9L4JZ3XHQqvCuVuAQ1qTByIV2YHGS1w6keUSVC9NDA=
+github.com/hajimehoshi/ebiten/v2 v2.4.1 h1:K5lpuDGbmvMi9VtqhSq08JB7SBzgQqApNrzvd0HK/NU=
+github.com/hajimehoshi/ebiten/v2 v2.4.1/go.mod h1:z9L4JZ3XHQqvCuVuAQ1qTByIV2YHGS1w6keUSVC9NDA=
 github.com/hajimehoshi/file2byteslice v0.0.0-20210813153925-5340248a8f41 h1:s01qIIRG7vN/5ndLwkDktjx44ulFk6apvAjVBYR50Yo=
 github.com/hajimehoshi/file2byteslice v0.0.0-20210813153925-5340248a8f41/go.mod h1:CqqAHp7Dk/AqQiwuhV1yT2334qbA/tFWQW0MD2dGqUE=
 github.com/hajimehoshi/go-mp3 v0.3.3/go.mod h1:qMJj/CSDxx6CGHiZeCgbiq2DSUkbK0UbtXShQcnfyMM=
