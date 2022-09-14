@@ -9,7 +9,7 @@ require (
 	github.com/hajimehoshi/ebiten/v2 v2.4.3
 	github.com/k0kubun/pp/v3 v3.1.0
 	github.com/rs/zerolog v1.28.0
-	github.com/spf13/viper v1.12.0
+	github.com/spf13/viper v1.13.0
 	golang.org/x/image v0.0.0-20220722155232-062f8c9fd539
 	golang.org/x/text v0.3.7
 	google.golang.org/genproto v0.0.0-20220725144611-272f38e5d71b
@@ -36,12 +36,12 @@ require (
 	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
-	github.com/pelletier/go-toml/v2 v2.0.2 // indirect
+	github.com/pelletier/go-toml/v2 v2.0.5 // indirect
 	github.com/spf13/afero v1.9.2 // indirect
 	github.com/spf13/cast v1.5.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/subosito/gotenv v1.4.0 // indirect
+	github.com/subosito/gotenv v1.4.1 // indirect
 	go.opencensus.io v0.23.0 // indirect
 	golang.org/x/exp/shiny v0.0.0-20220722155223-a9213eeb770e // indirect
 	golang.org/x/mobile v0.0.0-20220722155234-aaac322e2105 // indirect
@@ -52,7 +52,7 @@ require (
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/grpc v1.48.0 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
-	gopkg.in/ini.v1 v1.66.6 // indirect
+	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
