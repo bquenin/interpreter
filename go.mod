@@ -9,7 +9,7 @@ require (
 	github.com/hajimehoshi/ebiten/v2 v2.4.8
 	github.com/k0kubun/pp/v3 v3.2.0
 	github.com/rs/zerolog v1.28.0
-	github.com/spf13/viper v1.13.0
+	github.com/spf13/viper v1.14.0
 	golang.org/x/image v0.0.0-20220902085622-e7cb96979f69
 	golang.org/x/text v0.5.0
 	google.golang.org/genproto v0.0.0-20221201164419-0e50fba7f41c
@@ -22,7 +22,7 @@ require (
 	cloud.google.com/go/longrunning v0.3.0 // indirect
 	cloud.google.com/go/vision/v2 v2.5.0 // indirect
 	github.com/ebitengine/purego v0.1.0 // indirect
-	github.com/fsnotify/fsnotify v1.5.4 // indirect
+	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/go-gl/glfw/v3.3/glfw v0.0.0-20220806181222-55e207c401ad // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
