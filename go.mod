@@ -8,7 +8,7 @@ require (
 	github.com/bquenin/captured v0.0.0-20220718001553-a79764d4941b
 	github.com/hajimehoshi/ebiten/v2 v2.4.16
 	github.com/k0kubun/pp/v3 v3.2.0
-	github.com/rs/zerolog v1.28.0
+	github.com/rs/zerolog v1.29.0
 	github.com/spf13/viper v1.14.0
 	golang.org/x/image v0.5.0
 	golang.org/x/text v0.7.0
