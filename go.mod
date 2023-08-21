@@ -6,12 +6,12 @@ require (
 	cloud.google.com/go/translate v1.7.1
 	cloud.google.com/go/vision v1.2.0
 	github.com/bquenin/captured v0.0.0-20220718001553-a79764d4941b
-	github.com/hajimehoshi/ebiten/v2 v2.5.4
+	github.com/hajimehoshi/ebiten/v2 v2.5.7
 	github.com/k0kubun/pp/v3 v3.2.0
 	github.com/rs/zerolog v1.29.1
 	github.com/spf13/viper v1.16.0
-	golang.org/x/image v0.7.0
-	golang.org/x/text v0.10.0
+	golang.org/x/image v0.10.0
+	golang.org/x/text v0.11.0
 	google.golang.org/genproto v0.0.0-20230410155749-daa745c078e1
 )
 
@@ -21,7 +21,7 @@ require (
 	cloud.google.com/go/compute/metadata v0.2.3 // indirect
 	cloud.google.com/go/longrunning v0.4.1 // indirect
 	cloud.google.com/go/vision/v2 v2.7.0 // indirect
-	github.com/ebitengine/purego v0.3.0 // indirect
+	github.com/ebitengine/purego v0.4.0 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/go-gl/glfw/v3.3/glfw v0.0.0-20221017161538-93cebf72946b // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
