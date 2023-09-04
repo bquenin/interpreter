@@ -11,7 +11,7 @@ require (
 	github.com/rs/zerolog v1.29.1
 	github.com/spf13/viper v1.16.0
 	golang.org/x/image v0.7.0
-	golang.org/x/text v0.10.0
+	golang.org/x/text v0.13.0
 	google.golang.org/genproto v0.0.0-20230410155749-daa745c078e1
 )
 
