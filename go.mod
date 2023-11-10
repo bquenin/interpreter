@@ -8,7 +8,7 @@ require (
 	github.com/bquenin/captured v0.0.0-20220718001553-a79764d4941b
 	github.com/hajimehoshi/ebiten/v2 v2.6.2
 	github.com/k0kubun/pp/v3 v3.2.0
-	github.com/rs/zerolog v1.30.0
+	github.com/rs/zerolog v1.31.0
 	github.com/spf13/viper v1.17.0
 	golang.org/x/image v0.14.0
 	golang.org/x/text v0.14.0
@@ -34,7 +34,7 @@ require (
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
-	github.com/mattn/go-isatty v0.0.17 // indirect
+	github.com/mattn/go-isatty v0.0.19 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.1.0 // indirect
 	github.com/sagikazarmark/locafero v0.3.0 // indirect
