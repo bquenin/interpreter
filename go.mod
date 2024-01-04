@@ -3,7 +3,7 @@ module github.com/bquenin/interpreter
 go 1.18
 
 require (
-	cloud.google.com/go/translate v1.9.3
+	cloud.google.com/go/translate v1.10.0
 	cloud.google.com/go/vision v1.2.0
 	github.com/bquenin/captured v0.0.0-20220718001553-a79764d4941b
 	github.com/hajimehoshi/ebiten/v2 v2.6.2
