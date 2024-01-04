@@ -10,7 +10,7 @@ require (
 	github.com/k0kubun/pp/v3 v3.2.0
 	github.com/rs/zerolog v1.31.0
 	github.com/spf13/viper v1.17.0
-	golang.org/x/image v0.14.0
+	golang.org/x/image v0.15.0
 	golang.org/x/text v0.14.0
 	google.golang.org/genproto v0.0.0-20231016165738-49dd2c1f3d0b
 )
