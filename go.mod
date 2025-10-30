@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go/translate v1.10.1
 	cloud.google.com/go/vision v1.2.0
 	github.com/bquenin/captured v0.0.0-20220718001553-a79764d4941b
-	github.com/hajimehoshi/ebiten/v2 v2.6.2
+	github.com/hajimehoshi/ebiten/v2 v2.6.6
 	github.com/k0kubun/pp/v3 v3.2.0
 	github.com/rs/zerolog v1.31.0
 	github.com/spf13/viper v1.17.0
@@ -23,6 +23,9 @@ require (
 	cloud.google.com/go/vision/v2 v2.7.5 // indirect
 	github.com/ebitengine/purego v0.5.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
+	cloud.google.com/go/longrunning v0.5.2 // indirect
+	cloud.google.com/go/vision/v2 v2.7.3 // indirect
+	github.com/ebitengine/purego v0.6.0 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/go-logr/logr v1.4.1 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
