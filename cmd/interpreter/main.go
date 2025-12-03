@@ -104,7 +104,7 @@ func (a *App) annotate(image image.Image) (string, error) {
 		return "", nil
 	}
 
-	log.Info().Msgf("extracted text: %s", extractedText)
+	log.Debug().Msgf("extracted text length: %d characters", len(extractedText))
 	return extractedText, nil
 }
 
@@ -152,7 +152,7 @@ func (a *App) Update() error {
 		if err != nil {
 			log.Fatal().Err(err).Send()
 		}
-		log.Info().Msgf("translated text: %s", translation)
+		log.Debug().Msgf("translated text length: %d characters", len(translation))
 
 		a.lastText = text
 		a.subs = translation

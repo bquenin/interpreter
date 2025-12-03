@@ -88,7 +88,7 @@ func WriteDefault() error {
 	}
 
 	configFilePath := filepath.Join(filepath.Dir(executable), ConfigName+".yml")
-	return os.WriteFile(configFilePath, defaultConfiguration, 0644)
+	return os.WriteFile(configFilePath, defaultConfiguration, 0600)
 }
 
 // GetRefreshRate returns the refresh rate as duration

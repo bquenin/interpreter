@@ -2,10 +2,14 @@ package translate
 
 import (
 	"encoding/json"
-	"golang.org/x/text/language"
+	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
+
+	"golang.org/x/text/language"
 )
 
 const (
@@ -35,21 +39,32 @@ type Translations struct {
 }
 
 func (d *DeepL) Translate(source string) (string, error) {
-	u, _ := url.Parse(apiURL)
+	u, err := url.Parse(apiURL)
+	if err != nil {
+		return "", err
+	}
 
 	urlData := url.Values{}
 	urlData.Set("auth_key", d.authenticationKey)
 	urlData.Set("target_lang", d.target.String())
 	urlData.Set("text", source)
 
-	client := &http.Client{}
-	r, _ := http.NewRequest(http.MethodPost, u.String(), strings.NewReader(urlData.Encode())) // URL-encoded payload
-	r.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-
-	resp, err := client.Do(r)
-	defer resp.Body.Close()
+	req, err := http.NewRequest(http.MethodPost, u.String(), strings.NewReader(urlData.Encode()))
 	if err != nil {
 		return "", err
+	}
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		return "", fmt.Errorf("unexpected status from DeepL: %s: %s", resp.Status, strings.TrimSpace(string(body)))
 	}
 
 	var deepL DeepLResponse
