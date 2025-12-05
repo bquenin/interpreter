@@ -2,10 +2,13 @@ package translate
 
 import (
 	"encoding/json"
-	"golang.org/x/text/language"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
+
+	"golang.org/x/text/language"
 )
 
 const (
@@ -35,21 +38,31 @@ type Translations struct {
 }
 
 func (d *DeepL) Translate(source string) (string, error) {
-	u, _ := url.Parse(apiURL)
+	u, err := url.Parse(apiURL)
+	if err != nil {
+		return "", err
+	}
 
 	urlData := url.Values{}
 	urlData.Set("auth_key", d.authenticationKey)
 	urlData.Set("target_lang", d.target.String())
 	urlData.Set("text", source)
 
-	client := &http.Client{}
-	r, _ := http.NewRequest(http.MethodPost, u.String(), strings.NewReader(urlData.Encode())) // URL-encoded payload
+	client := &http.Client{Timeout: 10 * time.Second}
+	r, err := http.NewRequest(http.MethodPost, u.String(), strings.NewReader(urlData.Encode())) // URL-encoded payload
+	if err != nil {
+		return "", err
+	}
 	r.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
 	resp, err := client.Do(r)
-	defer resp.Body.Close()
 	if err != nil {
 		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("deepl API responded with status %s", resp.Status)
 	}
 
 	var deepL DeepLResponse
