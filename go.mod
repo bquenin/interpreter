@@ -10,8 +10,8 @@ require (
 	github.com/k0kubun/pp/v3 v3.5.0
 	github.com/rs/zerolog v1.34.0
 	github.com/spf13/viper v1.21.0
-	golang.org/x/image v0.33.0
-	golang.org/x/text v0.31.0
+	golang.org/x/image v0.34.0
+	golang.org/x/text v0.32.0
 	google.golang.org/genproto v0.0.0-20250603155806-513f23925822
 )
 
@@ -58,7 +58,7 @@ require (
 	golang.org/x/crypto v0.45.0 // indirect
 	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
-	golang.org/x/sync v0.18.0 // indirect
+	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
 	google.golang.org/api v0.247.0 // indirect
