@@ -1,0 +1,27 @@
+# OCR
+meikiocr
+
+# Translation (Sugoi V4)
+ctranslate2
+sentencepiece
+
+# Image processing
+Pillow>=10.0.0
+numpy
+opencv-python
+
+# Screen capture
+mss>=9.0.0
+
+# Configuration
+PyYAML>=6.0
+
+# Model download
+requests
+tqdm
+
+# macOS only - window capture
+pyobjc-framework-Quartz>=10.0; sys_platform == "darwin"
+
+# Windows only - window capture
+pygetwindow>=0.0.9; sys_platform == "win32"

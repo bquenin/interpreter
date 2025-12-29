@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Interpreter v2 - Offline screen translator for Japanese games.
+"""Interpreter - Offline screen translator for Japanese games.
 
 This application captures text from a target window, performs OCR using
-manga-ocr, translates using Argos Translate, and displays subtitles
-in a transparent overlay.
+MeikiOCR, translates using Sugoi V4, and displays subtitles in a
+transparent overlay.
 """
 
 import argparse
@@ -62,6 +62,12 @@ def main():
         action="store_true",
         help="Skip translation (OCR only, for testing)"
     )
+    parser.add_argument(
+        "--models-dir",
+        type=str,
+        default=None,
+        help="Path to models directory (default: ~/.interpreter/models)"
+    )
 
     args = parser.parse_args()
 
@@ -77,11 +83,14 @@ def main():
     if args.window:
         config.window_title = args.window
 
-    print(f"Interpreter v2 - Offline Screen Translator")
-    print(f"=" * 50)
+    print("Interpreter - Offline Screen Translator")
+    print("=" * 50)
     print(f"Target window: {config.window_title}")
     print(f"Refresh rate: {config.refresh_rate}s")
     print()
+
+    # Set up models directory
+    models_dir = Path(args.models_dir) if args.models_dir else None
 
     # Initialize components
     print("Initializing components...")
@@ -94,15 +103,20 @@ def main():
         sys.exit(1)
     print(f"  Window found: {config.window_title}")
 
-    # Initialize OCR (lazy loading)
-    ocr = OCR()
-    print("  OCR: manga-ocr (will load on first use)")
+    # Initialize OCR with confidence threshold from config
+    ocr = OCR(confidence_threshold=config.confidence_threshold)
+    print("  OCR: MeikiOCR (will load on first use)")
 
     # Initialize translator (lazy loading)
     translator = None
     if not args.no_translate:
-        translator = Translator()
-        print("  Translator: Argos Translate (will load on first use)")
+        # Get model path if models_dir specified
+        model_path = None
+        if models_dir:
+            model_path = models_dir / "sugoi-v4-ja-en-ct2"
+
+        translator = Translator(model_path=model_path)
+        print("  Translator: Sugoi V4 (will load on first use)")
     else:
         print("  Translator: DISABLED (--no-translate)")
 

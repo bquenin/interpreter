@@ -197,9 +197,49 @@ class SugoiTranslator:
             max_decoding_length=256
         )
 
-        # Decode
+        # Decode - join tokens and clean up SentencePiece artifacts
         translated_tokens = results[0].hypotheses[0]
-        return self.tokenizer.DecodePieces(translated_tokens)
+        result = "".join(translated_tokens).replace("▁", " ").strip()
+        return result
+
+
+class DeepLTranslator:
+    """Wrapper for DeepL API translation."""
+
+    def __init__(self):
+        self.translator = None
+
+    def load(self):
+        if self.translator is None:
+            print("  Loading DeepL translator...")
+            import deepl
+            api_key = os.environ.get("DEEPL_API_KEY")
+            if not api_key:
+                raise ValueError("DEEPL_API_KEY environment variable not set")
+            self.translator = deepl.Translator(api_key)
+
+    def translate(self, text: str) -> str:
+        """Translate Japanese text to English."""
+        if not text.strip():
+            return ""
+        import time
+        time.sleep(0.5)  # Rate limit protection
+        for attempt in range(3):
+            try:
+                result = self.translator.translate_text(text, source_lang="JA", target_lang="EN-US")
+                return result.text
+            except Exception as e:
+                if attempt < 2:
+                    time.sleep(2)  # Wait longer before retry
+                else:
+                    print(f"    [DeepL error: {e}]")
+                    return f"[ERROR: {e}]"
+
+
+TRANSLATORS = {
+    "sugoi": SugoiTranslator,
+    "deepl": DeepLTranslator,
+}
 
 
 # ============================================================================
@@ -266,6 +306,7 @@ def run_benchmark(
     preprocessing: list[str] | None = None,
     save_results: bool = False,
     include_translation: bool = False,
+    translator_names: list[str] | None = None,
 ) -> dict:
     """Run the OCR benchmark.
 
@@ -274,6 +315,7 @@ def run_benchmark(
         preprocessing: List of preprocessing methods to test (default: all)
         save_results: Whether to save results to JSON file
         include_translation: Whether to include translation in the benchmark
+        translator_names: Which translators to use (default: all)
 
     Returns:
         Results dictionary
@@ -283,6 +325,8 @@ def run_benchmark(
         engines = list(OCR_ENGINES.keys())
     if preprocessing is None:
         preprocessing = list(PREPROCESSING_METHODS.keys())
+    if translator_names is None:
+        translator_names = list(TRANSLATORS.keys())
 
     # Discover test cases
     print("Discovering test cases...")
@@ -303,12 +347,17 @@ def run_benchmark(
         engine.load()
         loaded_engines[engine_name] = engine
 
-    # Load translator if needed
-    translator = None
+    # Load translators if needed
+    loaded_translators = {}
     if include_translation:
-        print("\nLoading translator...")
-        translator = SugoiTranslator()
-        translator.load()
+        print("\nLoading translators...")
+        for tl_name in translator_names:
+            if tl_name not in TRANSLATORS:
+                print(f"Warning: Unknown translator '{tl_name}', skipping")
+                continue
+            translator = TRANSLATORS[tl_name]()
+            translator.load()
+            loaded_translators[tl_name] = translator
 
     # Run benchmark
     print("\n" + "=" * 80)
@@ -352,38 +401,41 @@ def run_benchmark(
                     "ocr_output": output,
                     "ground_truth": test_case["ground_truth"],
                     "ocr_accuracy": round(ocr_accuracy, 2),
+                    "translations": {},
                 }
 
-                # Add translation if enabled
+                # Add translations if enabled
                 if include_translation:
-                    translation = translator.translate(output) if output.strip() else ""
-                    result["translation"] = translation
-                    if test_case.get("ground_truth_translations"):
-                        # Compare against all valid translations, use best match
-                        best_tl_accuracy = 0.0
-                        best_match = test_case["ground_truth_translations"][0]
-                        for gt_tl in test_case["ground_truth_translations"]:
-                            acc = calculate_accuracy(translation, gt_tl)
-                            if acc > best_tl_accuracy:
-                                best_tl_accuracy = acc
-                                best_match = gt_tl
-                        result["ground_truth_translation"] = best_match
-                        result["translation_accuracy"] = round(best_tl_accuracy, 2)
+                    for tl_name, translator in loaded_translators.items():
+                        translation = translator.translate(output) if output.strip() else ""
+                        tl_result = {"output": translation}
+                        if test_case.get("ground_truth_translations"):
+                            # Compare against all valid translations, use best match
+                            best_tl_accuracy = 0.0
+                            best_match = test_case["ground_truth_translations"][0]
+                            for gt_tl in test_case["ground_truth_translations"]:
+                                acc = calculate_accuracy(translation, gt_tl)
+                                if acc > best_tl_accuracy:
+                                    best_tl_accuracy = acc
+                                    best_match = gt_tl
+                            tl_result["accuracy"] = round(best_tl_accuracy, 2)
+                            tl_result["best_match"] = best_match
+                        result["translations"][tl_name] = tl_result
 
                 results["results"].append(result)
 
                 # Print results
                 if include_translation:
-                    tl_acc_str = f"{result.get('translation_accuracy', 0):.1f}%" if "translation_accuracy" in result else "N/A"
-                    print(f"  {engine_name} + {preproc_name}: OCR {ocr_accuracy:.1f}% | TL {tl_acc_str}")
-                    if len(output) > 40:
-                        print(f"    OCR: {output[:40]}...")
+                    tl_strs = []
+                    for tl_name in loaded_translators:
+                        if tl_name in result["translations"] and "accuracy" in result["translations"][tl_name]:
+                            tl_strs.append(f"{tl_name}={result['translations'][tl_name]['accuracy']:.1f}%")
+                    tl_summary = " | ".join(tl_strs) if tl_strs else "N/A"
+                    print(f"  {engine_name} + {preproc_name}: OCR {ocr_accuracy:.1f}% | TL: {tl_summary}")
+                    if len(output) > 50:
+                        print(f"    OCR: {output[:50]}...")
                     else:
                         print(f"    OCR: {output}")
-                    if len(translation) > 40:
-                        print(f"    TL:  {translation[:40]}...")
-                    else:
-                        print(f"    TL:  {translation}")
                 else:
                     print(f"  {engine_name} + {preproc_name}: {ocr_accuracy:.1f}%")
                     print(f"    Output: {output[:50]}..." if len(output) > 50 else f"    Output: {output}")
@@ -395,15 +447,19 @@ def run_benchmark(
 
     # Group results by engine + preprocessing
     ocr_summary = {}
-    tl_summary = {}
+    tl_summaries = {tl_name: {} for tl_name in loaded_translators}
     for r in results["results"]:
         key = (r["engine"], r["preprocessing"])
         if key not in ocr_summary:
             ocr_summary[key] = []
-            tl_summary[key] = []
         ocr_summary[key].append(r["ocr_accuracy"])
-        if "translation_accuracy" in r:
-            tl_summary[key].append(r["translation_accuracy"])
+
+        # Group translation results by translator
+        for tl_name in loaded_translators:
+            if key not in tl_summaries[tl_name]:
+                tl_summaries[tl_name][key] = []
+            if tl_name in r.get("translations", {}) and "accuracy" in r["translations"][tl_name]:
+                tl_summaries[tl_name][key].append(r["translations"][tl_name]["accuracy"])
 
     # Print OCR header
     header = f"{'Engine':<12} {'Preprocessing':<18}"
@@ -428,10 +484,12 @@ def run_benchmark(
             row += f" {avg:>6.1f}%"
             print(row)
 
-    # Print translation summary if enabled
-    if include_translation and any(tl_summary.values()):
+    # Print translation summary for each translator
+    for tl_name, tl_summary in tl_summaries.items():
+        if not any(tl_summary.values()):
+            continue
         print("\n" + "=" * 80)
-        print("SUMMARY TABLE - Translation Accuracy")
+        print(f"SUMMARY TABLE - Translation Accuracy ({tl_name})")
         print("=" * 80)
         print(header)
         print("-" * len(header))
@@ -463,19 +521,16 @@ def run_benchmark(
     print(f"Best OCR single:  {best_ocr_single['engine']} + {best_ocr_single['preprocessing']} "
           f"on {best_ocr_single['test_case']} = {best_ocr_single['ocr_accuracy']:.1f}%")
 
-    if include_translation and any(tl_summary.values()):
+    # Best translation for each translator
+    for tl_name, tl_summary in tl_summaries.items():
+        if not any(tl_summary.values()):
+            continue
         best_tl_avg = max(
             [(k, v) for k, v in tl_summary.items() if v],
             key=lambda x: sum(x[1]) / len(x[1])
         )
         avg_tl_acc = sum(best_tl_avg[1]) / len(best_tl_avg[1])
-        print(f"Best TL average:  {best_tl_avg[0][0]} + {best_tl_avg[0][1]} = {avg_tl_acc:.1f}%")
-
-        tl_results = [r for r in results["results"] if "translation_accuracy" in r]
-        if tl_results:
-            best_tl_single = max(tl_results, key=lambda x: x["translation_accuracy"])
-            print(f"Best TL single:   {best_tl_single['engine']} + {best_tl_single['preprocessing']} "
-                  f"on {best_tl_single['test_case']} = {best_tl_single['translation_accuracy']:.1f}%")
+        print(f"Best TL avg ({tl_name}): {best_tl_avg[0][0]} + {best_tl_avg[0][1]} = {avg_tl_acc:.1f}%")
 
     # Save results if requested
     if save_results:
@@ -514,7 +569,14 @@ def main():
     parser.add_argument(
         "--translate", "-t",
         action="store_true",
-        help="Include translation in benchmark (uses Sugoi V4)"
+        help="Include translation in benchmark"
+    )
+    parser.add_argument(
+        "--translator",
+        type=str,
+        action="append",
+        choices=list(TRANSLATORS.keys()),
+        help="Translator(s) to use (default: all). Can be specified multiple times."
     )
 
     args = parser.parse_args()
@@ -524,6 +586,7 @@ def main():
         preprocessing=args.preprocessing,
         save_results=args.save,
         include_translation=args.translate,
+        translator_names=args.translator,
     )
 
 
