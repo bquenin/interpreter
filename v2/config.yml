@@ -1,0 +1,11 @@
+# Window to capture (partial title match)
+window_title: "RetroArch"
+
+# Refresh rate in seconds
+refresh_rate: 2.0
+
+# Subtitle appearance
+font_size: 24
+font_color: "#FFFFFF"
+background_color: "#000000"
+background_opacity: 0.7
