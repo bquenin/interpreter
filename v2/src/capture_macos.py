@@ -89,14 +89,16 @@ def _get_window_bounds(window_id: int) -> Optional[dict]:
     return None
 
 
-def capture_window(window_id: int) -> Optional[Image.Image]:
+def capture_window(window_id: int, title_bar_height: int = 30) -> Optional[Image.Image]:
     """Capture a screenshot of a specific window using mss.
 
     Args:
         window_id: The CGWindowID of the window to capture.
+        title_bar_height: Height of window title bar to crop (default: 30).
+                         Set to 0 to include title bar.
 
     Returns:
-        PIL Image of the window, or None if capture failed.
+        PIL Image of the window content (excluding title bar), or None if capture failed.
     """
     # Get current window bounds
     bounds = _get_window_bounds(window_id)
@@ -106,13 +108,13 @@ def capture_window(window_id: int) -> Optional[Image.Image]:
     if bounds["width"] == 0 or bounds["height"] == 0:
         return None
 
-    # Use mss to capture the screen region
+    # Use mss to capture the screen region (excluding title bar)
     with mss.mss() as sct:
         monitor = {
             "left": bounds["x"],
-            "top": bounds["y"],
+            "top": bounds["y"] + title_bar_height,
             "width": bounds["width"],
-            "height": bounds["height"],
+            "height": bounds["height"] - title_bar_height,
         }
 
         try:

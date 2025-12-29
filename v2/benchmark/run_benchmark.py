@@ -164,7 +164,7 @@ def discover_test_cases() -> list[dict]:
     """Discover all test cases from benchmark/data/ folder.
 
     Returns:
-        List of test case dicts with keys: id, name, textbox_path, ground_truth
+        List of test case dicts with keys: id, name, image_path, ground_truth
     """
     data_dir = BENCHMARK_DIR / "data"
     test_cases = []
@@ -173,12 +173,19 @@ def discover_test_cases() -> list[dict]:
         if not case_dir.is_dir():
             continue
 
-        textbox_path = case_dir / "textbox.png"
+        # Prefer content.png (cropped), fall back to screenshot.png
+        content_path = case_dir / "content.png"
+        screenshot_path = case_dir / "screenshot.png"
         ground_truth_path = case_dir / "ground_truth.txt"
 
-        if not textbox_path.exists():
-            print(f"Warning: {case_dir.name} missing textbox.png, skipping")
+        if content_path.exists():
+            image_path = content_path
+        elif screenshot_path.exists():
+            image_path = screenshot_path
+        else:
+            print(f"Warning: {case_dir.name} missing content.png/screenshot.png, skipping")
             continue
+
         if not ground_truth_path.exists():
             print(f"Warning: {case_dir.name} missing ground_truth.txt, skipping")
             continue
@@ -188,7 +195,7 @@ def discover_test_cases() -> list[dict]:
         test_cases.append({
             "id": case_dir.name.split("_")[0],
             "name": case_dir.name,
-            "textbox_path": str(textbox_path),
+            "image_path": str(image_path),
             "ground_truth": ground_truth,
         })
 
@@ -256,7 +263,7 @@ def run_benchmark(
         print(f"\n--- {test_case['name']} ---")
         print(f"Ground truth: {test_case['ground_truth']}")
 
-        image = Image.open(test_case["textbox_path"])
+        image = Image.open(test_case["image_path"])
 
         for preproc_name in preprocessing:
             if preproc_name not in PREPROCESSING_METHODS:
