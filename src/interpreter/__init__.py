@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-"""Interpreter - Offline screen translator for Japanese games.
+"""Interpreter - Offline screen translator for Japanese retro games.
 
 This application captures text from a target window, performs OCR using
 MeikiOCR, translates using Sugoi V4, and displays subtitles in a
@@ -11,14 +10,13 @@ import sys
 import time
 from pathlib import Path
 
-# Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent))
+from .capture import WindowCapture
+from .config import Config
+from .ocr import OCR
+from .overlay import SubtitleOverlay
+from .translate import Translator
 
-from src.capture import WindowCapture
-from src.config import Config
-from src.ocr import OCR
-from src.overlay import SubtitleOverlay
-from src.translate import Translator
+__version__ = "0.1.0"
 
 
 def list_windows():
@@ -198,7 +196,3 @@ def main():
     finally:
         overlay.quit()
         print("Goodbye!")
-
-
-if __name__ == "__main__":
-    main()

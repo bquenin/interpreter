@@ -26,7 +26,7 @@ class Translator:
 
         # Use provided path or get from models module
         if self.model_path is None:
-            from src.models import get_sugoi_model_path
+            from .models import get_sugoi_model_path
             self.model_path = get_sugoi_model_path()
 
         print(f"Loading Sugoi V4 translator from {self.model_path}...")
