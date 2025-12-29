@@ -1,38 +1,88 @@
-"""OCR module using manga-ocr for Japanese text extraction."""
+"""OCR module using MeikiOCR for Japanese game text extraction."""
 
-from typing import Optional
-
+import cv2
+import numpy as np
 from PIL import Image
 
 
 class OCR:
-    """Extracts Japanese text from images using manga-ocr."""
+    """Extracts Japanese text from images using MeikiOCR.
+
+    MeikiOCR is specifically trained on Japanese video game text,
+    providing significantly better accuracy on pixel fonts than
+    general-purpose OCR like manga-ocr.
+    """
 
     def __init__(self):
         """Initialize OCR (lazy loading of model)."""
         self._model = None
 
     def _ensure_model(self):
-        """Lazily load the manga-ocr model on first use."""
+        """Lazily load the MeikiOCR model on first use."""
         if self._model is None:
-            print("Loading manga-ocr model (this may take a moment on first run)...")
-            from manga_ocr import MangaOcr
-            self._model = MangaOcr()
-            print("manga-ocr model loaded.")
+            print("Loading MeikiOCR model (this may take a moment on first run)...")
+            from meikiocr import MeikiOCR
+            self._model = MeikiOCR()
+            print("MeikiOCR model loaded.")
 
-    def extract_text(self, image: Image.Image) -> str:
+    def _preprocess(self, image: Image.Image) -> np.ndarray:
+        """Preprocess image for better OCR on pixel fonts.
+
+        Applies Otsu binarization only. Benchmark showed that 4x upscaling
+        actually hurts MeikiOCR accuracy.
+
+        Args:
+            image: PIL Image to preprocess.
+
+        Returns:
+            Preprocessed numpy array (RGB).
+        """
+        img_array = np.array(image)
+
+        # Convert to grayscale
+        if len(img_array.shape) == 3:
+            gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
+        else:
+            gray = img_array
+
+        # Otsu binarization (auto threshold) - no upscaling needed for MeikiOCR
+        _, binary = cv2.threshold(
+            gray, 0, 255,
+            cv2.THRESH_BINARY + cv2.THRESH_OTSU
+        )
+
+        # Convert to RGB numpy array for MeikiOCR
+        rgb = cv2.cvtColor(binary, cv2.COLOR_GRAY2RGB)
+        return rgb
+
+    def extract_text(self, image: Image.Image, preprocess: bool = True) -> str:
         """Extract Japanese text from an image.
 
         Args:
             image: PIL Image to extract text from.
+            preprocess: Whether to apply preprocessing for pixel fonts.
 
         Returns:
             Extracted text string.
         """
         self._ensure_model()
 
-        # manga-ocr works directly with PIL images
-        text = self._model(image)
+        # Convert to numpy array
+        if preprocess:
+            img_array = self._preprocess(image)
+        else:
+            img_array = np.array(image.convert('RGB'))
+
+        # Run MeikiOCR
+        results = self._model.run_ocr(img_array)
+
+        # Extract text from results
+        texts = []
+        for result in results:
+            if 'text' in result:
+                texts.append(result['text'])
+
+        text = ''.join(texts)
 
         # Clean up the text
         text = self._clean_text(text)
