@@ -1,0 +1,261 @@
+{
+  "timestamp": "2025-12-29T00:47:27.712992",
+  "engines": [
+    "manga_ocr",
+    "meikiocr"
+  ],
+  "preprocessing": [
+    "none",
+    "otsu",
+    "4x_lanczos",
+    "4x_otsu",
+    "4x_otsu_invert"
+  ],
+  "test_cases": [
+    "001_miguel_pendant",
+    "002_cress_pendant",
+    "003_screen3"
+  ],
+  "results": [
+    {
+      "test_case": "001_miguel_pendant",
+      "engine": "manga_ocr",
+      "preprocessing": "none",
+      "output": "『新郎いったマンガットについて．．．",
+      "ground_truth": "ミゲール「お前にやったペンダントについてな。",
+      "accuracy": 40.0
+    },
+    {
+      "test_case": "001_miguel_pendant",
+      "engine": "meikiocr",
+      "preprocessing": "none",
+      "output": "ミゲール「お前にやったペンダントについてな。",
+      "ground_truth": "ミゲール「お前にやったペンダントについてな。",
+      "accuracy": 100.0
+    },
+    {
+      "test_case": "001_miguel_pendant",
+      "engine": "manga_ocr",
+      "preprocessing": "otsu",
+      "output": "そんなことないので、２０１８年１２月１８日（土）",
+      "ground_truth": "ミゲール「お前にやったペンダントについてな。",
+      "accuracy": 4.35
+    },
+    {
+      "test_case": "001_miguel_pendant",
+      "engine": "meikiocr",
+      "preprocessing": "otsu",
+      "output": "ミゲール「お前にやったペンダントについてな。",
+      "ground_truth": "ミゲール「お前にやったペンダントについてな。",
+      "accuracy": 100.0
+    },
+    {
+      "test_case": "001_miguel_pendant",
+      "engine": "manga_ocr",
+      "preprocessing": "4x_lanczos",
+      "output": "『新郎やったマンガットについて．．．",
+      "ground_truth": "ミゲール「お前にやったペンダントについてな。",
+      "accuracy": 45.0
+    },
+    {
+      "test_case": "001_miguel_pendant",
+      "engine": "meikiocr",
+      "preprocessing": "4x_lanczos",
+      "output": "ミゲール「お前にやったペンダントについてな。",
+      "ground_truth": "ミゲール「お前にやったペンダントについてな。",
+      "accuracy": 100.0
+    },
+    {
+      "test_case": "001_miguel_pendant",
+      "engine": "manga_ocr",
+      "preprocessing": "4x_otsu",
+      "output": "それじゃないのかなところで一緒に行っても",
+      "ground_truth": "ミゲール「お前にやったペンダントについてな。",
+      "accuracy": 4.76
+    },
+    {
+      "test_case": "001_miguel_pendant",
+      "engine": "meikiocr",
+      "preprocessing": "4x_otsu",
+      "output": "ミゲール「お前にやったペンダントについてな。",
+      "ground_truth": "ミゲール「お前にやったペンダントについてな。",
+      "accuracy": 100.0
+    },
+    {
+      "test_case": "001_miguel_pendant",
+      "engine": "manga_ocr",
+      "preprocessing": "4x_otsu_invert",
+      "output": "そんなことをしているのであればいいのですが．．．それではないでしょ",
+      "ground_truth": "ミゲール「お前にやったペンダントについてな。",
+      "accuracy": 3.64
+    },
+    {
+      "test_case": "001_miguel_pendant",
+      "engine": "meikiocr",
+      "preprocessing": "4x_otsu_invert",
+      "output": "ミゲール「お前にやったペンダントについてな。",
+      "ground_truth": "ミゲール「お前にやったペンダントについてな。",
+      "accuracy": 100.0
+    },
+    {
+      "test_case": "002_cress_pendant",
+      "engine": "manga_ocr",
+      "preprocessing": "none",
+      "output": "クレジットサービスによって、あ、あーんだけどなんだかわからないところです。",
+      "ground_truth": "クレス「ペンダント？ああ、15の誕生日にもらった・・・・。あれがどうしたの？」",
+      "accuracy": 18.42
+    },
+    {
+      "test_case": "002_cress_pendant",
+      "engine": "meikiocr",
+      "preprocessing": "none",
+      "output": "クレス「ペンダント?ああ、15の誕生日にもらった……。あれがどうしたの?",
+      "ground_truth": "クレス「ペンダント？ああ、15の誕生日にもらった・・・・。あれがどうしたの？」",
+      "accuracy": 85.33
+    },
+    {
+      "test_case": "002_cress_pendant",
+      "engine": "manga_ocr",
+      "preprocessing": "otsu",
+      "output": "ああ、ああ．．．",
+      "ground_truth": "クレス「ペンダント？ああ、15の誕生日にもらった・・・・。あれがどうしたの？」",
+      "accuracy": 17.02
+    },
+    {
+      "test_case": "002_cress_pendant",
+      "engine": "meikiocr",
+      "preprocessing": "otsu",
+      "output": "クレスペンダント?ああ、15の誕生Eにもらった……。あれがどうしたの?",
+      "ground_truth": "クレス「ペンダント？ああ、15の誕生日にもらった・・・・。あれがどうしたの？」",
+      "accuracy": 81.08
+    },
+    {
+      "test_case": "002_cress_pendant",
+      "engine": "manga_ocr",
+      "preprocessing": "4x_lanczos",
+      "output": "クレジットサービスによって、あった．．．あ、「だったのね」ということでしょうか。",
+      "ground_truth": "クレス「ペンダント？ああ、15の誕生日にもらった・・・・。あれがどうしたの？」",
+      "accuracy": 25.32
+    },
+    {
+      "test_case": "002_cress_pendant",
+      "engine": "meikiocr",
+      "preprocessing": "4x_lanczos",
+      "output": "クレス「ペンダント?ああ、15の誕生Eにもらった……。あれがどうしたの?",
+      "ground_truth": "クレス「ペンダント？ああ、15の誕生日にもらった・・・・。あれがどうしたの？」",
+      "accuracy": 82.67
+    },
+    {
+      "test_case": "002_cress_pendant",
+      "engine": "manga_ocr",
+      "preprocessing": "4x_otsu",
+      "output": "それは．．．",
+      "ground_truth": "クレス「ペンダント？ああ、15の誕生日にもらった・・・・。あれがどうしたの？」",
+      "accuracy": 4.44
+    },
+    {
+      "test_case": "002_cress_pendant",
+      "engine": "meikiocr",
+      "preprocessing": "4x_otsu",
+      "output": "クレスペンダント?ああ、15の誕生Eにもらった……。あれがどうしたの?",
+      "ground_truth": "クレス「ペンダント？ああ、15の誕生日にもらった・・・・。あれがどうしたの？」",
+      "accuracy": 81.08
+    },
+    {
+      "test_case": "002_cress_pendant",
+      "engine": "manga_ocr",
+      "preprocessing": "4x_otsu_invert",
+      "output": "それは．．．これまではありません",
+      "ground_truth": "クレス「ペンダント？ああ、15の誕生日にもらった・・・・。あれがどうしたの？」",
+      "accuracy": 3.64
+    },
+    {
+      "test_case": "002_cress_pendant",
+      "engine": "meikiocr",
+      "preprocessing": "4x_otsu_invert",
+      "output": "クレス「ペンダント?ああ、15の誕生にもらった……。あれがどうしたの?",
+      "ground_truth": "クレス「ペンダント？ああ、15の誕生日にもらった・・・・。あれがどうしたの？」",
+      "accuracy": 83.78
+    },
+    {
+      "test_case": "003_screen3",
+      "engine": "manga_ocr",
+      "preprocessing": "none",
+      "output": "私もそれじゃありましてくるよ、ワミは．．．",
+      "ground_truth": "チェスター「それじゃ狩りに行ってくるよ、アミィ。",
+      "accuracy": 48.89
+    },
+    {
+      "test_case": "003_screen3",
+      "engine": "meikiocr",
+      "preprocessing": "none",
+      "output": "チェスター「それじゃ狩りに行ってくるよ、アミィ。",
+      "ground_truth": "チェスター「それじゃ狩りに行ってくるよ、アミィ。",
+      "accuracy": 100.0
+    },
+    {
+      "test_case": "003_screen3",
+      "engine": "manga_ocr",
+      "preprocessing": "otsu",
+      "output": "そんなわけに見てくれているのは．．．",
+      "ground_truth": "チェスター「それじゃ狩りに行ってくるよ、アミィ。",
+      "accuracy": 23.81
+    },
+    {
+      "test_case": "003_screen3",
+      "engine": "meikiocr",
+      "preprocessing": "otsu",
+      "output": "チェスター「それじゃ狩りに行ってくるよ、アミィ。",
+      "ground_truth": "チェスター「それじゃ狩りに行ってくるよ、アミィ。",
+      "accuracy": 100.0
+    },
+    {
+      "test_case": "003_screen3",
+      "engine": "manga_ocr",
+      "preprocessing": "4x_lanczos",
+      "output": "「そういうわけに行ってくるよ、ワミードは",
+      "ground_truth": "チェスター「それじゃ狩りに行ってくるよ、アミィ。",
+      "accuracy": 50.0
+    },
+    {
+      "test_case": "003_screen3",
+      "engine": "meikiocr",
+      "preprocessing": "4x_lanczos",
+      "output": "チェスター「それじゃ狩りに行ってくるよ、アミィ。",
+      "ground_truth": "チェスター「それじゃ狩りに行ってくるよ、アミィ。",
+      "accuracy": 100.0
+    },
+    {
+      "test_case": "003_screen3",
+      "engine": "manga_ocr",
+      "preprocessing": "4x_otsu",
+      "output": "そんなわけに見てくれていると、そういうことは",
+      "ground_truth": "チェスター「それじゃ狩りに行ってくるよ、アミィ。",
+      "accuracy": 26.09
+    },
+    {
+      "test_case": "003_screen3",
+      "engine": "meikiocr",
+      "preprocessing": "4x_otsu",
+      "output": "チェスター「それじゃ狩りに行ってくるよ、アミィ。",
+      "ground_truth": "チェスター「それじゃ狩りに行ってくるよ、アミィ。",
+      "accuracy": 100.0
+    },
+    {
+      "test_case": "003_screen3",
+      "engine": "manga_ocr",
+      "preprocessing": "4x_otsu_invert",
+      "output": "それじゃあ私に行ってくるよ、それはそれだけではないのですか？",
+      "ground_truth": "チェスター「それじゃ狩りに行ってくるよ、アミィ。",
+      "accuracy": 44.44
+    },
+    {
+      "test_case": "003_screen3",
+      "engine": "meikiocr",
+      "preprocessing": "4x_otsu_invert",
+      "output": "チェスター「それじゃ狩りに行ってくるよ、アミィ。",
+      "ground_truth": "チェスター「それじゃ狩りに行ってくるよ、アミィ。",
+      "accuracy": 100.0
+    }
+  ]
+}
