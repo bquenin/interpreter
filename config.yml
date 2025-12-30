@@ -1,8 +1,11 @@
 # Window to capture (partial title match)
 window_title: "Tales"
 
-# Refresh rate in seconds
-refresh_rate: 2.0
+# Refresh rate in seconds (how often to capture and process the screen)
+# Lower = more responsive but higher CPU usage. With local models:
+# - Capture: ~50-65ms, OCR: ~35-60ms, Translation: ~125-335ms
+# - Recommended: 0.5s (fast CPU) to 1.0s (slower CPU)
+refresh_rate: 0.5
 
 # OCR confidence threshold (0.0-1.0)
 # Filters out garbage text by average per-line confidence.

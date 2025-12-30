@@ -12,7 +12,7 @@ class Config:
     def __init__(
         self,
         window_title: str = "RetroArch",
-        refresh_rate: float = 2.0,
+        refresh_rate: float = 0.5,
         ocr_confidence: float = 0.6,
         font_size: int = 24,
         font_color: str = "#FFFFFF",
@@ -55,7 +55,7 @@ class Config:
                 data = yaml.safe_load(f) or {}
             return cls(
                 window_title=data.get("window_title", "RetroArch"),
-                refresh_rate=float(data.get("refresh_rate", 2.0)),
+                refresh_rate=float(data.get("refresh_rate", 0.5)),
                 ocr_confidence=float(data.get("ocr_confidence", 0.6)),
                 font_size=int(data.get("font_size", 24)),
                 font_color=data.get("font_color", "#FFFFFF"),

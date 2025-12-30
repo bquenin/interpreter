@@ -22,7 +22,7 @@ from .capture import WindowCapture
 from .config import Config
 from .ocr import OCR
 from .overlay import SubtitleOverlay
-from .translate import Translator
+from .translate import Translator, text_similarity
 
 __version__ = "0.1.0"
 
@@ -135,6 +135,8 @@ def main():
     # Track previous text to avoid re-translating
     previous_text = ""
     last_capture_time = 0
+    debug_mode = args.debug
+    similarity_threshold = 0.9  # Skip if OCR is 90%+ similar to previous
 
     try:
         while overlay.is_running:
@@ -148,38 +150,55 @@ def main():
                 continue
 
             last_capture_time = current_time
+            loop_start = time.perf_counter()
 
             # Capture window
+            capture_start = time.perf_counter()
             image = capture.capture()
+            capture_time = time.perf_counter() - capture_start
+
             if image is None:
                 overlay.update_text("[Window not found]")
                 continue
 
             # Extract text
+            ocr_start = time.perf_counter()
             try:
                 text = ocr.extract_text(image)
             except Exception as e:
                 print(f"OCR error: {e}")
                 continue
+            ocr_time = time.perf_counter() - ocr_start
 
-            # Skip if text hasn't changed
-            if text == previous_text:
+            # Skip if text hasn't changed (using fuzzy similarity to handle OCR jitter)
+            similarity = text_similarity(text, previous_text)
+            if similarity >= similarity_threshold:
+                if debug_mode:
+                    total_time = time.perf_counter() - loop_start
+                    print(f"[TIMING] capture: {capture_time*1000:.0f}ms | ocr: {ocr_time*1000:.0f}ms | (similar: {similarity:.0%}) | total: {total_time*1000:.0f}ms")
                 continue
 
             previous_text = text
 
             if not text:
                 overlay.update_text("")
+                if debug_mode:
+                    total_time = time.perf_counter() - loop_start
+                    print(f"[TIMING] capture: {capture_time*1000:.0f}ms | ocr: {ocr_time*1000:.0f}ms | (no text) | total: {total_time*1000:.0f}ms")
                 continue
 
             # Translate (if enabled)
+            translate_time = 0.0
+            was_cached = False
             if translator:
+                translate_start = time.perf_counter()
                 try:
-                    translated = translator.translate(text)
+                    translated, was_cached = translator.translate(text)
                     display_text = translated
                 except Exception as e:
                     print(f"Translation error: {e}")
                     display_text = f"[{text}]"  # Show original on error
+                translate_time = time.perf_counter() - translate_start
             else:
                 display_text = text  # Show OCR result without translation
 
@@ -187,7 +206,17 @@ def main():
             overlay.update_text(display_text)
             print(f"[OCR] {text}")
             if translator:
-                print(f"[EN]  {display_text}")
+                cache_indicator = " (cached)" if was_cached else ""
+                print(f"[EN]  {display_text}{cache_indicator}")
+
+            # Print timing in debug mode
+            if debug_mode:
+                total_time = time.perf_counter() - loop_start
+                cache_str = " CACHE" if was_cached else ""
+                if translator:
+                    print(f"[TIMING] capture: {capture_time*1000:.0f}ms | ocr: {ocr_time*1000:.0f}ms | translate: {translate_time*1000:.0f}ms{cache_str} | total: {total_time*1000:.0f}ms")
+                else:
+                    print(f"[TIMING] capture: {capture_time*1000:.0f}ms | ocr: {ocr_time*1000:.0f}ms | total: {total_time*1000:.0f}ms")
             print()
 
     except KeyboardInterrupt:
