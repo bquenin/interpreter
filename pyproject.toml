@@ -36,7 +36,7 @@ dependencies = [
 ]
 
 [project.scripts]
-interpreter = "interpreter.cli:main"
+interpreter = "interpreter.main:main"
 
 [build-system]
 requires = ["hatchling"]

@@ -8,6 +8,6 @@ transparent overlay.
 __version__ = "0.1.0"
 
 # Public API
-from .cli import main, list_windows
+from .main import main, list_windows
 
 __all__ = ["main", "list_windows", "__version__"]
