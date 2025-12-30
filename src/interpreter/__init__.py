@@ -11,6 +11,9 @@ import os
 # Must be set before multiprocessing is imported
 os.environ["PYTHONWARNINGS"] = "ignore::UserWarning:multiprocessing.resource_tracker"
 
+# Suppress HuggingFace token warning (public models don't need auth)
+os.environ["HF_HUB_DISABLE_IMPLICIT_TOKEN"] = "1"
+
 import argparse
 import sys
 import time
@@ -65,6 +68,11 @@ def main():
         action="store_true",
         help="Skip translation (OCR only, for testing)"
     )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Show per-character OCR confidence scores"
+    )
 
     args = parser.parse_args()
 
@@ -98,7 +106,7 @@ def main():
     print(f"  Window found: {config.window_title}")
 
     # Initialize OCR
-    ocr = OCR()
+    ocr = OCR(confidence_threshold=config.ocr_confidence, debug=args.debug)
     print("  OCR: MeikiOCR (will load on first use)")
 
     # Initialize translator (lazy loading)

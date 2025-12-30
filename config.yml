@@ -4,6 +4,12 @@ window_title: "Tales"
 # Refresh rate in seconds
 refresh_rate: 2.0
 
+# OCR confidence threshold (0.0-1.0)
+# Filters out garbage text by average per-line confidence.
+# Example: "D(0.32) p(0.59) → avg: 0.45" would be dropped with threshold 0.6
+#          "こ(0.93) ん(0.96) → avg: 0.94" would be kept
+ocr_confidence: 0.6
+
 # Subtitle appearance
 font_size: 24
 font_color: "#FFFFFF"

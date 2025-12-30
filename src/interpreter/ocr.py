@@ -12,9 +12,17 @@ class OCR:
     general-purpose OCR.
     """
 
-    def __init__(self):
-        """Initialize OCR (lazy loading of model)."""
+    def __init__(self, confidence_threshold: float = 0.6, debug: bool = False):
+        """Initialize OCR (lazy loading of model).
+
+        Args:
+            confidence_threshold: Minimum average confidence per line (0.0-1.0).
+                Lines below this threshold are filtered out.
+            debug: If True, print per-character confidence scores.
+        """
         self._model = None
+        self._confidence_threshold = confidence_threshold
+        self._debug = debug
 
     def load(self) -> None:
         """Load the MeikiOCR model."""
@@ -46,10 +54,29 @@ class OCR:
         # Run MeikiOCR
         results = self._model.run_ocr(img_array)
 
-        # Extract text from results
+        # Extract text from results, filtering by confidence
         texts = []
         for result in results:
-            if 'text' in result:
+            if 'text' not in result:
+                continue
+
+            # Calculate average confidence for this line
+            chars = result.get('chars', [])
+            if chars:
+                avg_conf = sum(c['conf'] for c in chars) / len(chars)
+            else:
+                avg_conf = 0.0
+
+            # Print per-character confidence in debug mode
+            if self._debug and chars:
+                char_info = ' '.join(
+                    f"{c['char']}({c['conf']:.2f})" for c in chars
+                )
+                status = "✓" if avg_conf >= self._confidence_threshold else "✗"
+                print(f"[DBG] {char_info} → avg: {avg_conf:.2f} {status}")
+
+            # Filter by confidence threshold
+            if avg_conf >= self._confidence_threshold:
                 texts.append(result['text'])
 
         text = ''.join(texts)
