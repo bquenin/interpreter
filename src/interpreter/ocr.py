@@ -12,15 +12,9 @@ class OCR:
     general-purpose OCR.
     """
 
-    def __init__(self, confidence_threshold: float = 0.0):
-        """Initialize OCR (lazy loading of model).
-
-        Args:
-            confidence_threshold: Minimum confidence score for OCR results (0.0-1.0).
-                                  Results below this threshold are filtered out.
-        """
+    def __init__(self):
+        """Initialize OCR (lazy loading of model)."""
         self._model = None
-        self.confidence_threshold = confidence_threshold
 
     def load(self) -> None:
         """Load the MeikiOCR model."""
@@ -52,19 +46,11 @@ class OCR:
         # Run MeikiOCR
         results = self._model.run_ocr(img_array)
 
-        # Extract text from results, filtering by confidence
+        # Extract text from results
         texts = []
         for result in results:
-            if 'text' not in result:
-                continue
-
-            # Filter by confidence if specified
-            if self.confidence_threshold > 0:
-                confidence = result.get('confidence', 1.0)
-                if confidence < self.confidence_threshold:
-                    continue
-
-            texts.append(result['text'])
+            if 'text' in result:
+                texts.append(result['text'])
 
         text = ''.join(texts)
 

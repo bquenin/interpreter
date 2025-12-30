@@ -8,7 +8,6 @@ transparent overlay.
 import argparse
 import sys
 import time
-from pathlib import Path
 
 from .capture import WindowCapture
 from .config import Config
@@ -60,12 +59,6 @@ def main():
         action="store_true",
         help="Skip translation (OCR only, for testing)"
     )
-    parser.add_argument(
-        "--models-dir",
-        type=str,
-        default=None,
-        help="Path to models directory (default: ~/.interpreter/models)"
-    )
 
     args = parser.parse_args()
 
@@ -87,9 +80,6 @@ def main():
     print(f"Refresh rate: {config.refresh_rate}s")
     print()
 
-    # Set up models directory
-    models_dir = Path(args.models_dir) if args.models_dir else None
-
     # Initialize components
     print("Initializing components...")
 
@@ -101,19 +91,14 @@ def main():
         sys.exit(1)
     print(f"  Window found: {config.window_title}")
 
-    # Initialize OCR with confidence threshold from config
-    ocr = OCR(confidence_threshold=config.confidence_threshold)
+    # Initialize OCR
+    ocr = OCR()
     print("  OCR: MeikiOCR (will load on first use)")
 
     # Initialize translator (lazy loading)
     translator = None
     if not args.no_translate:
-        # Get model path if models_dir specified
-        model_path = None
-        if models_dir:
-            model_path = models_dir / "sugoi-v4-ja-en-ct2"
-
-        translator = Translator(model_path=model_path)
+        translator = Translator()
         print("  Translator: Sugoi V4 (will load on first use)")
     else:
         print("  Translator: DISABLED (--no-translate)")

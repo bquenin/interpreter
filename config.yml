@@ -4,9 +4,6 @@ window_title: "Tales"
 # Refresh rate in seconds
 refresh_rate: 2.0
 
-# OCR settings
-confidence_threshold: 0.0  # Filter OCR results below this confidence (0.0-1.0)
-
 # Subtitle appearance
 font_size: 24
 font_color: "#FFFFFF"
