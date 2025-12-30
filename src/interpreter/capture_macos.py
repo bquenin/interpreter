@@ -88,20 +88,71 @@ def _get_window_bounds(window_id: int) -> Optional[dict]:
     return None
 
 
+def _is_fullscreen(window_id: int) -> bool:
+    """Check if a window is in fullscreen mode.
+
+    Detects fullscreen by comparing window bounds to display bounds.
+    Handles multi-monitor setups by finding the display containing the window.
+
+    Args:
+        window_id: The CGWindowID of the window.
+
+    Returns:
+        True if window appears to be fullscreen, False otherwise.
+    """
+    bounds = _get_window_bounds(window_id)
+    if bounds is None:
+        return False
+
+    # Get all active displays
+    max_displays = 16
+    (err, display_ids, display_count) = Quartz.CGGetActiveDisplayList(max_displays, None, None)
+    if err != 0 or display_count == 0:
+        return False
+
+    # Find which display contains this window
+    window_center_x = bounds["x"] + bounds["width"] // 2
+    window_center_y = bounds["y"] + bounds["height"] // 2
+
+    for display_id in display_ids[:display_count]:
+        display_bounds = Quartz.CGDisplayBounds(display_id)
+        dx = int(display_bounds.origin.x)
+        dy = int(display_bounds.origin.y)
+        dw = int(display_bounds.size.width)
+        dh = int(display_bounds.size.height)
+
+        # Check if window center is on this display
+        if dx <= window_center_x < dx + dw and dy <= window_center_y < dy + dh:
+            # Check if window fills this display (with tolerance for menu bar ~50px)
+            is_fullscreen = (
+                bounds["x"] == dx and
+                bounds["y"] <= dy + 50 and
+                bounds["width"] == dw and
+                bounds["height"] >= dh - 50
+            )
+            return is_fullscreen
+
+    return False
+
+
 def capture_window(window_id: int, title_bar_height: int = 30) -> Optional[Image.Image]:
     """Capture a screenshot of a specific window using CGWindowListCreateImage.
 
     This captures the actual window content, not the screen region,
     so overlapping windows (like the subtitle overlay) won't be included.
+    Automatically detects fullscreen mode and skips title bar cropping.
 
     Args:
         window_id: The CGWindowID of the window to capture.
         title_bar_height: Height of window title bar to crop (default: 30).
-                         Set to 0 to include title bar.
+                         Ignored for fullscreen windows.
 
     Returns:
         PIL Image of the window content (excluding title bar), or None if capture failed.
     """
+    # Check if fullscreen before capturing
+    is_fullscreen = _is_fullscreen(window_id)
+
     # Capture the specific window only (not the screen region)
     # kCGWindowListOptionIncludingWindow captures only this window
     # kCGWindowImageBoundsIgnoreFraming excludes window shadow
@@ -132,8 +183,8 @@ def capture_window(window_id: int, title_bar_height: int = 30) -> Optional[Image
     # Convert to RGB (drop alpha channel)
     image = image.convert("RGB")
 
-    # Crop out the title bar if requested
-    if title_bar_height > 0 and height > title_bar_height:
+    # Crop out the title bar if not fullscreen
+    if not is_fullscreen and title_bar_height > 0 and height > title_bar_height:
         image = image.crop((0, title_bar_height, width, height))
 
     return image
