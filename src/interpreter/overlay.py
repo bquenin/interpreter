@@ -21,6 +21,10 @@ class Overlay:
     - inplace: Follows game window, transparent background, text at OCR bbox positions
     """
 
+    # -------------------------------------------------------------------------
+    # Initialization
+    # -------------------------------------------------------------------------
+
     def __init__(
         self,
         font_size: int = 40,
@@ -149,6 +153,10 @@ class Overlay:
         except Exception:
             pass
 
+    # -------------------------------------------------------------------------
+    # Mode Management
+    # -------------------------------------------------------------------------
+
     def set_mode(self, mode: str):
         """Switch between banner and inplace modes.
 
@@ -180,6 +188,38 @@ class Overlay:
 
         if self._root:
             self._root.update_idletasks()
+
+    def update_position(self, window_bounds: dict, display_bounds: dict = None, image_size: tuple[int, int] = None):
+        """Update overlay position to follow the game window.
+
+        Args:
+            window_bounds: New window bounds dict with x, y, width, height.
+            display_bounds: Optional display bounds for banner mode repositioning.
+            image_size: Optional tuple of (width, height) to recalculate retina scale.
+        """
+        # Check for window bounds changes
+        window_changed = window_bounds != self._window_bounds
+        if window_changed:
+            self._window_bounds = window_bounds.copy()
+
+        # Recalculate retina scale if image size provided
+        if image_size and window_bounds["width"] > 0:
+            self._retina_scale = image_size[0] / window_bounds["width"]
+
+        # Check for display bounds changes
+        display_changed = display_bounds and display_bounds != self._display_bounds
+        if display_changed:
+            self._display_bounds = display_bounds.copy()
+
+        # Apply changes based on mode
+        if self._mode == "inplace" and window_changed:
+            self._apply_inplace_mode()
+        elif self._mode == "banner" and display_changed:
+            self._apply_banner_mode()
+
+    # -------------------------------------------------------------------------
+    # Banner Mode
+    # -------------------------------------------------------------------------
 
     def _apply_banner_mode(self):
         """Configure overlay for banner mode."""
@@ -220,6 +260,50 @@ class Overlay:
 
         self._root.update_idletasks()
 
+    def update_text(self, text: str):
+        """Update the displayed text (banner mode).
+
+        Args:
+            text: Text to display.
+        """
+        if self._banner_label is None or self._paused:
+            return
+
+        self._current_text = text
+        self._banner_label.config(text=text)
+
+        if self._mode == "banner":
+            # Auto-resize height based on content
+            self._root.update_idletasks()
+            required_height = self._banner_label.winfo_reqheight() + 30
+            current_width = self._root.winfo_width()
+            current_x = self._root.winfo_x()
+            current_height = self._root.winfo_height()
+            current_y = self._root.winfo_y()
+
+            # Adjust position to keep bottom edge in place
+            current_bottom = current_y + current_height
+            new_y = current_bottom - required_height
+
+            self._root.geometry(f"{current_width}x{required_height}+{current_x}+{new_y}")
+
+    def _start_drag(self, event):
+        """Start dragging the window (banner mode only)."""
+        if self._mode == "banner":
+            self._drag_start_x = event.x
+            self._drag_start_y = event.y
+
+    def _on_drag(self, event):
+        """Handle window dragging (banner mode only)."""
+        if self._mode == "banner":
+            x = self._root.winfo_x() + event.x - self._drag_start_x
+            y = self._root.winfo_y() + event.y - self._drag_start_y
+            self._root.geometry(f"+{x}+{y}")
+
+    # -------------------------------------------------------------------------
+    # Inplace Mode
+    # -------------------------------------------------------------------------
+
     def _apply_inplace_mode(self):
         """Configure overlay for inplace mode."""
         # Hide banner frame
@@ -252,61 +336,6 @@ class Overlay:
 
         # Re-render any existing regions
         self._render_inplace_regions()
-
-    def update_position(self, window_bounds: dict, display_bounds: dict = None, image_size: tuple[int, int] = None):
-        """Update overlay position to follow the game window.
-
-        Args:
-            window_bounds: New window bounds dict with x, y, width, height.
-            display_bounds: Optional display bounds for banner mode repositioning.
-            image_size: Optional tuple of (width, height) to recalculate retina scale.
-        """
-        # Check for window bounds changes
-        window_changed = window_bounds != self._window_bounds
-        if window_changed:
-            self._window_bounds = window_bounds.copy()
-
-        # Recalculate retina scale if image size provided
-        if image_size and window_bounds["width"] > 0:
-            self._retina_scale = image_size[0] / window_bounds["width"]
-
-        # Check for display bounds changes
-        display_changed = display_bounds and display_bounds != self._display_bounds
-        if display_changed:
-            self._display_bounds = display_bounds.copy()
-
-        # Apply changes based on mode
-        if self._mode == "inplace" and window_changed:
-            self._apply_inplace_mode()
-        elif self._mode == "banner" and display_changed:
-            self._apply_banner_mode()
-
-    def update_text(self, text: str):
-        """Update the displayed text (banner mode).
-
-        Args:
-            text: Text to display.
-        """
-        if self._banner_label is None or self._paused:
-            return
-
-        self._current_text = text
-        self._banner_label.config(text=text)
-
-        if self._mode == "banner":
-            # Auto-resize height based on content
-            self._root.update_idletasks()
-            required_height = self._banner_label.winfo_reqheight() + 30
-            current_width = self._root.winfo_width()
-            current_x = self._root.winfo_x()
-            current_height = self._root.winfo_height()
-            current_y = self._root.winfo_y()
-
-            # Adjust position to keep bottom edge in place
-            current_bottom = current_y + current_height
-            new_y = current_bottom - required_height
-
-            self._root.geometry(f"{current_width}x{required_height}+{current_x}+{new_y}")
 
     def update_regions(self, regions: list[tuple[str, dict]]):
         """Update the displayed text regions (inplace mode).
@@ -368,18 +397,9 @@ class Overlay:
             self._inplace_labels.append(label)
         return self._inplace_labels[index]
 
-    def _start_drag(self, event):
-        """Start dragging the window (banner mode only)."""
-        if self._mode == "banner":
-            self._drag_start_x = event.x
-            self._drag_start_y = event.y
-
-    def _on_drag(self, event):
-        """Handle window dragging (banner mode only)."""
-        if self._mode == "banner":
-            x = self._root.winfo_x() + event.x - self._drag_start_x
-            y = self._root.winfo_y() + event.y - self._drag_start_y
-            self._root.geometry(f"+{x}+{y}")
+    # -------------------------------------------------------------------------
+    # Lifecycle
+    # -------------------------------------------------------------------------
 
     def pause(self):
         """Pause the overlay (clears content but keeps window)."""
@@ -412,11 +432,6 @@ class Overlay:
             # Inplace mode - re-render regions
             self._render_inplace_regions()
 
-    @property
-    def paused(self) -> bool:
-        """Check if overlay is paused."""
-        return self._paused
-
     def quit(self):
         """Close the overlay and quit the application."""
         if self._root:
@@ -427,6 +442,15 @@ class Overlay:
         """Process pending Tkinter events (call this in main loop)."""
         if self._root:
             self._root.update()
+
+    # -------------------------------------------------------------------------
+    # Properties
+    # -------------------------------------------------------------------------
+
+    @property
+    def paused(self) -> bool:
+        """Check if overlay is paused."""
+        return self._paused
 
     @property
     def is_running(self) -> bool:
