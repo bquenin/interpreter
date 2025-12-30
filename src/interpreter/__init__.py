@@ -5,6 +5,12 @@ MeikiOCR, translates using Sugoi V4, and displays subtitles in a
 transparent overlay.
 """
 
+import os
+
+# Suppress harmless onnxruntime semaphore warning on exit
+# Must be set before multiprocessing is imported
+os.environ["PYTHONWARNINGS"] = "ignore::UserWarning:multiprocessing.resource_tracker"
+
 import argparse
 import sys
 import time
