@@ -205,7 +205,6 @@ def _run_main_loop(
     # Track previous text to avoid re-translating
     previous_text = ""
     last_capture_time = 0
-    debug_save_done = False
 
     while overlay.is_running:
         # Process UI events
@@ -261,14 +260,6 @@ def _run_main_loop(
             else:
                 overlay.update_text("[Window not found]")
             continue
-
-        # Debug: show captured image dimensions and save first image
-        if debug_mode and not debug_save_done:
-            print(f"[DBG] Captured image size: {image.width}x{image.height}")
-            print(f"[DBG] Window bounds: {capture.bounds}")
-            image.save("/tmp/interpreter_debug_capture.png")
-            print(f"[DBG] Saved capture to /tmp/interpreter_debug_capture.png")
-            debug_save_done = True
 
         # Update overlay position if game window moved/resized
         overlay.update_position(
