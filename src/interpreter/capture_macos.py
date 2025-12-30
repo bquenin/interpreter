@@ -210,6 +210,7 @@ def capture_window(window_id: int, title_bar_height: int = 30) -> Optional[Image
     # Get image dimensions
     width = Quartz.CGImageGetWidth(cg_image)
     height = Quartz.CGImageGetHeight(cg_image)
+    bytes_per_row = Quartz.CGImageGetBytesPerRow(cg_image)
 
     if width == 0 or height == 0:
         return None
@@ -219,7 +220,18 @@ def capture_window(window_id: int, title_bar_height: int = 30) -> Optional[Image
     data = Quartz.CGDataProviderCopyData(data_provider)
 
     # Create PIL Image from raw data (BGRA format)
-    image = Image.frombytes("RGBA", (width, height), bytes(data), "raw", "BGRA")
+    # Need to account for bytes_per_row which may include padding
+    if bytes_per_row == width * 4:
+        # No padding, can use frombytes directly
+        image = Image.frombytes("RGBA", (width, height), bytes(data), "raw", "BGRA")
+    else:
+        # Has padding, need to handle stride manually
+        import numpy as np
+        arr = np.frombuffer(data, dtype=np.uint8).reshape((height, bytes_per_row))
+        # Take only the actual pixel data (width * 4 bytes per row)
+        arr = arr[:, :width * 4].reshape((height, width, 4))
+        # Convert from BGRA to RGBA
+        image = Image.fromarray(arr[:, :, [2, 1, 0, 3]], "RGBA")
 
     # Convert to RGB (drop alpha channel)
     image = image.convert("RGB")

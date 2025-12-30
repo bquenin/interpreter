@@ -14,6 +14,7 @@ class Config:
         window_title: str = "RetroArch",
         refresh_rate: float = 0.5,
         ocr_confidence: float = 0.6,
+        overlay_mode: str = "banner",
         font_size: int = 24,
         font_color: str = "#FFFFFF",
         background_color: str = "#404040",
@@ -22,6 +23,7 @@ class Config:
         self.window_title = window_title
         self.refresh_rate = refresh_rate
         self.ocr_confidence = ocr_confidence
+        self.overlay_mode = overlay_mode  # "banner" or "inplace"
         self.font_size = font_size
         self.font_color = font_color
         self.background_color = background_color
@@ -57,6 +59,7 @@ class Config:
                 window_title=data.get("window_title", "RetroArch"),
                 refresh_rate=float(data.get("refresh_rate", 0.5)),
                 ocr_confidence=float(data.get("ocr_confidence", 0.6)),
+                overlay_mode=data.get("overlay_mode", "banner"),
                 font_size=int(data.get("font_size", 24)),
                 font_color=data.get("font_color", "#FFFFFF"),
                 background_color=data.get("background_color", "#404040"),

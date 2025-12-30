@@ -9,11 +9,13 @@ from PIL import Image
 _system = platform.system()
 
 if _system == "Darwin":
-    from .capture_macos import find_window_by_title, capture_window, get_window_list, get_display_bounds_for_window
+    from .capture_macos import find_window_by_title, capture_window, get_window_list, get_display_bounds_for_window, _get_window_bounds
 elif _system == "Windows":
     from .capture_windows import find_window_by_title, capture_window, get_window_list
-    # Windows doesn't have display bounds function yet
+    # Windows doesn't have these functions yet
     def get_display_bounds_for_window(window_id: int) -> Optional[dict]:
+        return None
+    def _get_window_bounds(window_id: int) -> Optional[dict]:
         return None
 else:
     raise RuntimeError(f"Unsupported platform: {_system}")
@@ -66,7 +68,20 @@ class WindowCapture:
             if self.find_window():
                 image = capture_window(self._window_id)
 
+        # Update bounds (window may have moved)
+        if image is not None and self._window_id is not None:
+            self._refresh_bounds()
+
         return image
+
+    def _refresh_bounds(self) -> None:
+        """Refresh the cached window bounds."""
+        if self._window_id is None:
+            return
+        # Get updated bounds directly by window ID (more efficient)
+        bounds = _get_window_bounds(self._window_id)
+        if bounds:
+            self._last_bounds = bounds
 
     @property
     def window_found(self) -> bool:
