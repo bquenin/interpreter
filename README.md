@@ -67,7 +67,6 @@ ocr_confidence: 0.6
 font_size: 24
 font_color: "#FFFFFF"
 background_color: "#404040"
-background_opacity: 0.8
 ```
 
 ## How It Works

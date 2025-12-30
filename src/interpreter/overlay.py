@@ -27,7 +27,6 @@ class Overlay:
         font_size: int = 24,
         font_color: str = "#FFFFFF",
         background_color: str = "#000000",
-        background_opacity: float = 0.7,
     ):
         """Initialize the overlay.
 
@@ -35,12 +34,10 @@ class Overlay:
             font_size: Font size in pixels (used in banner mode).
             font_color: Font color as hex string (e.g., "#FFFFFF").
             background_color: Background color as hex string.
-            background_opacity: Background opacity (0.0 to 1.0).
         """
         self.font_size = font_size
         self.font_color = font_color
         self.background_color = background_color
-        self.background_opacity = background_opacity
 
         self._root: Optional[tk.Tk] = None
         self._frame: Optional[tk.Frame] = None
@@ -94,7 +91,8 @@ class Overlay:
             self._root.config(bg=transparent_color)
             self._label_transparent_bg = transparent_color
         else:
-            self._root.attributes("-alpha", self.background_opacity)
+            # Linux: use semi-transparent window
+            self._root.attributes("-alpha", 0.8)
             self._root.config(bg="black")
             self._label_transparent_bg = "black"
 

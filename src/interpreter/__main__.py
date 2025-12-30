@@ -141,7 +141,6 @@ def _initialize_components(
         font_size=config.font_size,
         font_color=config.font_color,
         background_color=config.background_color,
-        background_opacity=config.background_opacity,
     )
     overlay.create(
         display_bounds=display_bounds,
