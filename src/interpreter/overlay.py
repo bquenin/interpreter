@@ -60,6 +60,8 @@ class SubtitleOverlay:
         # Platform-specific transparency
         system = platform.system()
         if system == "Darwin":
+            # Make window visible on all spaces including fullscreen
+            self._setup_macos_fullscreen_overlay()
             # macOS transparency
             self._root.attributes("-transparent", True)
             self._root.config(bg="systemTransparent")
@@ -121,6 +123,36 @@ class SubtitleOverlay:
         self._root.bind("q", lambda e: self.quit())
 
         self._is_visible = True
+
+    def _setup_macos_fullscreen_overlay(self):
+        """Configure window to appear on all spaces on macOS.
+
+        Note: This makes the overlay visible on all desktop spaces,
+        but cannot make it appear over true fullscreen apps due to
+        macOS architectural limitations (fullscreen apps run in their
+        own dedicated Mission Control space).
+        """
+        try:
+            from AppKit import (
+                NSApplication,
+                NSWindowCollectionBehaviorCanJoinAllSpaces,
+                NSWindowCollectionBehaviorStationary,
+            )
+
+            self._root.update_idletasks()
+            ns_app = NSApplication.sharedApplication()
+
+            for ns_window in ns_app.windows():
+                title = ns_window.title() or ""
+                if "Interpreter" in title or "Subtitles" in title:
+                    behavior = (
+                        NSWindowCollectionBehaviorCanJoinAllSpaces |
+                        NSWindowCollectionBehaviorStationary
+                    )
+                    ns_window.setCollectionBehavior_(behavior)
+                    break
+        except Exception:
+            pass  # PyObjC not available or other error
 
     def _start_drag(self, event):
         """Start dragging the window."""
