@@ -3,6 +3,10 @@
 import numpy as np
 from PIL import Image
 
+# Punctuation characters to exclude from confidence calculation
+# These often have lower OCR confidence but shouldn't invalidate the line
+PUNCTUATION = set('。、！？・…「」『』（）【】〈〉《》～ー－—.!?,;:\'"()-~')
+
 
 class OCR:
     """Extracts Japanese text from images using MeikiOCR.
@@ -60,9 +64,13 @@ class OCR:
             if 'text' not in result:
                 continue
 
-            # Calculate average confidence for this line
+            # Calculate average confidence for this line (excluding punctuation)
             chars = result.get('chars', [])
-            if chars:
+            non_punct_chars = [c for c in chars if c['char'] not in PUNCTUATION]
+            if non_punct_chars:
+                avg_conf = sum(c['conf'] for c in non_punct_chars) / len(non_punct_chars)
+            elif chars:
+                # Line is all punctuation - use full average
                 avg_conf = sum(c['conf'] for c in chars) / len(chars)
             else:
                 avg_conf = 0.0
@@ -73,7 +81,8 @@ class OCR:
                     f"{c['char']}({c['conf']:.2f})" for c in chars
                 )
                 status = "✓" if avg_conf >= self._confidence_threshold else "✗"
-                print(f"[DBG] {char_info} → avg: {avg_conf:.2f} {status}")
+                punct_note = f" (excl {len(chars) - len(non_punct_chars)} punct)" if len(non_punct_chars) < len(chars) else ""
+                print(f"[DBG] {char_info} → avg: {avg_conf:.2f}{punct_note} {status}")
 
             # Filter by confidence threshold
             if avg_conf >= self._confidence_threshold:
