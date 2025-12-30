@@ -117,14 +117,17 @@ def main():
     else:
         print("  Translator: DISABLED (--no-translate)")
 
-    # Initialize overlay
+    # Initialize overlay (position on same display as target window)
     overlay = SubtitleOverlay(
         font_size=config.font_size,
         font_color=config.font_color,
         background_color=config.background_color,
         background_opacity=config.background_opacity,
     )
-    overlay.create()
+    display_bounds = capture.get_display_bounds()
+    print(f"  Window bounds: {capture.bounds}")
+    print(f"  Display bounds: {display_bounds}")
+    overlay.create(target_bounds=display_bounds)
     print("  Overlay: Ready")
 
     print()

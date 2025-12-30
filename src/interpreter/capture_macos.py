@@ -135,6 +135,47 @@ def _is_fullscreen(window_id: int) -> bool:
     return False
 
 
+def get_display_bounds_for_window(window_id: int) -> Optional[dict]:
+    """Get the display bounds for the display containing a window.
+
+    Args:
+        window_id: The CGWindowID of the window.
+
+    Returns:
+        Display bounds dict with x, y, width, height, or None if not found.
+    """
+    bounds = _get_window_bounds(window_id)
+    if bounds is None:
+        return None
+
+    # Get all active displays
+    max_displays = 16
+    (err, display_ids, display_count) = Quartz.CGGetActiveDisplayList(max_displays, None, None)
+    if err != 0 or display_count == 0:
+        return None
+
+    # Find which display contains this window's center
+    window_center_x = bounds["x"] + bounds["width"] // 2
+    window_center_y = bounds["y"] + bounds["height"] // 2
+
+    for display_id in display_ids[:display_count]:
+        display_bounds = Quartz.CGDisplayBounds(display_id)
+        dx = int(display_bounds.origin.x)
+        dy = int(display_bounds.origin.y)
+        dw = int(display_bounds.size.width)
+        dh = int(display_bounds.size.height)
+
+        if dx <= window_center_x < dx + dw and dy <= window_center_y < dy + dh:
+            return {
+                "x": dx,
+                "y": dy,
+                "width": dw,
+                "height": dh,
+            }
+
+    return None
+
+
 def capture_window(window_id: int, title_bar_height: int = 30) -> Optional[Image.Image]:
     """Capture a screenshot of a specific window using CGWindowListCreateImage.
 

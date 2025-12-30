@@ -34,24 +34,46 @@ class SubtitleOverlay:
         self._current_text: str = ""
         self._is_visible: bool = False
 
-    def create(self):
-        """Create and configure the overlay window."""
+    def create(self, target_bounds: Optional[dict] = None):
+        """Create and configure the overlay window.
+
+        Args:
+            target_bounds: Optional dict with x, y, width, height of target window.
+                          If provided, overlay will be positioned on the same display.
+        """
         self._root = tk.Tk()
         self._root.title("Interpreter Subtitles")
 
-        # Get screen dimensions
-        screen_width = self._root.winfo_screenwidth()
-        screen_height = self._root.winfo_screenheight()
+        # Determine display bounds based on target window or use primary display
+        if target_bounds:
+            # Position relative to target display
+            display_x = target_bounds["x"]
+            display_y = target_bounds["y"]
+            display_width = target_bounds["width"]
+            display_height = target_bounds["height"]
 
-        # Window dimensions
-        window_width = int(screen_width * 0.8)
-        window_height = 100
+            # Window dimensions - full display width
+            window_width = display_width
+            window_height = 100
 
-        # Position at bottom center of screen
-        x = (screen_width - window_width) // 2
-        y = screen_height - window_height - 50  # 50px from bottom
+            # Position at bottom of display
+            x = display_x
+            y = display_y + display_height - window_height - 50
+        else:
+            # Fall back to primary display
+            display_width = self._root.winfo_screenwidth()
+            display_height = self._root.winfo_screenheight()
 
-        self._root.geometry(f"{window_width}x{window_height}+{x}+{y}")
+            window_width = int(display_width * 0.8)
+            window_height = 100
+
+            x = (display_width - window_width) // 2
+            y = display_height - window_height - 50
+
+        geometry = f"{window_width}x{window_height}+{x}+{y}"
+        print(f"  Overlay geometry: {geometry}")
+        self._root.geometry(geometry)
+        self._target_bounds = target_bounds
 
         # Configure window properties
         self._root.overrideredirect(True)  # Remove window decorations
@@ -150,6 +172,24 @@ class SubtitleOverlay:
                         NSWindowCollectionBehaviorStationary
                     )
                     ns_window.setCollectionBehavior_(behavior)
+
+                    # Position window using NSWindow (Tkinter geometry doesn't work well on multi-monitor)
+                    if self._target_bounds:
+                        # NSWindow uses bottom-left origin, so convert y coordinate
+                        # Get total screen height for coordinate conversion
+                        frame = ns_window.frame()
+                        screen = ns_window.screen()
+                        if screen:
+                            screen_height = screen.frame().size.height
+                            # Calculate position (bottom-left origin)
+                            x = self._target_bounds["x"] + (self._target_bounds["width"] - frame.size.width) / 2
+                            # Convert from top-left to bottom-left coordinate system
+                            y = self._target_bounds["y"] + self._target_bounds["height"] - frame.size.height - 50
+                            # Flip y for NSWindow coordinate system (origin at bottom-left of main screen)
+                            from AppKit import NSScreen
+                            main_screen_height = NSScreen.mainScreen().frame().size.height
+                            y_flipped = main_screen_height - y - frame.size.height
+                            ns_window.setFrameOrigin_((x, y_flipped))
                     break
         except Exception:
             pass  # PyObjC not available or other error
@@ -182,11 +222,12 @@ class SubtitleOverlay:
         required_height = self._label.winfo_reqheight() + 30  # Add padding
         current_width = self._root.winfo_width()
         current_x = self._root.winfo_x()
+        current_height = self._root.winfo_height()
         current_y = self._root.winfo_y()
 
         # Adjust position to keep bottom edge in place
-        screen_height = self._root.winfo_screenheight()
-        new_y = screen_height - required_height - 50
+        current_bottom = current_y + current_height
+        new_y = current_bottom - required_height
 
         self._root.geometry(f"{current_width}x{required_height}+{current_x}+{new_y}")
 

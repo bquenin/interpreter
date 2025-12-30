@@ -9,9 +9,12 @@ from PIL import Image
 _system = platform.system()
 
 if _system == "Darwin":
-    from .capture_macos import find_window_by_title, capture_window, get_window_list
+    from .capture_macos import find_window_by_title, capture_window, get_window_list, get_display_bounds_for_window
 elif _system == "Windows":
     from .capture_windows import find_window_by_title, capture_window, get_window_list
+    # Windows doesn't have display bounds function yet
+    def get_display_bounds_for_window(window_id: int) -> Optional[dict]:
+        return None
 else:
     raise RuntimeError(f"Unsupported platform: {_system}")
 
@@ -69,6 +72,17 @@ class WindowCapture:
     def window_found(self) -> bool:
         """Check if the target window has been found."""
         return self._window_id is not None
+
+    @property
+    def bounds(self) -> Optional[dict]:
+        """Get the bounds of the target window."""
+        return self._last_bounds
+
+    def get_display_bounds(self) -> Optional[dict]:
+        """Get the bounds of the display containing the target window."""
+        if self._window_id is None:
+            return None
+        return get_display_bounds_for_window(self._window_id)
 
     @staticmethod
     def list_windows() -> list[dict]:
