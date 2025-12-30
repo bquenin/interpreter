@@ -5,6 +5,14 @@ import tkinter as tk
 from tkinter import font as tkfont
 from typing import Optional
 
+# Overlay layout constants
+DEFAULT_TITLE_BAR_HEIGHT = 30   # macOS title bar height in points
+DEFAULT_RETINA_SCALE = 2.0      # Default Retina display scale factor
+BANNER_HEIGHT = 100             # Default banner overlay height in points
+BANNER_BOTTOM_MARGIN = 50       # Gap between banner and screen bottom
+MIN_FONT_SIZE = 8               # Minimum allowed font size
+MAX_FONT_SIZE = 72              # Maximum allowed font size
+
 
 class Overlay:
     """A transparent, always-on-top window for displaying translated text.
@@ -46,8 +54,8 @@ class Overlay:
         # Bounds tracking
         self._display_bounds: Optional[dict] = None
         self._window_bounds: Optional[dict] = None
-        self._retina_scale: float = 2.0
-        self._title_bar_height: int = 30
+        self._retina_scale: float = DEFAULT_RETINA_SCALE
+        self._title_bar_height: int = DEFAULT_TITLE_BAR_HEIGHT
         self._last_regions: list[tuple[str, dict]] = []
 
     def create(self, display_bounds: dict, window_bounds: dict, image_size: tuple[int, int], mode: str = "banner"):
@@ -171,7 +179,7 @@ class Overlay:
         Args:
             delta: Amount to change font size (positive or negative).
         """
-        new_size = max(8, min(72, self.font_size + delta))  # Clamp between 8 and 72
+        new_size = max(MIN_FONT_SIZE, min(MAX_FONT_SIZE, self.font_size + delta))
         if new_size == self.font_size:
             return
         self.font_size = new_size
@@ -209,14 +217,14 @@ class Overlay:
         # Position at bottom of display
         if self._display_bounds:
             width = self._display_bounds["width"]
-            height = 100
+            height = BANNER_HEIGHT
             x = self._display_bounds["x"]
-            y = self._display_bounds["y"] + self._display_bounds["height"] - height - 50
+            y = self._display_bounds["y"] + self._display_bounds["height"] - height - BANNER_BOTTOM_MARGIN
         else:
             width = self._root.winfo_screenwidth()
-            height = 100
+            height = BANNER_HEIGHT
             x = 0
-            y = self._root.winfo_screenheight() - height - 50
+            y = self._root.winfo_screenheight() - height - BANNER_BOTTOM_MARGIN
 
         # Reset size constraints (inplace mode sets these)
         screen_w = self._root.winfo_screenwidth()
@@ -492,7 +500,3 @@ class Overlay:
     def mode(self) -> str:
         """Get the current mode."""
         return self._mode
-
-
-# Backward compatibility alias
-SubtitleOverlay = Overlay

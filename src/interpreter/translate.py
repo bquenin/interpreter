@@ -1,7 +1,10 @@
 """Translation module using Sugoi V4 for offline Japanese to English."""
 
 from difflib import SequenceMatcher
-from pathlib import Path
+
+# Translation cache defaults
+DEFAULT_CACHE_SIZE = 200            # Max cached translations
+DEFAULT_SIMILARITY_THRESHOLD = 0.9  # Fuzzy match threshold for cache lookup
 
 
 def text_similarity(a: str, b: str) -> float:
@@ -14,7 +17,11 @@ def text_similarity(a: str, b: str) -> float:
 class TranslationCache:
     """LRU cache for translations with fuzzy key matching."""
 
-    def __init__(self, max_size: int = 200, similarity_threshold: float = 0.9):
+    def __init__(
+        self,
+        max_size: int = DEFAULT_CACHE_SIZE,
+        similarity_threshold: float = DEFAULT_SIMILARITY_THRESHOLD,
+    ):
         """Initialize the cache.
 
         Args:
@@ -63,14 +70,18 @@ class TranslationCache:
 class Translator:
     """Translates Japanese text to English using Sugoi V4 (CTranslate2)."""
 
-    def __init__(self, cache_size: int = 200, similarity_threshold: float = 0.9):
+    def __init__(
+        self,
+        cache_size: int = DEFAULT_CACHE_SIZE,
+        similarity_threshold: float = DEFAULT_SIMILARITY_THRESHOLD,
+    ):
         """Initialize the translator (lazy loading).
 
         Args:
             cache_size: Maximum number of translations to cache.
             similarity_threshold: Minimum similarity for fuzzy cache match (0.0-1.0).
         """
-        self._model_path: Path | None = None
+        self._model_path = None
         self._translator = None
         self._tokenizer = None
         self._cache = TranslationCache(cache_size, similarity_threshold)

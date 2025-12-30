@@ -6,6 +6,11 @@ from typing import Optional
 import numpy as np
 from PIL import Image
 
+# Detection thresholds
+DEFAULT_CONFIDENCE_THRESHOLD = 0.6  # Minimum avg confidence per line (0.0-1.0)
+DUPLICATE_OVERLAP_THRESHOLD = 0.5   # Lines with >50% bbox overlap are duplicates
+SPATIAL_PROXIMITY_MULTIPLIER = 1.5  # Gap threshold = height * this value
+
 # Punctuation characters to exclude from confidence calculation
 # These often have lower OCR confidence but shouldn't invalidate the line
 PUNCTUATION = set('。、！？・…「」『』（）【】〈〉《》～ー－—.!?,;:\'"()-~')
@@ -26,7 +31,7 @@ class OCR:
     general-purpose OCR.
     """
 
-    def __init__(self, confidence_threshold: float = 0.6, debug: bool = False):
+    def __init__(self, confidence_threshold: float = DEFAULT_CONFIDENCE_THRESHOLD, debug: bool = False):
         """Initialize OCR (lazy loading of model).
 
         Args:
@@ -48,26 +53,24 @@ class OCR:
         self._model = MeikiOCR()
         print("MeikiOCR ready.")
 
-    def extract_text(self, image: Image.Image) -> str:
-        """Extract Japanese text from an image.
+    def _run_ocr_and_filter(self, image: Image.Image) -> list[dict]:
+        """Run OCR and filter results by confidence threshold.
+
+        This is the common logic shared between extract_text() and extract_text_regions().
 
         Args:
             image: PIL Image to extract text from.
 
         Returns:
-            Extracted text string.
+            List of line dicts: [{"text": str, "bbox": [x1, y1, x2, y2]}, ...]
+            Lines are deduplicated but not sorted or clustered.
         """
-        # Ensure model is loaded
         if self._model is None:
             self.load()
 
-        # Convert to numpy array (RGB)
         img_array = np.array(image.convert('RGB'))
-
-        # Run MeikiOCR
         results = self._model.run_ocr(img_array)
 
-        # Collect lines that pass confidence threshold
         lines = []
         for result in results:
             chars = result.get('chars', [])
@@ -85,7 +88,6 @@ class OCR:
             else:
                 continue
 
-            # Print debug info
             if self._debug and chars:
                 char_info = ' '.join(f"{c['char']}({c['conf']:.2f})" for c in chars)
                 status = "✓" if avg_conf >= self._confidence_threshold else "✗"
@@ -93,7 +95,6 @@ class OCR:
                 print(f"[DBG] {char_info} → avg: {avg_conf:.2f}{punct_note} {status}")
 
             if avg_conf >= self._confidence_threshold:
-                # Compute bbox for deduplication
                 char_bboxes = [c['bbox'] for c in chars if c.get('bbox') and len(c['bbox']) == 4]
                 if char_bboxes:
                     min_x = min(b[0] for b in char_bboxes)
@@ -105,15 +106,26 @@ class OCR:
                         'bbox': [min_x, min_y, max_x, max_y],
                     })
 
-        # Deduplicate overlapping lines (MeikiOCR sometimes returns duplicates)
-        lines = self._deduplicate_lines(lines)
+        return self._deduplicate_lines(lines)
+
+    def extract_text(self, image: Image.Image) -> str:
+        """Extract Japanese text from an image.
+
+        Args:
+            image: PIL Image to extract text from.
+
+        Returns:
+            Extracted text string.
+        """
+        lines = self._run_ocr_and_filter(image)
+        if not lines:
+            return ""
 
         # Sort by position (top-to-bottom, left-to-right) for correct reading order
         lines = sorted(lines, key=lambda l: (l['bbox'][1], l['bbox'][0]))
 
         # Concatenate all text (no spatial clustering for banner mode)
-        text = ''.join(line['text'] for line in lines)
-        return self._clean_text(text)
+        return self._clean_text(''.join(line['text'] for line in lines))
 
     def extract_text_with_bbox(self, image: Image.Image) -> OCRResult:
         """Extract Japanese text from an image with bounding box.
@@ -165,61 +177,7 @@ class OCR:
         Returns:
             List of OCRResult objects, one per detected text region.
         """
-        # Ensure model is loaded
-        if self._model is None:
-            self.load()
-
-        # Convert to numpy array (RGB)
-        img_array = np.array(image.convert('RGB'))
-
-        # Run MeikiOCR
-        results = self._model.run_ocr(img_array)
-
-        # Collect lines that pass confidence threshold
-        lines = []
-        for result in results:
-            chars = result.get('chars', [])
-            text = result.get('text', '')
-
-            if not chars or not text:
-                continue
-
-            non_punct_chars = [c for c in chars if c['char'] not in PUNCTUATION]
-
-            if non_punct_chars:
-                avg_conf = sum(c['conf'] for c in non_punct_chars) / len(non_punct_chars)
-            elif chars:
-                avg_conf = sum(c['conf'] for c in chars) / len(chars)
-            else:
-                continue
-
-            # Print debug info
-            if self._debug and chars:
-                char_info = ' '.join(f"{c['char']}({c['conf']:.2f})" for c in chars)
-                status = "✓" if avg_conf >= self._confidence_threshold else "✗"
-                punct_note = f" (excl {len(chars) - len(non_punct_chars)} punct)" if len(non_punct_chars) < len(chars) else ""
-                print(f"[DBG] {char_info} → avg: {avg_conf:.2f}{punct_note} {status}")
-
-            if avg_conf >= self._confidence_threshold:
-                # Compute bbox for this line from character bboxes
-                char_bboxes = [c['bbox'] for c in chars if c.get('bbox') and len(c['bbox']) == 4]
-                if char_bboxes:
-                    min_x = min(b[0] for b in char_bboxes)
-                    min_y = min(b[1] for b in char_bboxes)
-                    max_x = max(b[2] for b in char_bboxes)
-                    max_y = max(b[3] for b in char_bboxes)
-
-                    lines.append({
-                        'text': text,
-                        'bbox': [min_x, min_y, max_x, max_y],
-                    })
-
-        if not lines:
-            return []
-
-        # Deduplicate overlapping lines (MeikiOCR sometimes detects same region twice)
-        lines = self._deduplicate_lines(lines)
-
+        lines = self._run_ocr_and_filter(image)
         if not lines:
             return []
 
@@ -292,8 +250,7 @@ class OCR:
 
                 if ix1 < ix2 and iy1 < iy2:
                     intersection_area = (ix2 - ix1) * (iy2 - iy1)
-                    # If intersection is >50% of this line's area, it's a duplicate
-                    if line_area > 0 and intersection_area / line_area > 0.5:
+                    if line_area > 0 and intersection_area / line_area > DUPLICATE_OVERLAP_THRESHOLD:
                         is_duplicate = True
                         break
 
@@ -326,8 +283,7 @@ class OCR:
             line_width = x2 - x1
             line_height = y2 - y1
 
-            # Threshold for horizontal gap (1.5x line height)
-            h_threshold = line_height * 1.5
+            h_threshold = line_height * SPATIAL_PROXIMITY_MULTIPLIER
 
             # Find a cluster this line belongs to
             merged = False
@@ -379,8 +335,7 @@ class OCR:
             char_width = x2 - x1
             char_height = y2 - y1
 
-            # Threshold for horizontal gap (1.5x character width)
-            h_threshold = char_width * 1.5
+            h_threshold = char_width * SPATIAL_PROXIMITY_MULTIPLIER
 
             # Find a cluster this character belongs to
             merged = False
@@ -454,7 +409,7 @@ class OCR:
         for char1 in c1:
             x1, y1, x2, y2 = char1['bbox']
             char_width = x2 - x1
-            h_threshold = char_width * 1.5
+            h_threshold = char_width * SPATIAL_PROXIMITY_MULTIPLIER
 
             for char2 in c2:
                 ex1, ey1, ex2, ey2 = char2['bbox']
