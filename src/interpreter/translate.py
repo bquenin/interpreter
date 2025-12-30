@@ -17,14 +17,14 @@ class Translator:
         if self._translator is not None:
             return
 
+        print("Loading Sugoi V4...")
+
         import ctranslate2
         import sentencepiece as spm
 
         # Get model path (downloads from HuggingFace if needed)
         from .models import get_sugoi_model_path
         self._model_path = get_sugoi_model_path()
-
-        print(f"Loading Sugoi V4 translator from {self._model_path}...")
 
         # Load CTranslate2 model
         self._translator = ctranslate2.Translator(
@@ -37,7 +37,7 @@ class Translator:
         self._tokenizer = spm.SentencePieceProcessor()
         self._tokenizer.Load(str(tokenizer_path))
 
-        print("Translator ready.")
+        print("Sugoi V4 ready.")
 
     def translate(self, text: str) -> str:
         """Translate Japanese text to English.

@@ -21,10 +21,10 @@ class OCR:
         if self._model is not None:
             return
 
-        print("Loading MeikiOCR model...")
+        print("Loading MeikiOCR...")
         from meikiocr import MeikiOCR
         self._model = MeikiOCR()
-        print("MeikiOCR model loaded.")
+        print("MeikiOCR ready.")
 
     def extract_text(self, image: Image.Image) -> str:
         """Extract Japanese text from an image.
