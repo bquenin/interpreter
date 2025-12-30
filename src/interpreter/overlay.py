@@ -1,6 +1,5 @@
 """Unified overlay window for displaying subtitles in banner or inplace mode."""
 
-import platform
 import tkinter as tk
 from tkinter import font as tkfont
 from typing import Optional
@@ -24,9 +23,9 @@ class Overlay:
 
     def __init__(
         self,
-        font_size: int = 24,
+        font_size: int = 40,
         font_color: str = "#FFFFFF",
-        background_color: str = "#000000",
+        background_color: str = "#404040",
     ):
         """Initialize the overlay.
 
@@ -43,8 +42,8 @@ class Overlay:
         self._frame: Optional[tk.Frame] = None
         self._banner_label: Optional[tk.Label] = None
         self._inplace_labels: list[tk.Label] = []
+        self._font: Optional[tkfont.Font] = None
         self._current_text: str = ""
-        self._is_visible: bool = True
         self._paused: bool = False  # When paused, overlay shows nothing
         self._mode: str = "banner"  # "banner" or "inplace"
 
@@ -79,22 +78,10 @@ class Overlay:
         self._root.overrideredirect(True)  # Remove window decorations
         self._root.attributes("-topmost", True)  # Always on top
 
-        # Platform-specific transparency setup
-        system = platform.system()
-        if system == "Darwin":
-            self._root.attributes("-transparent", True)
-            self._root.config(bg="systemTransparent")
-            self._label_transparent_bg = "systemTransparent"
-        elif system == "Windows":
-            transparent_color = "#FF00FF"
-            self._root.attributes("-transparentcolor", transparent_color)
-            self._root.config(bg=transparent_color)
-            self._label_transparent_bg = transparent_color
-        else:
-            # Linux: use semi-transparent window
-            self._root.attributes("-alpha", 0.8)
-            self._root.config(bg="black")
-            self._label_transparent_bg = "black"
+        # macOS transparency setup
+        self._root.attributes("-transparent", True)
+        self._root.config(bg="systemTransparent")
+        self._label_transparent_bg = "systemTransparent"
 
         # Create frame for banner mode
         self._frame = tk.Frame(
@@ -104,12 +91,14 @@ class Overlay:
             pady=10,
         )
 
+        # Create cached font for all labels
+        self._font = tkfont.Font(family="Helvetica", size=self.font_size, weight="bold")
+
         # Create label for banner mode
-        subtitle_font = tkfont.Font(family="Helvetica", size=self.font_size, weight="bold")
         self._banner_label = tk.Label(
             self._frame,
             text="",
-            font=subtitle_font,
+            font=self._font,
             fg=self.font_color,
             bg=self.background_color,
             justify=tk.CENTER,
@@ -123,13 +112,13 @@ class Overlay:
         self._banner_label.bind("<B1-Motion>", self._on_drag)
 
         # Apply initial mode
-        self._apply_mode()
+        if mode == "banner":
+            self._apply_banner_mode()
+        else:
+            self._apply_inplace_mode()
 
-        # macOS: Configure window behavior
-        if system == "Darwin":
-            self._setup_macos_overlay()
-
-        self._is_visible = True
+        # Configure macOS window behavior
+        self._setup_macos_overlay()
 
     def _setup_macos_overlay(self):
         """Configure macOS-specific window behavior."""
@@ -169,7 +158,10 @@ class Overlay:
         if mode == self._mode:
             return
         self._mode = mode
-        self._apply_mode()
+        if mode == "banner":
+            self._apply_banner_mode()
+        else:
+            self._apply_inplace_mode()
 
     def adjust_font_size(self, delta: int):
         """Adjust the font size by delta pixels.
@@ -182,26 +174,12 @@ class Overlay:
             return
         self.font_size = new_size
 
-        # Update banner label font
-        if self._banner_label:
-            new_font = tkfont.Font(family="Helvetica", size=self.font_size, weight="bold")
-            self._banner_label.config(font=new_font)
+        # Update cached font (automatically updates all labels using it)
+        if self._font:
+            self._font.configure(size=self.font_size)
 
-        # Update inplace labels font
-        for label in self._inplace_labels:
-            new_font = tkfont.Font(family="Helvetica", size=self.font_size, weight="bold")
-            label.config(font=new_font)
-
-        # Force refresh
         if self._root:
             self._root.update_idletasks()
-
-    def _apply_mode(self):
-        """Apply the current mode's layout and positioning."""
-        if self._mode == "banner":
-            self._apply_banner_mode()
-        else:
-            self._apply_inplace_mode()
 
     def _apply_banner_mode(self):
         """Configure overlay for banner mode."""
@@ -283,17 +261,8 @@ class Overlay:
             display_bounds: Optional display bounds for banner mode repositioning.
             image_size: Optional tuple of (width, height) to recalculate retina scale.
         """
-        # Update window bounds
-        window_changed = False
-        if self._window_bounds is not None:
-            if (window_bounds["x"] != self._window_bounds["x"] or
-                window_bounds["y"] != self._window_bounds["y"] or
-                window_bounds["width"] != self._window_bounds["width"] or
-                window_bounds["height"] != self._window_bounds["height"]):
-                window_changed = True
-        else:
-            window_changed = True
-
+        # Check for window bounds changes
+        window_changed = window_bounds != self._window_bounds
         if window_changed:
             self._window_bounds = window_bounds.copy()
 
@@ -301,15 +270,10 @@ class Overlay:
         if image_size and window_bounds["width"] > 0:
             self._retina_scale = image_size[0] / window_bounds["width"]
 
-        # Update display bounds for banner mode
-        display_changed = False
-        if display_bounds and self._display_bounds:
-            if (display_bounds["x"] != self._display_bounds["x"] or
-                display_bounds["y"] != self._display_bounds["y"] or
-                display_bounds["width"] != self._display_bounds["width"] or
-                display_bounds["height"] != self._display_bounds["height"]):
-                self._display_bounds = display_bounds.copy()
-                display_changed = True
+        # Check for display bounds changes
+        display_changed = display_bounds and display_bounds != self._display_bounds
+        if display_changed:
+            self._display_bounds = display_bounds.copy()
 
         # Apply changes based on mode
         if self._mode == "inplace" and window_changed:
@@ -382,8 +346,7 @@ class Overlay:
             width = bbox["width"] / self._retina_scale
 
             # Configure and position label
-            subtitle_font = tkfont.Font(family="Helvetica", size=self.font_size, weight="bold")
-            label.config(text=text, font=subtitle_font, wraplength=int(width))
+            label.config(text=text, font=self._font, wraplength=int(width))
             label.place(x=x, y=y)
 
         self._root.update_idletasks()
@@ -394,6 +357,7 @@ class Overlay:
             label = tk.Label(
                 self._root,
                 text="",
+                font=self._font,
                 fg=self.font_color,
                 bg="#404040",  # Gray background for readability
                 padx=4,
@@ -416,18 +380,6 @@ class Overlay:
             x = self._root.winfo_x() + event.x - self._drag_start_x
             y = self._root.winfo_y() + event.y - self._drag_start_y
             self._root.geometry(f"+{x}+{y}")
-
-    def show(self):
-        """Show the overlay window."""
-        if self._root:
-            self._root.deiconify()
-            self._is_visible = True
-
-    def hide(self):
-        """Hide the overlay window."""
-        if self._root:
-            self._root.withdraw()
-            self._is_visible = False
 
     def pause(self):
         """Pause the overlay (clears content but keeps window)."""
@@ -459,13 +411,6 @@ class Overlay:
         else:
             # Inplace mode - re-render regions
             self._render_inplace_regions()
-
-    def toggle(self):
-        """Toggle overlay pause state."""
-        if self._paused:
-            self.resume()
-        else:
-            self.pause()
 
     @property
     def paused(self) -> bool:
