@@ -1,9 +1,8 @@
-"""macOS-specific window capture using PyObjC/Quartz and mss."""
+"""macOS-specific window capture using PyObjC/Quartz."""
 
 from typing import Optional
 
 from PIL import Image
-import mss
 import Quartz
 
 
@@ -90,7 +89,10 @@ def _get_window_bounds(window_id: int) -> Optional[dict]:
 
 
 def capture_window(window_id: int, title_bar_height: int = 30) -> Optional[Image.Image]:
-    """Capture a screenshot of a specific window using mss.
+    """Capture a screenshot of a specific window using CGWindowListCreateImage.
+
+    This captures the actual window content, not the screen region,
+    so overlapping windows (like the subtitle overlay) won't be included.
 
     Args:
         window_id: The CGWindowID of the window to capture.
@@ -100,27 +102,38 @@ def capture_window(window_id: int, title_bar_height: int = 30) -> Optional[Image
     Returns:
         PIL Image of the window content (excluding title bar), or None if capture failed.
     """
-    # Get current window bounds
-    bounds = _get_window_bounds(window_id)
-    if bounds is None:
+    # Capture the specific window only (not the screen region)
+    # kCGWindowListOptionIncludingWindow captures only this window
+    # kCGWindowImageBoundsIgnoreFraming excludes window shadow
+    cg_image = Quartz.CGWindowListCreateImage(
+        Quartz.CGRectNull,  # Capture the window's own bounds
+        Quartz.kCGWindowListOptionIncludingWindow,
+        window_id,
+        Quartz.kCGWindowImageBoundsIgnoreFraming
+    )
+
+    if cg_image is None:
         return None
 
-    if bounds["width"] == 0 or bounds["height"] == 0:
+    # Get image dimensions
+    width = Quartz.CGImageGetWidth(cg_image)
+    height = Quartz.CGImageGetHeight(cg_image)
+
+    if width == 0 or height == 0:
         return None
 
-    # Use mss to capture the screen region (excluding title bar)
-    with mss.mss() as sct:
-        monitor = {
-            "left": bounds["x"],
-            "top": bounds["y"] + title_bar_height,
-            "width": bounds["width"],
-            "height": bounds["height"] - title_bar_height,
-        }
+    # Get the raw pixel data
+    data_provider = Quartz.CGImageGetDataProvider(cg_image)
+    data = Quartz.CGDataProviderCopyData(data_provider)
 
-        try:
-            screenshot = sct.grab(monitor)
-            # Convert to PIL Image (mss returns BGRA, we want RGB)
-            image = Image.frombytes("RGB", screenshot.size, screenshot.bgra, "raw", "BGRX")
-            return image
-        except Exception:
-            return None
+    # Create PIL Image from raw data (BGRA format)
+    image = Image.frombytes("RGBA", (width, height), bytes(data), "raw", "BGRA")
+
+    # Convert to RGB (drop alpha channel)
+    image = image.convert("RGB")
+
+    # Crop out the title bar if requested
+    if title_bar_height > 0 and height > title_bar_height:
+        image = image.crop((0, title_bar_height, width, height))
+
+    return image
