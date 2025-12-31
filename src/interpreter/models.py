@@ -5,7 +5,11 @@ MeikiOCR models are handled automatically by the meikiocr pip package.
 Both use the standard HuggingFace cache at ~/.cache/huggingface/
 """
 
+import os
 from pathlib import Path
+
+# Suppress HuggingFace Hub warning about unauthenticated requests
+os.environ["HF_HUB_DISABLE_IMPLICIT_TOKEN"] = "1"
 
 from huggingface_hub import snapshot_download
 from huggingface_hub.utils import LocalEntryNotFoundError

@@ -32,7 +32,7 @@ if (-not $uvPath) {
 Write-Host "[2/2] Installing interpreter-v2 from GitHub..." -ForegroundColor Yellow
 Write-Host "     (this may take a minute on first install)" -ForegroundColor Gray
 $ErrorActionPreference = 'SilentlyContinue'
-uv tool install --upgrade "git+https://github.com/bquenin/interpreter@e678bc6df1d0459a3a993fe1a01e30fc0dc07a0c" | Out-Host
+uv tool install --upgrade "git+https://github.com/bquenin/interpreter@v2" | Out-Host
 uv tool update-shell | Out-Null
 $ErrorActionPreference = 'Stop'
 

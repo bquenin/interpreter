@@ -16,23 +16,23 @@ Offline screen translator for Japanese retro games. Captures text from any windo
 ## Requirements
 
 - Python 3.11+
-- macOS (Windows/Linux support planned)
+- macOS or Windows
 
 ## Installation
 
-1. Install [uv](https://docs.astral.sh/uv/getting-started/installation/) (modern Python package manager):
-   ```bash
-   curl -LsSf https://astral.sh/uv/install.sh | sh
-   ```
+### One-liner Install
 
-2. Clone and install:
-   ```bash
-   git clone https://github.com/bquenin/interpreter.git
-   cd interpreter
-   uv sync
-   ```
+**macOS/Linux:**
+```bash
+curl -LsSf https://raw.githubusercontent.com/bquenin/interpreter/v2/install.sh | bash
+```
 
-3. Models are downloaded automatically on first run (~1.5GB total).
+**Windows (PowerShell):**
+```powershell
+powershell -c "irm https://raw.githubusercontent.com/bquenin/interpreter/v2/install.ps1 | iex"
+```
+
+Then run with `interpreter-v2`.
 
 ## Usage
 
