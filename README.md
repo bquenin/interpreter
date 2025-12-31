@@ -60,7 +60,7 @@ interpreter-v2 --debug
 | `m` | Cycle overlay mode: off → banner → inplace |
 | `-` | Decrease font size |
 | `=` | Increase font size |
-| `Ctrl+C` | Quit |
+| `q` | Quit |
 
 In banner mode, you can drag the overlay to reposition it.
 
