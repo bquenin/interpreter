@@ -416,14 +416,15 @@ def main():
     if args.overlay_mode:
         config.overlay_mode = args.overlay_mode
 
-    # Get version from package metadata
+    # Get version and commit from package
     try:
         from importlib.metadata import version
         pkg_version = version("interpreter-v2")
     except Exception:
         pkg_version = "dev"
 
-    print(f"Interpreter v{pkg_version} - Offline Screen Translator")
+    from . import __commit__
+    print(f"Interpreter v{pkg_version} ({__commit__}) - Offline Screen Translator")
     print("=" * 50)
     if config.config_path:
         print(f"Config: {config.config_path}")

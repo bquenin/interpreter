@@ -6,8 +6,9 @@ transparent overlay.
 """
 
 __version__ = "0.1.0"
+__commit__ = "cfc0c52"  # Short commit hash, updated on release
 
 # Public API
 from .__main__ import main, list_windows
 
-__all__ = ["main", "list_windows", "__version__"]
+__all__ = ["main", "list_windows", "__version__", "__commit__"]
