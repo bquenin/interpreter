@@ -6,7 +6,7 @@ transparent overlay.
 """
 
 __version__ = "0.1.0"
-__commit__ = "cf21d0e"  # Short commit hash, updated on release
+__commit__ = "2ad3954"  # Short commit hash, updated on release
 
 # Public API
 from .__main__ import main, list_windows
