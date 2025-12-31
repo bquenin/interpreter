@@ -33,6 +33,8 @@ dependencies = [
     # Windows only - window capture
     "pygetwindow>=0.0.9; sys_platform == 'win32'",
     "windows-capture>=1.4.0; sys_platform == 'win32'",
+    # Linux only - window capture (X11)
+    "python-xlib>=0.33; sys_platform == 'linux'",
     # Windows only - GPU acceleration (CUDA 12)
     "nvidia-cublas-cu12; sys_platform == 'win32'",
     "nvidia-cudnn-cu12; sys_platform == 'win32'",

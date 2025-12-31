@@ -17,6 +17,12 @@ elif _system == "Windows":
     # Windows doesn't have display bounds detection yet
     def get_display_bounds_for_window(window_id: int) -> Optional[dict]:
         return None
+elif _system == "Linux":
+    from .capture_linux import find_window_by_title, capture_window, get_window_list, _get_window_bounds, LinuxCaptureStream
+    CaptureStream = LinuxCaptureStream
+    # Linux doesn't have display bounds detection yet
+    def get_display_bounds_for_window(window_id: int) -> Optional[dict]:
+        return None
 else:
     raise RuntimeError(f"Unsupported platform: {_system}")
 
@@ -125,7 +131,7 @@ class WindowCapture:
             # Windows uses window title for capture
             self._stream = CaptureStream(self.window_title)
         else:
-            # macOS uses window ID for capture
+            # macOS and Linux use window ID for capture
             self._stream = CaptureStream(self._window_id)
 
         self._stream.start()
