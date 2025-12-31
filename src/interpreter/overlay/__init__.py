@@ -5,13 +5,24 @@ import tkinter as tk
 from tkinter import font as tkfont
 from typing import Optional
 
-# Platform detection
-IS_WINDOWS = platform.system() == "Windows"
-IS_MACOS = platform.system() == "Darwin"
-IS_LINUX = platform.system() == "Linux"
+# Import platform-specific implementation
+_system = platform.system()
+
+if _system == "Darwin":
+    from .macos import TITLE_BAR_HEIGHT, FONT_FAMILY, setup_transparency, setup_window, set_click_through
+elif _system == "Windows":
+    from .windows import TITLE_BAR_HEIGHT, FONT_FAMILY, setup_transparency, setup_window, set_click_through
+elif _system == "Linux":
+    from .linux import TITLE_BAR_HEIGHT, FONT_FAMILY, setup_transparency, setup_window, set_click_through
+else:
+    # Fallback for unsupported platforms
+    TITLE_BAR_HEIGHT = 30
+    FONT_FAMILY = "Helvetica"
+    def setup_transparency(root): return ("#010101", "#010101")
+    def setup_window(root, mode): return None
+    def set_click_through(handle, enabled): pass
 
 # Overlay layout constants
-DEFAULT_TITLE_BAR_HEIGHT = 32 if IS_WINDOWS else 30  # Title bar height varies by OS
 DEFAULT_RETINA_SCALE = 2.0      # Default Retina display scale factor
 BANNER_HEIGHT = 100             # Default banner overlay height in points
 BANNER_BOTTOM_MARGIN = 50       # Gap between banner and screen bottom
@@ -57,11 +68,16 @@ class Overlay:
         self._paused: bool = False  # When paused, overlay shows nothing
         self._mode: str = "banner"  # "banner" or "inplace"
 
+        # Platform-specific state
+        self._window_handle = None  # Platform window handle (e.g., NSWindow on macOS)
+        self._transparent_color: str = ""
+        self._label_transparent_bg: str = ""
+
         # Bounds tracking
         self._display_bounds: Optional[dict] = None
         self._window_bounds: Optional[dict] = None
         self._retina_scale: float = DEFAULT_RETINA_SCALE
-        self._title_bar_height: int = DEFAULT_TITLE_BAR_HEIGHT
+        self._title_bar_height: int = TITLE_BAR_HEIGHT
         self._last_regions: list[tuple[str, dict]] = []
 
     def create(self, display_bounds: dict, window_bounds: dict, image_size: tuple[int, int], mode: str = "banner"):
@@ -89,24 +105,7 @@ class Overlay:
         self._root.attributes("-topmost", True)  # Always on top
 
         # Platform-specific transparency setup
-        if IS_WINDOWS:
-            # Windows: Use a specific color as transparent
-            self._transparent_color = "#010101"  # Near-black, unlikely to be used
-            self._root.attributes("-transparentcolor", self._transparent_color)
-            self._root.config(bg=self._transparent_color)
-            self._label_transparent_bg = self._transparent_color
-        elif IS_LINUX:
-            # Linux/X11: Use a color key for transparency (similar to Windows)
-            self._transparent_color = "#010101"  # Near-black, unlikely to be used
-            self._root.config(bg=self._transparent_color)
-            self._label_transparent_bg = self._transparent_color
-            # Note: True transparency on Linux requires compositor support
-            # The overlay will have an opaque background on non-composited desktops
-        else:
-            # macOS transparency setup
-            self._root.attributes("-transparent", True)
-            self._root.config(bg="systemTransparent")
-            self._label_transparent_bg = "systemTransparent"
+        self._transparent_color, self._label_transparent_bg = setup_transparency(self._root)
 
         # Create frame for banner mode
         self._frame = tk.Frame(
@@ -117,13 +116,7 @@ class Overlay:
         )
 
         # Create cached font for all labels
-        if IS_WINDOWS:
-            font_family = "Arial"
-        elif IS_LINUX:
-            font_family = "DejaVu Sans"  # Common Linux font
-        else:
-            font_family = "Helvetica"  # macOS
-        self._font = tkfont.Font(family=font_family, size=self.font_size, weight="bold")
+        self._font = tkfont.Font(family=FONT_FAMILY, size=self.font_size, weight="bold")
 
         # Create label for banner mode
         self._banner_label = tk.Label(
@@ -148,37 +141,8 @@ class Overlay:
         else:
             self._apply_inplace_mode()
 
-        # Configure macOS window behavior
-        self._setup_macos_overlay()
-
-    def _setup_macos_overlay(self):
-        """Configure macOS-specific window behavior."""
-        try:
-            from AppKit import (
-                NSApplication,
-                NSWindowCollectionBehaviorCanJoinAllSpaces,
-                NSWindowCollectionBehaviorStationary,
-            )
-
-            self._root.update_idletasks()
-            ns_app = NSApplication.sharedApplication()
-
-            for ns_window in ns_app.windows():
-                title = ns_window.title() or ""
-                if "Interpreter" in title:
-                    self._ns_window = ns_window
-                    behavior = (
-                        NSWindowCollectionBehaviorCanJoinAllSpaces |
-                        NSWindowCollectionBehaviorStationary
-                    )
-                    ns_window.setCollectionBehavior_(behavior)
-
-                    # Make click-through in inplace mode
-                    if self._mode == "inplace":
-                        ns_window.setIgnoresMouseEvents_(True)
-                    break
-        except Exception:
-            pass
+        # Platform-specific window setup
+        self._window_handle = setup_window(self._root, mode)
 
     # -------------------------------------------------------------------------
     # Mode Management
@@ -278,12 +242,8 @@ class Overlay:
         self._banner_label.config(wraplength=width - 60)
         self._root.geometry(f"{width}x{height}+{x}+{y}")
 
-        # Make draggable on macOS
-        try:
-            if hasattr(self, '_ns_window'):
-                self._ns_window.setIgnoresMouseEvents_(False)
-        except Exception:
-            pass
+        # Make draggable (disable click-through)
+        set_click_through(self._window_handle, False)
 
         self._root.update_idletasks()
 
@@ -352,12 +312,8 @@ class Overlay:
         self._root.wm_maxsize(width, height)
         self._root.geometry(f"{width}x{height}+{x}+{y}")
 
-        # Make click-through on macOS
-        try:
-            if hasattr(self, '_ns_window'):
-                self._ns_window.setIgnoresMouseEvents_(True)
-        except Exception:
-            pass
+        # Make click-through
+        set_click_through(self._window_handle, True)
 
         self._root.update_idletasks()
 
