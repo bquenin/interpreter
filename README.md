@@ -2,7 +2,7 @@
 
 Offline screen translator for Japanese retro games. Captures text from any window, performs OCR, translates to English, and displays subtitles in a floating overlay.
 
-![sample](sample.jpg)
+![screenshot](screenshot.png)
 
 ## Features
 
