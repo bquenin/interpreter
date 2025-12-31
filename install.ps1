@@ -28,9 +28,12 @@ if (-not $uvPath) {
     Write-Host "[1/2] uv is already installed" -ForegroundColor Green
 }
 
-# Install interpreter-v2
+# Install or upgrade interpreter-v2
 Write-Host "[2/2] Installing interpreter-v2 from PyPI..." -ForegroundColor Yellow
-uv tool install interpreter-v2
+$output = uv tool install --upgrade interpreter-v2 2>&1
+# Show output only if it's not just "already installed" noise
+$filtered = $output | Where-Object { $_ -notmatch "is already installed|already in PATH" }
+if ($filtered) { $filtered | Write-Host }
 
 # Update shell to add tools to PATH (suppress all output)
 & { uv tool update-shell } *>$null
