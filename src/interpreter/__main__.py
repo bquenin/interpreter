@@ -183,7 +183,7 @@ def _create_hotkey_handler() -> tuple[dict, callable, object]:
         state_dict contains flags that are set when hotkeys are pressed.
     """
     # Import pynput lazily to avoid slow Quartz loading at startup
-    print("Loading keyboard listener...", end=" ", flush=True)
+    print("  Loading keyboard listener...", end=" ", flush=True)
     from pynput import keyboard
     print("done.")
 
