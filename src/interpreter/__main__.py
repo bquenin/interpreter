@@ -115,19 +115,6 @@ def _initialize_components(
         print("Use --list-windows to see available windows.")
         sys.exit(1)
     print(f"  Window found: {config.window_title}")
-
-    # Initialize and load OCR
-    ocr = OCR(confidence_threshold=config.ocr_confidence, debug=args.debug)
-    ocr.load()
-
-    # Initialize and load translator
-    translator = None
-    if not args.no_translate:
-        translator = Translator()
-        translator.load()
-    else:
-        print("  Translator: DISABLED (--no-translate)")
-
     print(f"  Window bounds: {capture.bounds}")
 
     # Start capture stream
@@ -172,6 +159,18 @@ def _initialize_components(
         mode=config.overlay_mode,
     )
     print(f"  Overlay mode: {config.overlay_mode}")
+
+    # Initialize and load OCR
+    ocr = OCR(confidence_threshold=config.ocr_confidence, debug=args.debug)
+    ocr.load()
+
+    # Initialize and load translator
+    translator = None
+    if not args.no_translate:
+        translator = Translator()
+        translator.load()
+    else:
+        print("  Translator: DISABLED (--no-translate)")
 
     return capture, ocr, translator, overlay
 
