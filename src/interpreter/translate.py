@@ -1,10 +1,46 @@
 """Translation module using Sugoi V4 for offline Japanese to English."""
 
+import os
 from difflib import SequenceMatcher
+from pathlib import Path
+
+from huggingface_hub import snapshot_download
+from huggingface_hub.utils import LocalEntryNotFoundError
+
+# Suppress HuggingFace Hub warning about unauthenticated requests
+os.environ["HF_HUB_DISABLE_IMPLICIT_TOKEN"] = "1"
+
+# Official HuggingFace repository for Sugoi V4
+SUGOI_REPO_ID = "entai2965/sugoi-v4-ja-en-ctranslate2"
 
 # Translation cache defaults
 DEFAULT_CACHE_SIZE = 200            # Max cached translations
 DEFAULT_SIMILARITY_THRESHOLD = 0.9  # Fuzzy match threshold for cache lookup
+
+
+def _get_sugoi_model_path() -> Path:
+    """Get path to Sugoi V4 translation model, downloading if needed.
+
+    Downloads from official HuggingFace source on first use.
+    Model is cached in standard HuggingFace cache (~/.cache/huggingface/).
+
+    Returns:
+        Path to the model directory.
+    """
+    # First try to load from cache (no network request)
+    try:
+        model_path = snapshot_download(
+            repo_id=SUGOI_REPO_ID,
+            local_files_only=True,
+        )
+        return Path(model_path)
+    except LocalEntryNotFoundError:
+        pass
+
+    # Not cached, download from HuggingFace
+    print("Downloading Sugoi V4 model (~1.1GB)...")
+    model_path = snapshot_download(repo_id=SUGOI_REPO_ID)
+    return Path(model_path)
 
 
 def text_similarity(a: str, b: str) -> float:
@@ -97,8 +133,7 @@ class Translator:
         import sentencepiece as spm
 
         # Get model path (downloads from HuggingFace if needed)
-        from .models import get_sugoi_model_path
-        self._model_path = get_sugoi_model_path()
+        self._model_path = _get_sugoi_model_path()
 
         # Load CTranslate2 model with GPU if available, fallback to CPU
         device = "cpu"
