@@ -116,15 +116,15 @@ def _initialize_components(
         sys.exit(1)
     print(f"  Window found: {config.window_title}")
 
-    # Initialize OCR
+    # Initialize and load OCR
     ocr = OCR(confidence_threshold=config.ocr_confidence, debug=args.debug)
-    print("  OCR: MeikiOCR (will load on first use)")
+    ocr.load()
 
-    # Initialize translator (lazy loading)
+    # Initialize and load translator
     translator = None
     if not args.no_translate:
         translator = Translator()
-        print("  Translator: Sugoi V4 (will load on first use)")
+        translator.load()
     else:
         print("  Translator: DISABLED (--no-translate)")
 
