@@ -25,7 +25,12 @@ import argparse
 import time
 from typing import Optional
 
+# pynput imports Quartz on macOS which can take several seconds to load
+if sys.platform == "darwin":
+    print("Loading keyboard listener...", end=" ", flush=True)
 from pynput import keyboard
+if sys.platform == "darwin":
+    print("done.")
 
 from .capture import WindowCapture
 from .config import Config
