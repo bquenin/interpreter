@@ -1,5 +1,5 @@
 [project]
-name = "interpreter"
+name = "interpreter-v2"
 version = "0.1.0"
 description = "Offline screen translator for Japanese retro games"
 readme = "README.md"
@@ -32,12 +32,16 @@ dependencies = [
     # Windows only - window capture
     "pygetwindow>=0.0.9; sys_platform == 'win32'",
     "windows-capture>=1.4.0; sys_platform == 'win32'",
+    # Windows only - GPU acceleration (CUDA 12)
+    "nvidia-cublas-cu12; sys_platform == 'win32'",
+    "nvidia-cudnn-cu12; sys_platform == 'win32'",
+    "onnxruntime-gpu; sys_platform == 'win32'",
     # Global hotkeys
     "pynput>=1.7.6",
 ]
 
 [project.scripts]
-interpreter = "interpreter:main"
+interpreter-v2 = "interpreter:main"
 
 [build-system]
 requires = ["hatchling"]

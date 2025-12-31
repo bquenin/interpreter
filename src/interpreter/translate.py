@@ -100,15 +100,12 @@ class Translator:
         from .models import get_sugoi_model_path
         self._model_path = get_sugoi_model_path()
 
-        # Load CTranslate2 model
-        # Check if CUDA is actually available (not just that ctranslate2 accepts it)
-        device = "cpu"
+        # Load CTranslate2 model with GPU if available
         try:
-            import ctypes
-            ctypes.CDLL("cublas64_12.dll")
-            device = "cuda"
-        except OSError:
-            pass  # CUDA not available, use CPU
+            cuda_types = ctranslate2.get_supported_compute_types("cuda")
+            device = "cuda" if cuda_types else "cpu"
+        except Exception:
+            device = "cpu"
 
         self._translator = ctranslate2.Translator(
             str(self._model_path),

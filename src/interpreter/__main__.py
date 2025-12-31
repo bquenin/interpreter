@@ -6,6 +6,13 @@ This module is executed when running:
 """
 
 import os
+import sys
+
+# Setup CUDA DLLs early (before any CUDA-dependent imports)
+# This must happen before importing ctranslate2 or onnxruntime
+if sys.platform == "win32":
+    from .gpu import setup_cuda_dlls
+    setup_cuda_dlls()
 
 # Suppress harmless onnxruntime semaphore warning on exit
 # Must be set before multiprocessing is imported
@@ -15,7 +22,6 @@ os.environ["PYTHONWARNINGS"] = "ignore::UserWarning:multiprocessing.resource_tra
 os.environ["HF_HUB_DISABLE_IMPLICIT_TOKEN"] = "1"
 
 import argparse
-import sys
 import time
 from typing import Optional
 
