@@ -9,9 +9,11 @@ import yaml
 class Config:
     """Application configuration."""
 
+    DEFAULT_WINDOW_TITLE = "Snes9x"
+
     def __init__(
         self,
-        window_title: str = "RetroArch",
+        window_title: str = "Snes9x",
         refresh_rate: float = 0.5,
         ocr_confidence: float = 0.6,
         overlay_mode: str = "banner",
@@ -51,10 +53,11 @@ class Config:
                     break
 
         if config_path and os.path.exists(config_path):
+            print(f"Loading config from: {config_path}")
             with open(config_path, "r", encoding="utf-8") as f:
                 data = yaml.safe_load(f) or {}
             return cls(
-                window_title=data.get("window_title", "RetroArch"),
+                window_title=data.get("window_title", cls.DEFAULT_WINDOW_TITLE),
                 refresh_rate=float(data.get("refresh_rate", 0.5)),
                 ocr_confidence=float(data.get("ocr_confidence", 0.6)),
                 overlay_mode=data.get("overlay_mode", "banner"),
@@ -82,7 +85,7 @@ class Config:
 
         # Write default config with comments
         default_config = """# Window to capture (partial title match)
-window_title: "RetroArch"
+window_title: "Snes9x"
 
 # Refresh rate in seconds (how often to capture and process the screen)
 # Lower = more responsive but higher CPU usage

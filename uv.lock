@@ -316,8 +316,8 @@ wheels = [
 ]
 
 [[package]]
-name = "interpreter"
-version = "0.1.0"
+name = "interpreter-v2"
+version = "2.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "ctranslate2" },
@@ -326,7 +326,7 @@ dependencies = [
     { name = "numpy" },
     { name = "nvidia-cublas-cu12", marker = "sys_platform == 'win32'" },
     { name = "nvidia-cudnn-cu12", marker = "sys_platform == 'win32'" },
-    { name = "onnxruntime-gpu", marker = "sys_platform == 'win32'" },
+    { name = "onnxruntime" },
     { name = "opencv-python" },
     { name = "pillow" },
     { name = "pygetwindow", marker = "sys_platform == 'win32'" },
@@ -347,7 +347,7 @@ requires-dist = [
     { name = "numpy" },
     { name = "nvidia-cublas-cu12", marker = "sys_platform == 'win32'" },
     { name = "nvidia-cudnn-cu12", marker = "sys_platform == 'win32'" },
-    { name = "onnxruntime-gpu", marker = "sys_platform == 'win32'" },
+    { name = "onnxruntime" },
     { name = "opencv-python" },
     { name = "pillow", specifier = ">=10.0.0" },
     { name = "pygetwindow", marker = "sys_platform == 'win32'", specifier = ">=0.0.9" },
@@ -521,24 +521,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/4a/93/aba75358133b3a941d736816dd392f687e7eab77215a6e429879080b76b6/onnxruntime-1.23.2-cp313-cp313-win_amd64.whl", hash = "sha256:1f9cc0a55349c584f083c1c076e611a7c35d5b867d5d6e6d6c823bf821978088", size = 13470276, upload-time = "2025-10-22T03:47:31.193Z" },
     { url = "https://files.pythonhosted.org/packages/7c/3d/6830fa61c69ca8e905f237001dbfc01689a4e4ab06147020a4518318881f/onnxruntime-1.23.2-cp313-cp313t-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:9d2385e774f46ac38f02b3a91a91e30263d41b2f1f4f26ae34805b2a9ddef466", size = 15229610, upload-time = "2025-10-22T03:46:32.239Z" },
     { url = "https://files.pythonhosted.org/packages/b6/ca/862b1e7a639460f0ca25fd5b6135fb42cf9deea86d398a92e44dfda2279d/onnxruntime-1.23.2-cp313-cp313t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:e2b9233c4947907fd1818d0e581c049c41ccc39b2856cc942ff6d26317cee145", size = 17394184, upload-time = "2025-10-22T03:47:08.127Z" },
-]
-
-[[package]]
-name = "onnxruntime-gpu"
-version = "1.23.2"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "coloredlogs", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux')" },
-    { name = "flatbuffers", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux')" },
-    { name = "numpy", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux')" },
-    { name = "packaging", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux')" },
-    { name = "protobuf", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux')" },
-    { name = "sympy", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux')" },
-]
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/a9/5c/dba7c009e73dcce02e7f714574345b5e607c5c75510eb8d7bef682b45e5d/onnxruntime_gpu-1.23.2-cp311-cp311-win_amd64.whl", hash = "sha256:054282614c2fc9a4a27d74242afbae706a410f1f63cc35bc72f99709029a5ba4", size = 244506823, upload-time = "2025-10-22T16:55:09.526Z" },
-    { url = "https://files.pythonhosted.org/packages/87/da/2685c79e5ea587beddebe083601fead0bdf3620bc2f92d18756e7de8a636/onnxruntime_gpu-1.23.2-cp312-cp312-win_amd64.whl", hash = "sha256:fe925a84b00e291e0ad3fac29bfd8f8e06112abc760cdc82cb711b4f3935bd95", size = 244508327, upload-time = "2025-10-22T16:55:19.397Z" },
-    { url = "https://files.pythonhosted.org/packages/b6/3b/418300438063d403384c79eaef1cb13c97627042f2247b35a887276a355a/onnxruntime_gpu-1.23.2-cp313-cp313-win_amd64.whl", hash = "sha256:7f1b3f49e5e126b99e23ec86b4203db41c2a911f6165f7624f2bc8267aaca767", size = 244507535, upload-time = "2025-10-22T16:55:28.532Z" },
 ]
 
 [[package]]

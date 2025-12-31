@@ -1,6 +1,6 @@
 [project]
 name = "interpreter-v2"
-version = "2.0.0"
+version = "2.0.1"
 description = "Offline screen translator for Japanese retro games"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -13,6 +13,7 @@ keywords = ["ocr", "translation", "japanese", "games", "retro"]
 dependencies = [
     # OCR
     "meikiocr",
+    "onnxruntime",
     # Translation (Sugoi V4)
     "ctranslate2",
     "sentencepiece",
@@ -35,7 +36,6 @@ dependencies = [
     # Windows only - GPU acceleration (CUDA 12)
     "nvidia-cublas-cu12; sys_platform == 'win32'",
     "nvidia-cudnn-cu12; sys_platform == 'win32'",
-    "onnxruntime-gpu; sys_platform == 'win32'",
     # Global hotkeys
     "pynput>=1.7.6",
 ]

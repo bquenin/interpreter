@@ -412,7 +412,14 @@ def main():
     if args.overlay_mode:
         config.overlay_mode = args.overlay_mode
 
-    print("Interpreter - Offline Screen Translator")
+    # Get version from package metadata
+    try:
+        from importlib.metadata import version
+        pkg_version = version("interpreter-v2")
+    except Exception:
+        pkg_version = "dev"
+
+    print(f"Interpreter v{pkg_version} - Offline Screen Translator")
     print("=" * 50)
     print(f"Target window: {config.window_title}")
     print(f"Refresh rate: {config.refresh_rate}s")
