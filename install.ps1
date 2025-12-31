@@ -29,12 +29,19 @@ if (-not $uvPath) {
 }
 
 # Install or upgrade interpreter-v2
-Write-Host "[2/2] Installing interpreter-v2 from GitHub..." -ForegroundColor Yellow
+Write-Host "[2/3] Installing interpreter-v2 from GitHub..." -ForegroundColor Yellow
 Write-Host "     (this may take a minute on first install)" -ForegroundColor Gray
 $ErrorActionPreference = 'SilentlyContinue'
 uv tool install --upgrade "git+https://github.com/bquenin/interpreter@0f0f07965c7d079795ab3fd315862420c6d3f4bd" | Out-Host
 uv tool update-shell | Out-Null
 $ErrorActionPreference = 'Stop'
+
+# Pre-compile bytecode to avoid slow first run
+Write-Host "[3/3] Optimizing for fast startup..." -ForegroundColor Yellow
+$toolDir = "$env:LOCALAPPDATA\uv\tools\interpreter-v2"
+if (Test-Path $toolDir) {
+    & "$toolDir\Scripts\python.exe" -m compileall -q "$toolDir\Lib" 2>$null
+}
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Green

@@ -5,10 +5,6 @@ This module is executed when running:
 - interpreter (via pyproject.toml entry point)
 """
 
-import time as _boot_time
-_boot_start = _boot_time.perf_counter()
-print(f"[0ms] Starting imports...", flush=True)
-
 import os
 import sys
 
@@ -34,8 +30,6 @@ from .config import Config
 from .ocr import OCR
 from .overlay import Overlay
 from .translate import Translator, text_similarity
-
-print(f"[{(_boot_time.perf_counter() - _boot_start)*1000:.0f}ms] Imports complete", flush=True)
 
 # Main loop timing constants
 TEXT_SIMILARITY_THRESHOLD = 0.9  # Skip OCR if 90%+ similar to previous
@@ -406,13 +400,7 @@ def _run_main_loop(
 
 def main():
     """Main entry point."""
-    import time as _time
-    _start = _time.perf_counter()
-    def _elapsed():
-        return f"[{(_time.perf_counter() - _start)*1000:.0f}ms]"
-
     args = _parse_arguments()
-    print(f"{_elapsed()} Args parsed")
 
     # List windows mode
     if args.list_windows:
@@ -421,7 +409,6 @@ def main():
 
     # Load configuration
     config = Config.load(args.config)
-    print(f"{_elapsed()} Config loaded")
 
     # Override with CLI arguments
     if args.window:

@@ -36,10 +36,17 @@ else
 fi
 
 # Install or upgrade interpreter-v2
-echo -e "${YELLOW}[2/2] Installing interpreter-v2 from GitHub...${NC}"
+echo -e "${YELLOW}[2/3] Installing interpreter-v2 from GitHub...${NC}"
 echo -e "${GRAY}     (this may take a minute on first install)${NC}"
 uv tool install --upgrade "git+https://github.com/bquenin/interpreter@0f0f07965c7d079795ab3fd315862420c6d3f4bd" 2>&1 || true
 uv tool update-shell > /dev/null 2>&1 || true
+
+# Pre-compile bytecode to avoid slow first run
+echo -e "${YELLOW}[3/3] Optimizing for fast startup...${NC}"
+TOOL_DIR="$HOME/.local/share/uv/tools/interpreter-v2"
+if [ -d "$TOOL_DIR" ]; then
+    "$TOOL_DIR/bin/python" -m compileall -q "$TOOL_DIR/lib" 2>/dev/null || true
+fi
 
 echo ""
 echo -e "${GREEN}========================================${NC}"
