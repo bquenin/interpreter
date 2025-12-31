@@ -20,6 +20,7 @@ class Config:
         font_size: int = 40,
         font_color: str = "#FFFFFF",
         background_color: str = "#404040",
+        config_path: str | None = None,
     ):
         self.window_title = window_title
         self.refresh_rate = refresh_rate
@@ -28,6 +29,7 @@ class Config:
         self.font_size = font_size
         self.font_color = font_color
         self.background_color = background_color
+        self.config_path = config_path
 
     @classmethod
     def load(cls, config_path: str | None = None) -> "Config":
@@ -53,7 +55,6 @@ class Config:
                     break
 
         if config_path and os.path.exists(config_path):
-            print(f"Loading config from: {config_path}")
             with open(config_path, "r", encoding="utf-8") as f:
                 data = yaml.safe_load(f) or {}
             return cls(
@@ -64,6 +65,7 @@ class Config:
                 font_size=int(data.get("font_size", 40)),
                 font_color=data.get("font_color", "#FFFFFF"),
                 background_color=data.get("background_color", "#404040"),
+                config_path=config_path,
             )
 
         # No config file found - create default in home directory

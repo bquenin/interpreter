@@ -421,6 +421,8 @@ def main():
 
     print(f"Interpreter v{pkg_version} - Offline Screen Translator")
     print("=" * 50)
+    if config.config_path:
+        print(f"Config: {config.config_path}")
     print(f"Target window: {config.window_title}")
     print(f"Refresh rate: {config.refresh_rate}s")
     print(f"Overlay mode: {config.overlay_mode}")
