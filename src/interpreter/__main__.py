@@ -151,9 +151,10 @@ def _initialize_components(
     image_size = (initial_image.width, initial_image.height)
 
     # Debug: save initial capture to verify what we're capturing
-    debug_path = "debug_capture.png"
-    initial_image.save(debug_path)
-    print(f"  Debug: saved capture to {debug_path}")
+    if args.debug:
+        debug_path = "debug_capture.png"
+        initial_image.save(debug_path)
+        print(f"  Debug: saved capture to {debug_path}")
 
     # Create unified overlay
     display_bounds = capture.get_display_bounds()
