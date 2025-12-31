@@ -41,11 +41,14 @@ echo -e "${GRAY}     (this may take a minute on first install)${NC}"
 uv tool install --upgrade "git+https://github.com/bquenin/interpreter@cf21d0e7938aafbcf1bcb5ed028c471554d8645b" 2>&1 || true
 uv tool update-shell > /dev/null 2>&1 || true
 
-# Pre-compile bytecode to avoid slow first run
+# Pre-compile bytecode and warm up OS caches
 echo -e "${YELLOW}[3/3] Optimizing for fast startup...${NC}"
 TOOL_DIR="$HOME/.local/share/uv/tools/interpreter-v2"
 if [ -d "$TOOL_DIR" ]; then
+    # Compile bytecode
     "$TOOL_DIR/bin/python" -m compileall -q "$TOOL_DIR/lib" 2>/dev/null || true
+    # Warm up OS caches (Gatekeeper, dyld) by running once
+    interpreter-v2 --list-windows > /dev/null 2>&1 || true
 fi
 
 echo ""
