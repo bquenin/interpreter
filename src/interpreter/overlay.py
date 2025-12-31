@@ -8,6 +8,7 @@ from typing import Optional
 # Platform detection
 IS_WINDOWS = platform.system() == "Windows"
 IS_MACOS = platform.system() == "Darwin"
+IS_LINUX = platform.system() == "Linux"
 
 # Overlay layout constants
 DEFAULT_TITLE_BAR_HEIGHT = 32 if IS_WINDOWS else 30  # Title bar height varies by OS
@@ -94,6 +95,13 @@ class Overlay:
             self._root.attributes("-transparentcolor", self._transparent_color)
             self._root.config(bg=self._transparent_color)
             self._label_transparent_bg = self._transparent_color
+        elif IS_LINUX:
+            # Linux/X11: Use a color key for transparency (similar to Windows)
+            self._transparent_color = "#010101"  # Near-black, unlikely to be used
+            self._root.config(bg=self._transparent_color)
+            self._label_transparent_bg = self._transparent_color
+            # Note: True transparency on Linux requires compositor support
+            # The overlay will have an opaque background on non-composited desktops
         else:
             # macOS transparency setup
             self._root.attributes("-transparent", True)
@@ -108,8 +116,13 @@ class Overlay:
             pady=10,
         )
 
-        # Create cached font for all labels (use Arial on Windows, Helvetica on macOS)
-        font_family = "Arial" if IS_WINDOWS else "Helvetica"
+        # Create cached font for all labels
+        if IS_WINDOWS:
+            font_family = "Arial"
+        elif IS_LINUX:
+            font_family = "DejaVu Sans"  # Common Linux font
+        else:
+            font_family = "Helvetica"  # macOS
         self._font = tkfont.Font(family=font_family, size=self.font_size, weight="bold")
 
         # Create label for banner mode

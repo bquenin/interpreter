@@ -100,17 +100,26 @@ class Translator:
         from .models import get_sugoi_model_path
         self._model_path = get_sugoi_model_path()
 
-        # Load CTranslate2 model with GPU if available
+        # Load CTranslate2 model with GPU if available, fallback to CPU
+        device = "cpu"
         try:
             cuda_types = ctranslate2.get_supported_compute_types("cuda")
-            device = "cuda" if cuda_types else "cpu"
+            if cuda_types:
+                # Try to load with GPU
+                self._translator = ctranslate2.Translator(
+                    str(self._model_path),
+                    device="cuda",
+                )
+                device = "cuda"
         except Exception:
-            device = "cpu"
+            # GPU failed, will use CPU below
+            pass
 
-        self._translator = ctranslate2.Translator(
-            str(self._model_path),
-            device=device,
-        )
+        if device == "cpu":
+            self._translator = ctranslate2.Translator(
+                str(self._model_path),
+                device="cpu",
+            )
 
         # Load SentencePiece tokenizer
         tokenizer_path = self._model_path / "spm" / "spm.ja.nopretok.model"

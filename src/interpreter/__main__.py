@@ -10,7 +10,7 @@ import sys
 
 # Setup CUDA DLLs early (before any CUDA-dependent imports)
 # This must happen before importing ctranslate2 or onnxruntime
-if sys.platform == "win32":
+if sys.platform in ("win32", "linux"):
     from .gpu import setup_cuda_dlls
     setup_cuda_dlls()
 
@@ -182,9 +182,9 @@ def _create_hotkey_handler() -> tuple[dict, callable, object]:
         Tuple of (state_dict, handler_function, keyboard_listener).
         state_dict contains flags that are set when hotkeys are pressed.
     """
-    # Import pynput lazily to avoid slow Quartz loading at startup
+    # Import input module lazily to avoid slow loading at startup
     print("  Loading keyboard listener...", end=" ", flush=True)
-    from pynput import keyboard
+    from .input import KeyboardListener
     print("done.")
 
     state = {
@@ -194,21 +194,18 @@ def _create_hotkey_handler() -> tuple[dict, callable, object]:
         "quit": False,
     }
 
-    def on_key_press(key):
-        try:
-            if hasattr(key, 'char'):
-                if key.char == 'm':
-                    state["cycle_mode"] = True
-                elif key.char == '=':
-                    state["increase_font"] = True
-                elif key.char == '-':
-                    state["decrease_font"] = True
-                elif key.char == 'q':
-                    state["quit"] = True
-        except AttributeError:
-            pass
+    def on_key_press(char: str):
+        """Handle key press - receives character directly."""
+        if char == 'm':
+            state["cycle_mode"] = True
+        elif char == '=':
+            state["increase_font"] = True
+        elif char == '-':
+            state["decrease_font"] = True
+        elif char == 'q':
+            state["quit"] = True
 
-    listener = keyboard.Listener(on_press=on_key_press)
+    listener = KeyboardListener(on_press=on_key_press)
     return state, on_key_press, listener
 
 
