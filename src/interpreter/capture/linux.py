@@ -254,13 +254,56 @@ def get_display_bounds_for_window(window_id: int, debug: bool = False) -> Option
     return None
 
 
+def _find_content_window(window) -> Optional[tuple]:
+    """Find the largest child window (likely the content area).
+
+    For CSD (client-side decoration) windows, the actual content is often
+    in a child window, while the parent includes title bar and shadows.
+
+    Args:
+        window: The X11 window object.
+
+    Returns:
+        Tuple of (child_window, x_offset, y_offset) or None if no suitable child.
+    """
+    try:
+        children = window.query_tree().children
+        if not children:
+            return None
+
+        # Find the largest child window (by area)
+        best_child = None
+        best_area = 0
+        best_offset = (0, 0)
+
+        for child in children:
+            try:
+                geom = child.get_geometry()
+                area = geom.width * geom.height
+                # Must be reasonably sized (> 100x100) and larger than current best
+                if geom.width > 100 and geom.height > 100 and area > best_area:
+                    best_child = child
+                    best_area = area
+                    best_offset = (geom.x, geom.y)
+            except (BadWindow, BadDrawable):
+                continue
+
+        return (best_child, best_offset[0], best_offset[1]) if best_child else None
+
+    except (BadWindow, BadDrawable):
+        return None
+
+
 def capture_window(window_id: int, title_bar_height: int = 30) -> Optional[Image.Image]:
     """Capture a screenshot of a specific window.
+
+    For CSD windows (with client-side decorations), this will attempt to
+    capture the content child window directly, avoiding title bars and shadows.
 
     Args:
         window_id: The X11 window ID (XID) of the window to capture.
         title_bar_height: Height of window title bar to crop (default: 30).
-                         Ignored for fullscreen windows.
+                         Only used as fallback if no content window found.
 
     Returns:
         PIL Image of the window content, or None if capture failed.
@@ -270,8 +313,18 @@ def capture_window(window_id: int, title_bar_height: int = 30) -> Optional[Image
     try:
         window = disp.create_resource_object("window", window_id)
 
+        # Try to find content child window (for CSD windows)
+        content_info = _find_content_window(window)
+        if content_info:
+            target_window = content_info[0]
+            # Content window found - capture it directly (no cropping needed)
+            crop_title_bar = False
+        else:
+            target_window = window
+            crop_title_bar = True
+
         # Get window geometry
-        geom = window.get_geometry()
+        geom = target_window.get_geometry()
         width = geom.width
         height = geom.height
         depth = geom.depth
@@ -281,7 +334,7 @@ def capture_window(window_id: int, title_bar_height: int = 30) -> Optional[Image
 
         # Capture the window contents
         # ZPixmap format gives us packed pixel data
-        raw = window.get_image(
+        raw = target_window.get_image(
             0, 0,           # x, y offset
             width, height,  # dimensions
             X.ZPixmap,      # format (packed pixels)
@@ -326,12 +379,11 @@ def capture_window(window_id: int, title_bar_height: int = 30) -> Optional[Image
             # Unsupported depth
             return None
 
-        # Check if fullscreen
-        is_fullscreen = _is_fullscreen(window_id)
-
-        # Crop out the title bar if not fullscreen
-        if not is_fullscreen and title_bar_height > 0 and height > title_bar_height:
-            image = image.crop((0, title_bar_height, width, height))
+        # Only crop title bar if we couldn't find a content window
+        if crop_title_bar:
+            is_fullscreen = _is_fullscreen(window_id)
+            if not is_fullscreen and title_bar_height > 0 and height > title_bar_height:
+                image = image.crop((0, title_bar_height, width, height))
 
         return image
 
