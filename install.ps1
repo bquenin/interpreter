@@ -32,14 +32,17 @@ if (-not $uvPath) {
 Write-Host "[2/2] Installing interpreter-v2 from PyPI..." -ForegroundColor Yellow
 uv tool install interpreter-v2
 
-# Update shell to add tools to PATH
-uv tool update-shell 2>$null
+# Update shell to add tools to PATH (suppress output)
+$null = uv tool update-shell 2>&1
 
 Write-Host ""
-Write-Host "Installation complete!" -ForegroundColor Green
+Write-Host "========================================" -ForegroundColor Green
+Write-Host "  Installation complete!" -ForegroundColor Green
+Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "To start, run:" -ForegroundColor Cyan
-Write-Host "  interpreter-v2"
+Write-Host "To start, run:" -ForegroundColor White
 Write-Host ""
-Write-Host "Note: You may need to restart your terminal for the command to be available."
+Write-Host "  interpreter-v2" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "You may need to restart your terminal first."
 Write-Host ""
