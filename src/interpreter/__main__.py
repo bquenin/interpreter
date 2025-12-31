@@ -25,13 +25,6 @@ import argparse
 import time
 from typing import Optional
 
-# pynput imports Quartz on macOS which can take several seconds to load
-if sys.platform == "darwin":
-    print("Loading keyboard listener...", end=" ", flush=True)
-from pynput import keyboard
-if sys.platform == "darwin":
-    print("done.")
-
 from .capture import WindowCapture
 from .config import Config
 from .ocr import OCR
@@ -182,13 +175,18 @@ def _initialize_components(
     return capture, ocr, translator, overlay
 
 
-def _create_hotkey_handler() -> tuple[dict, callable]:
-    """Create hotkey state and handler function.
+def _create_hotkey_handler() -> tuple[dict, callable, object]:
+    """Create hotkey state, handler function, and keyboard listener.
 
     Returns:
-        Tuple of (state_dict, handler_function).
+        Tuple of (state_dict, handler_function, keyboard_listener).
         state_dict contains flags that are set when hotkeys are pressed.
     """
+    # Import pynput lazily to avoid slow Quartz loading at startup
+    print("Loading keyboard listener...", end=" ", flush=True)
+    from pynput import keyboard
+    print("done.")
+
     state = {
         "cycle_mode": False,
         "increase_font": False,
@@ -210,7 +208,8 @@ def _create_hotkey_handler() -> tuple[dict, callable]:
         except AttributeError:
             pass
 
-    return state, on_key_press
+    listener = keyboard.Listener(on_press=on_key_press)
+    return state, on_key_press, listener
 
 
 def _run_main_loop(
@@ -436,9 +435,8 @@ def main():
     # Initialize components
     capture, ocr, translator, overlay = _initialize_components(config, args)
 
-    # Setup hotkeys
-    hotkey_state, on_key_press = _create_hotkey_handler()
-    keyboard_listener = keyboard.Listener(on_press=on_key_press)
+    # Setup hotkeys (this also loads pynput lazily)
+    hotkey_state, _, keyboard_listener = _create_hotkey_handler()
     keyboard_listener.start()
 
     print()
