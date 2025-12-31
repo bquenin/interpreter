@@ -423,8 +423,7 @@ def main():
     except Exception:
         pkg_version = "dev"
 
-    from . import __commit__
-    print(f"Interpreter v{pkg_version} ({__commit__}) - Offline Screen Translator")
+    print(f"Interpreter v{pkg_version} - Offline Screen Translator")
     print("=" * 50)
     if config.config_path:
         print(f"Config: {config.config_path}")
