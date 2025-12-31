@@ -55,6 +55,8 @@ class Config:
                     break
 
         if config_path and os.path.exists(config_path):
+            # Resolve to absolute path for clear display
+            config_path = str(Path(config_path).resolve())
             with open(config_path, "r", encoding="utf-8") as f:
                 data = yaml.safe_load(f) or {}
             return cls(
