@@ -29,10 +29,10 @@ if (-not $uvPath) {
 }
 
 # Install or upgrade interpreter-v2
-Write-Host "[2/2] Installing interpreter-v2 from PyPI..." -ForegroundColor Yellow
+Write-Host "[2/2] Installing interpreter-v2 from GitHub..." -ForegroundColor Yellow
 Write-Host "     (this may take a minute on first install)" -ForegroundColor Gray
 $ErrorActionPreference = 'SilentlyContinue'
-uv tool install --upgrade interpreter-v2 | Out-Host
+uv tool install --upgrade "git+https://github.com/bquenin/interpreter@638565b" | Out-Host
 uv tool update-shell | Out-Null
 $ErrorActionPreference = 'Stop'
 
