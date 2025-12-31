@@ -1,0 +1,58 @@
+# install.ps1 - One-liner installer for interpreter-v2
+# Usage: powershell -c "irm https://raw.githubusercontent.com/bquenin/interpreter/main/install.ps1 | iex"
+
+$ErrorActionPreference = 'Stop'
+
+Write-Host ""
+Write-Host "=== interpreter-v2 Installer ===" -ForegroundColor Cyan
+Write-Host "Offline screen translator for Japanese retro games"
+Write-Host ""
+
+# Check if uv is installed
+$uvPath = Get-Command uv -ErrorAction SilentlyContinue
+if (-not $uvPath) {
+    Write-Host "[1/2] Installing uv package manager..." -ForegroundColor Yellow
+    Invoke-RestMethod https://astral.sh/uv/install.ps1 | Invoke-Expression
+
+    # Refresh PATH to find uv
+    $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+
+    # Verify uv is now available
+    $uvPath = Get-Command uv -ErrorAction SilentlyContinue
+    if (-not $uvPath) {
+        Write-Host "Error: uv installation failed. Please restart your terminal and try again." -ForegroundColor Red
+        exit 1
+    }
+    Write-Host "uv installed successfully!" -ForegroundColor Green
+} else {
+    Write-Host "[1/2] uv is already installed" -ForegroundColor Green
+}
+
+# Install or upgrade interpreter-v2
+Write-Host "[2/3] Installing interpreter-v2 from GitHub..." -ForegroundColor Yellow
+Write-Host "     (this may take a minute on first install)" -ForegroundColor Gray
+$ErrorActionPreference = 'SilentlyContinue'
+uv tool install --upgrade "git+https://github.com/bquenin/interpreter@3a3fb84c61fb9525d819d3a54387f77674058e18" | Out-Host
+uv tool update-shell | Out-Null
+$ErrorActionPreference = 'Stop'
+
+# Pre-compile bytecode and warm up OS caches
+Write-Host "[3/3] Optimizing for fast startup..." -ForegroundColor Yellow
+$toolDir = "$env:LOCALAPPDATA\uv\tools\interpreter-v2"
+if (Test-Path $toolDir) {
+    & "$toolDir\Scripts\python.exe" -m compileall -q "$toolDir\Lib" 2>$null
+    # Warm up caches (Windows Defender, etc.) by running once
+    & interpreter-v2 --list-windows 2>$null | Out-Null
+}
+
+Write-Host ""
+Write-Host "========================================" -ForegroundColor Green
+Write-Host "  Installation complete!" -ForegroundColor Green
+Write-Host "========================================" -ForegroundColor Green
+Write-Host ""
+Write-Host "To start, run:" -ForegroundColor White
+Write-Host ""
+Write-Host "  interpreter-v2" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "You may need to restart your terminal first."
+Write-Host ""

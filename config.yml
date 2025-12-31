@@ -1,14 +1,19 @@
-window-title: "Tales"                   # Title of the window you want to capture. It can be any part of the window title, for instance "Tales" for "Tales of Phantasia".
-refresh-rate: "5s"                      # How often a screenshot is taken
-confidence-threshold: 0.9               # Between 0 and 1. Filters out any OCR character with a confidence score below the threshold.
-translator:
-  api: "google"                         # "google" or "deepl"
-  to: "en"                              # Target language. For Google translate, please check here: https://cloud.google.com/translate/docs/languages. For deepL, please check here: https://www.deepl.com/en/docs-api/translating-text
-  authentication-key: "deepl-auth-key"  # required only for deepL
-subs:
-  font:
-    color: "#FFFFFF"                      # RGB color code
-    size: 24                              # Font size
-  background:
-    color: "#404040"                      # RGB color code
-    opacity: 0xD0                         # Between 0x00 (transparent) and 0xFF (opaque)
+# Window to capture (partial title match)
+window_title: "Tales"
+
+# Refresh rate in seconds (how often to capture and process the screen)
+# Lower = more responsive but higher CPU usage. With local models:
+# - Capture: ~50-65ms, OCR: ~35-60ms, Translation: ~125-335ms
+# - Recommended: 0.5s (fast CPU) to 1.0s (slower CPU)
+refresh_rate: 0.5
+
+# OCR confidence threshold (0.0-1.0)
+# Filters out garbage text by average per-line confidence.
+# Example: "D(0.32) p(0.59) → avg: 0.45" would be dropped with threshold 0.6
+#          "こ(0.93) ん(0.96) → avg: 0.94" would be kept
+ocr_confidence: 0.6
+
+# Subtitle appearance
+font_size: 40
+font_color: "#FFFFFF"
+background_color: "#404040"

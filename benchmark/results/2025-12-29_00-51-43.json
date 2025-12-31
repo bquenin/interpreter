@@ -1,0 +1,352 @@
+{
+  "timestamp": "2025-12-29T00:51:29.675352",
+  "engines": [
+    "manga_ocr",
+    "meikiocr"
+  ],
+  "preprocessing": [
+    "none",
+    "otsu",
+    "4x_lanczos",
+    "4x_otsu",
+    "4x_otsu_invert"
+  ],
+  "include_translation": true,
+  "test_cases": [
+    "001_miguel_pendant",
+    "002_cress_pendant",
+    "003_screen3"
+  ],
+  "results": [
+    {
+      "test_case": "001_miguel_pendant",
+      "engine": "manga_ocr",
+      "preprocessing": "none",
+      "ocr_output": "『新郎いったマンガットについて．．．",
+      "ground_truth": "ミゲール「お前にやったペンダントについてな。",
+      "ocr_accuracy": 40.0,
+      "translation": " ⁇ About the▁mangat that the▁groom▁said...\"",
+      "ground_truth_translation": "Miguel: About the pendant I gave you.",
+      "translation_accuracy": 42.5
+    },
+    {
+      "test_case": "001_miguel_pendant",
+      "engine": "meikiocr",
+      "preprocessing": "none",
+      "ocr_output": "ミゲール「お前にやったペンダントについてな。",
+      "ground_truth": "ミゲール「お前にやったペンダントについてな。",
+      "ocr_accuracy": 100.0,
+      "translation": "▁Miguel:▁About the▁pendant I▁gave you.",
+      "ground_truth_translation": "Miguel: About the pendant I gave you.",
+      "translation_accuracy": 90.67
+    },
+    {
+      "test_case": "001_miguel_pendant",
+      "engine": "manga_ocr",
+      "preprocessing": "otsu",
+      "ocr_output": "そんなことないので、２０１８年１２月１８日（土）",
+      "ground_truth": "ミゲール「お前にやったペンダントについてな。",
+      "ocr_accuracy": 4.35,
+      "translation": "▁That's not the▁case,▁so▁Saturday,▁December 18, 2018",
+      "ground_truth_translation": "Miguel: About the pendant I gave you.",
+      "translation_accuracy": 24.72
+    },
+    {
+      "test_case": "001_miguel_pendant",
+      "engine": "meikiocr",
+      "preprocessing": "otsu",
+      "ocr_output": "ミゲール「お前にやったペンダントについてな。",
+      "ground_truth": "ミゲール「お前にやったペンダントについてな。",
+      "ocr_accuracy": 100.0,
+      "translation": "▁Miguel:▁About the▁pendant I▁gave you.",
+      "ground_truth_translation": "Miguel: About the pendant I gave you.",
+      "translation_accuracy": 90.67
+    },
+    {
+      "test_case": "001_miguel_pendant",
+      "engine": "manga_ocr",
+      "preprocessing": "4x_lanczos",
+      "ocr_output": "『新郎やったマンガットについて．．．",
+      "ground_truth": "ミゲール「お前にやったペンダントについてな。",
+      "ocr_accuracy": 45.0,
+      "translation": "“About the▁manga that the▁groom▁did...",
+      "ground_truth_translation": "Miguel: About the pendant I gave you.",
+      "translation_accuracy": 42.67
+    },
+    {
+      "test_case": "001_miguel_pendant",
+      "engine": "meikiocr",
+      "preprocessing": "4x_lanczos",
+      "ocr_output": "ミゲール「お前にやったペンダントについてな。",
+      "ground_truth": "ミゲール「お前にやったペンダントについてな。",
+      "ocr_accuracy": 100.0,
+      "translation": "▁Miguel:▁About the▁pendant I▁gave you.",
+      "ground_truth_translation": "Miguel: About the pendant I gave you.",
+      "translation_accuracy": 90.67
+    },
+    {
+      "test_case": "001_miguel_pendant",
+      "engine": "manga_ocr",
+      "preprocessing": "4x_otsu",
+      "ocr_output": "それじゃないのかなところで一緒に行っても",
+      "ground_truth": "ミゲール「お前にやったペンダントについてな。",
+      "ocr_accuracy": 4.76,
+      "translation": "Isn't that▁it?▁Even if we▁go▁somewhere▁together",
+      "ground_truth_translation": "Miguel: About the pendant I gave you.",
+      "translation_accuracy": 23.81
+    },
+    {
+      "test_case": "001_miguel_pendant",
+      "engine": "meikiocr",
+      "preprocessing": "4x_otsu",
+      "ocr_output": "ミゲール「お前にやったペンダントについてな。",
+      "ground_truth": "ミゲール「お前にやったペンダントについてな。",
+      "ocr_accuracy": 100.0,
+      "translation": "▁Miguel:▁About the▁pendant I▁gave you.",
+      "ground_truth_translation": "Miguel: About the pendant I gave you.",
+      "translation_accuracy": 90.67
+    },
+    {
+      "test_case": "001_miguel_pendant",
+      "engine": "manga_ocr",
+      "preprocessing": "4x_otsu_invert",
+      "ocr_output": "そんなことをしているのであればいいのですが．．．それではないでしょ",
+      "ground_truth": "ミゲール「お前にやったペンダントについてな。",
+      "ocr_accuracy": 3.64,
+      "translation": "I▁hope that's▁what you're▁doing...▁But that's not▁it.",
+      "ground_truth_translation": "Miguel: About the pendant I gave you.",
+      "translation_accuracy": 24.44
+    },
+    {
+      "test_case": "001_miguel_pendant",
+      "engine": "meikiocr",
+      "preprocessing": "4x_otsu_invert",
+      "ocr_output": "ミゲール「お前にやったペンダントについてな。",
+      "ground_truth": "ミゲール「お前にやったペンダントについてな。",
+      "ocr_accuracy": 100.0,
+      "translation": "▁Miguel:▁About the▁pendant I▁gave you.",
+      "ground_truth_translation": "Miguel: About the pendant I gave you.",
+      "translation_accuracy": 90.67
+    },
+    {
+      "test_case": "002_cress_pendant",
+      "engine": "manga_ocr",
+      "preprocessing": "none",
+      "ocr_output": "クレジットサービスによって、あ、あーんだけどなんだかわからないところです。",
+      "ground_truth": "クレス「ペンダント？ああ、15の誕生日にもらった・・・・。あれがどうしたの？」",
+      "ocr_accuracy": 18.42,
+      "translation": "It▁depends on the▁credit▁service,▁ah,▁ah,▁but I▁don't▁know▁what's▁going on.",
+      "ground_truth_translation": "Cress: A pendant? Oh, I got it on my fifteenth birthday... What about that?",
+      "translation_accuracy": 30.67
+    },
+    {
+      "test_case": "002_cress_pendant",
+      "engine": "meikiocr",
+      "preprocessing": "none",
+      "ocr_output": "クレス「ペンダント?ああ、15の誕生日にもらった……。あれがどうしたの?",
+      "ground_truth": "クレス「ペンダント？ああ、15の誕生日にもらった・・・・。あれがどうしたの？」",
+      "ocr_accuracy": 85.33,
+      "translation": "▁Cress: A▁pendant?▁Oh, I▁got▁it on▁my▁fifteenth▁birthday...▁What▁happened to that?",
+      "ground_truth_translation": "Cress: A pendant? Oh, I got it on my fifteenth birthday... What about that?",
+      "translation_accuracy": 80.25
+    },
+    {
+      "test_case": "002_cress_pendant",
+      "engine": "manga_ocr",
+      "preprocessing": "otsu",
+      "ocr_output": "ああ、ああ．．．",
+      "ground_truth": "クレス「ペンダント？ああ、15の誕生日にもらった・・・・。あれがどうしたの？」",
+      "ocr_accuracy": 17.02,
+      "translation": "▁Oh,▁oh,▁oh...",
+      "ground_truth_translation": "Cress: A pendant? Oh, I got it on my fifteenth birthday... What about that?",
+      "translation_accuracy": 20.22
+    },
+    {
+      "test_case": "002_cress_pendant",
+      "engine": "meikiocr",
+      "preprocessing": "otsu",
+      "ocr_output": "クレスペンダント?ああ、15の誕生Eにもらった……。あれがどうしたの?",
+      "ground_truth": "クレス「ペンダント？ああ、15の誕生日にもらった・・・・。あれがどうしたの？」",
+      "ocr_accuracy": 81.08,
+      "translation": "▁Cress▁pendant?▁Oh, I▁got▁it from 15th▁birthday E...▁What▁happened to that?",
+      "ground_truth_translation": "Cress: A pendant? Oh, I got it on my fifteenth birthday... What about that?",
+      "translation_accuracy": 66.67
+    },
+    {
+      "test_case": "002_cress_pendant",
+      "engine": "manga_ocr",
+      "preprocessing": "4x_lanczos",
+      "ocr_output": "クレジットサービスによって、あった．．．あ、「だったのね」ということでしょうか。",
+      "ground_truth": "クレス「ペンダント？ああ、15の誕生日にもらった・・・・。あれがどうしたの？」",
+      "ocr_accuracy": 25.32,
+      "translation": " ⁇  was a▁credit▁service...▁Oh,▁so that's▁what▁it was. ⁇ So that's▁what▁it was ⁇ \"",
+      "ground_truth_translation": "Cress: A pendant? Oh, I got it on my fifteenth birthday... What about that?",
+      "translation_accuracy": 21.66
+    },
+    {
+      "test_case": "002_cress_pendant",
+      "engine": "meikiocr",
+      "preprocessing": "4x_lanczos",
+      "ocr_output": "クレス「ペンダント?ああ、15の誕生Eにもらった……。あれがどうしたの?",
+      "ground_truth": "クレス「ペンダント？ああ、15の誕生日にもらった・・・・。あれがどうしたの？」",
+      "ocr_accuracy": 82.67,
+      "translation": "▁Cress: A▁pendant?▁Oh, I▁got▁it from 15th▁birthday E......▁What▁about that?",
+      "ground_truth_translation": "Cress: A pendant? Oh, I got it on my fifteenth birthday... What about that?",
+      "translation_accuracy": 74.67
+    },
+    {
+      "test_case": "002_cress_pendant",
+      "engine": "manga_ocr",
+      "preprocessing": "4x_otsu",
+      "ocr_output": "それは．．．",
+      "ground_truth": "クレス「ペンダント？ああ、15の誕生日にもらった・・・・。あれがどうしたの？」",
+      "ocr_accuracy": 4.44,
+      "translation": "▁That's...",
+      "ground_truth_translation": "Cress: A pendant? Oh, I got it on my fifteenth birthday... What about that?",
+      "translation_accuracy": 7.06
+    },
+    {
+      "test_case": "002_cress_pendant",
+      "engine": "meikiocr",
+      "preprocessing": "4x_otsu",
+      "ocr_output": "クレスペンダント?ああ、15の誕生Eにもらった……。あれがどうしたの?",
+      "ground_truth": "クレス「ペンダント？ああ、15の誕生日にもらった・・・・。あれがどうしたの？」",
+      "ocr_accuracy": 81.08,
+      "translation": "▁Cress▁pendant?▁Oh, I▁got▁it from 15th▁birthday E...▁What▁happened to that?",
+      "ground_truth_translation": "Cress: A pendant? Oh, I got it on my fifteenth birthday... What about that?",
+      "translation_accuracy": 66.67
+    },
+    {
+      "test_case": "002_cress_pendant",
+      "engine": "manga_ocr",
+      "preprocessing": "4x_otsu_invert",
+      "ocr_output": "それは．．．これまではありません",
+      "ground_truth": "クレス「ペンダント？ああ、15の誕生日にもらった・・・・。あれがどうしたの？」",
+      "ocr_accuracy": 3.64,
+      "translation": "▁That's...▁Never▁happened▁before.",
+      "ground_truth_translation": "Cress: A pendant? Oh, I got it on my fifteenth birthday... What about that?",
+      "translation_accuracy": 9.26
+    },
+    {
+      "test_case": "002_cress_pendant",
+      "engine": "meikiocr",
+      "preprocessing": "4x_otsu_invert",
+      "ocr_output": "クレス「ペンダント?ああ、15の誕生にもらった……。あれがどうしたの?",
+      "ground_truth": "クレス「ペンダント？ああ、15の誕生日にもらった・・・・。あれがどうしたの？」",
+      "ocr_accuracy": 83.78,
+      "translation": "▁Cress: A▁pendant?▁Oh, I▁got▁it on the▁birth of▁fifteen...▁What▁about that?",
+      "ground_truth_translation": "Cress: A pendant? Oh, I got it on my fifteenth birthday... What about that?",
+      "translation_accuracy": 74.67
+    },
+    {
+      "test_case": "003_screen3",
+      "engine": "manga_ocr",
+      "preprocessing": "none",
+      "ocr_output": "私もそれじゃありましてくるよ、ワミは．．．",
+      "ground_truth": "チェスター「それじゃ狩りに行ってくるよ、アミィ。",
+      "ocr_accuracy": 48.89,
+      "translation": "I'll▁do the▁same,▁Wami...",
+      "ground_truth_translation": "Chester: Well then, I'm going hunting, Ami.",
+      "translation_accuracy": 32.35
+    },
+    {
+      "test_case": "003_screen3",
+      "engine": "meikiocr",
+      "preprocessing": "none",
+      "ocr_output": "チェスター「それじゃ狩りに行ってくるよ、アミィ。",
+      "ground_truth": "チェスター「それじゃ狩りに行ってくるよ、アミィ。",
+      "ocr_accuracy": 100.0,
+      "translation": "▁Chester:▁Well▁then, I'm▁off to▁hunt, Amy.",
+      "ground_truth_translation": "Chester: Well then, I'm going hunting, Ami.",
+      "translation_accuracy": 75.29
+    },
+    {
+      "test_case": "003_screen3",
+      "engine": "manga_ocr",
+      "preprocessing": "otsu",
+      "ocr_output": "そんなわけに見てくれているのは．．．",
+      "ground_truth": "チェスター「それじゃ狩りに行ってくるよ、アミィ。",
+      "ocr_accuracy": 23.81,
+      "translation": "The▁reason you're▁looking at▁me▁like that...",
+      "ground_truth_translation": "Chester: Well then, I'm going hunting, Ami.",
+      "translation_accuracy": 29.89
+    },
+    {
+      "test_case": "003_screen3",
+      "engine": "meikiocr",
+      "preprocessing": "otsu",
+      "ocr_output": "チェスター「それじゃ狩りに行ってくるよ、アミィ。",
+      "ground_truth": "チェスター「それじゃ狩りに行ってくるよ、アミィ。",
+      "ocr_accuracy": 100.0,
+      "translation": "▁Chester:▁Well▁then, I'm▁off to▁hunt, Amy.",
+      "ground_truth_translation": "Chester: Well then, I'm going hunting, Ami.",
+      "translation_accuracy": 75.29
+    },
+    {
+      "test_case": "003_screen3",
+      "engine": "manga_ocr",
+      "preprocessing": "4x_lanczos",
+      "ocr_output": "「そういうわけに行ってくるよ、ワミードは",
+      "ground_truth": "チェスター「それじゃ狩りに行ってくるよ、アミィ。",
+      "ocr_accuracy": 50.0,
+      "translation": "「That's▁why I'm▁going,▁Wamed.",
+      "ground_truth_translation": "Chester: Well then, I'm going hunting, Ami.",
+      "translation_accuracy": 41.67
+    },
+    {
+      "test_case": "003_screen3",
+      "engine": "meikiocr",
+      "preprocessing": "4x_lanczos",
+      "ocr_output": "チェスター「それじゃ狩りに行ってくるよ、アミィ。",
+      "ground_truth": "チェスター「それじゃ狩りに行ってくるよ、アミィ。",
+      "ocr_accuracy": 100.0,
+      "translation": "▁Chester:▁Well▁then, I'm▁off to▁hunt, Amy.",
+      "ground_truth_translation": "Chester: Well then, I'm going hunting, Ami.",
+      "translation_accuracy": 75.29
+    },
+    {
+      "test_case": "003_screen3",
+      "engine": "manga_ocr",
+      "preprocessing": "4x_otsu",
+      "ocr_output": "そんなわけに見てくれていると、そういうことは",
+      "ground_truth": "チェスター「それじゃ狩りに行ってくるよ、アミィ。",
+      "ocr_accuracy": 26.09,
+      "translation": "▁When you're▁looking at▁me▁like that, that▁kind of▁thing",
+      "ground_truth_translation": "Chester: Well then, I'm going hunting, Ami.",
+      "translation_accuracy": 28.28
+    },
+    {
+      "test_case": "003_screen3",
+      "engine": "meikiocr",
+      "preprocessing": "4x_otsu",
+      "ocr_output": "チェスター「それじゃ狩りに行ってくるよ、アミィ。",
+      "ground_truth": "チェスター「それじゃ狩りに行ってくるよ、アミィ。",
+      "ocr_accuracy": 100.0,
+      "translation": "▁Chester:▁Well▁then, I'm▁off to▁hunt, Amy.",
+      "ground_truth_translation": "Chester: Well then, I'm going hunting, Ami.",
+      "translation_accuracy": 75.29
+    },
+    {
+      "test_case": "003_screen3",
+      "engine": "manga_ocr",
+      "preprocessing": "4x_otsu_invert",
+      "ocr_output": "それじゃあ私に行ってくるよ、それはそれだけではないのですか？",
+      "ground_truth": "チェスター「それじゃ狩りに行ってくるよ、アミィ。",
+      "ocr_accuracy": 44.44,
+      "translation": "▁Well▁then, I'll be▁going. Isn't that▁all▁there is to▁it?",
+      "ground_truth_translation": "Chester: Well then, I'm going hunting, Ami.",
+      "translation_accuracy": 38.0
+    },
+    {
+      "test_case": "003_screen3",
+      "engine": "meikiocr",
+      "preprocessing": "4x_otsu_invert",
+      "ocr_output": "チェスター「それじゃ狩りに行ってくるよ、アミィ。",
+      "ground_truth": "チェスター「それじゃ狩りに行ってくるよ、アミィ。",
+      "ocr_accuracy": 100.0,
+      "translation": "▁Chester:▁Well▁then, I'm▁off to▁hunt, Amy.",
+      "ground_truth_translation": "Chester: Well then, I'm going hunting, Ami.",
+      "translation_accuracy": 75.29
+    }
+  ]
+}
