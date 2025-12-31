@@ -7,11 +7,11 @@ _system = platform.system()
 
 # Import platform-specific implementation
 if _system == "Darwin":
-    from .gpu_macos import setup as _setup, is_available as _is_available
+    from .macos import setup as _setup, is_available as _is_available
 elif _system == "Windows":
-    from .gpu_windows import setup as _setup, is_available as _is_available
+    from .windows import setup as _setup, is_available as _is_available
 elif _system == "Linux":
-    from .gpu_linux import setup as _setup, is_available as _is_available
+    from .linux import setup as _setup, is_available as _is_available
 else:
     # Unsupported platform - provide no-op implementations
     def _setup() -> bool:

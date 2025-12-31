@@ -9,16 +9,16 @@ from PIL import Image
 _system = platform.system()
 
 if _system == "Darwin":
-    from .capture_macos import find_window_by_title, capture_window, get_window_list, get_display_bounds_for_window, _get_window_bounds, MacOSCaptureStream
+    from .macos import find_window_by_title, capture_window, get_window_list, get_display_bounds_for_window, _get_window_bounds, MacOSCaptureStream
     CaptureStream = MacOSCaptureStream
 elif _system == "Windows":
-    from .capture_windows import find_window_by_title, capture_window, get_window_list, _get_window_bounds, WindowsCaptureStream
+    from .windows import find_window_by_title, capture_window, get_window_list, _get_window_bounds, WindowsCaptureStream
     CaptureStream = WindowsCaptureStream
     # Windows doesn't have display bounds detection yet
     def get_display_bounds_for_window(window_id: int) -> Optional[dict]:
         return None
 elif _system == "Linux":
-    from .capture_linux import find_window_by_title, capture_window, get_window_list, _get_window_bounds, LinuxCaptureStream
+    from .linux import find_window_by_title, capture_window, get_window_list, _get_window_bounds, LinuxCaptureStream
     CaptureStream = LinuxCaptureStream
     # Linux doesn't have display bounds detection yet
     def get_display_bounds_for_window(window_id: int) -> Optional[dict]:

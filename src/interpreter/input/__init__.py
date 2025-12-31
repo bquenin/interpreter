@@ -7,11 +7,11 @@ from typing import Callable
 _system = platform.system()
 
 if _system == "Darwin":
-    from .input_macos import KeyboardListener
+    from .macos import KeyboardListener
 elif _system == "Windows":
-    from .input_windows import KeyboardListener
+    from .windows import KeyboardListener
 elif _system == "Linux":
-    from .input_linux import KeyboardListener
+    from .linux import KeyboardListener
 else:
     raise RuntimeError(f"Unsupported platform: {_system}")
 
