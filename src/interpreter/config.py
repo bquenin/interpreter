@@ -63,8 +63,48 @@ class Config:
                 background_color=data.get("background_color", "#404040"),
             )
 
-        # Return defaults if no config file found
-        return cls()
+        # No config file found - create default in home directory
+        config = cls()
+        config._create_default_config()
+        return config
+
+    def _create_default_config(self) -> None:
+        """Create a default config file in the user's home directory."""
+        config_dir = Path.home() / ".interpreter"
+        config_path = config_dir / "config.yml"
+
+        # Don't overwrite if it already exists
+        if config_path.exists():
+            return
+
+        # Create directory if needed
+        config_dir.mkdir(parents=True, exist_ok=True)
+
+        # Write default config with comments
+        default_config = """# Window to capture (partial title match)
+window_title: "RetroArch"
+
+# Refresh rate in seconds (how often to capture and process the screen)
+# Lower = more responsive but higher CPU usage
+# Recommended: 0.5s (fast CPU) to 1.0s (slower CPU)
+refresh_rate: 0.5
+
+# OCR confidence threshold (0.0-1.0)
+# Filters out low-confidence text detection
+ocr_confidence: 0.6
+
+# Overlay mode: "banner" (subtitle bar) or "inplace" (over game text)
+overlay_mode: banner
+
+# Subtitle appearance
+font_size: 40
+font_color: "#FFFFFF"
+background_color: "#404040"
+"""
+        with open(config_path, "w", encoding="utf-8") as f:
+            f.write(default_config)
+
+        print(f"Created default config at: {config_path}")
 
     def hex_to_rgb(self, hex_color: str) -> tuple[int, int, int]:
         """Convert hex color string to RGB tuple."""
