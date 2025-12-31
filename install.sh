@@ -38,7 +38,7 @@ fi
 # Install or upgrade interpreter-v2
 echo -e "${YELLOW}[2/3] Installing interpreter-v2 from GitHub...${NC}"
 echo -e "${GRAY}     (this may take a minute on first install)${NC}"
-uv tool install --upgrade "git+https://github.com/bquenin/interpreter@3a3fb84c61fb9525d819d3a54387f77674058e18" 2>&1 || true
+uv tool install --upgrade "git+https://github.com/bquenin/interpreter@main" 2>&1 || true
 uv tool update-shell > /dev/null 2>&1 || true
 
 # Pre-compile bytecode and warm up OS caches

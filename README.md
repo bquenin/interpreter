@@ -24,12 +24,12 @@ Offline screen translator for Japanese retro games. Captures text from any windo
 
 **macOS/Linux:**
 ```bash
-curl -LsSf https://raw.githubusercontent.com/bquenin/interpreter/781ea2919ebe78213dad9b925af69690941b0294/install.sh | bash
+curl -LsSf https://raw.githubusercontent.com/bquenin/interpreter/main/install.sh | bash
 ```
 
 **Windows (PowerShell):**
 ```powershell
-powershell -c "irm https://raw.githubusercontent.com/bquenin/interpreter/781ea2919ebe78213dad9b925af69690941b0294/install.ps1 | iex"
+powershell -c "irm https://raw.githubusercontent.com/bquenin/interpreter/main/install.ps1 | iex"
 ```
 
 Then run with `interpreter-v2`.
@@ -38,19 +38,19 @@ Then run with `interpreter-v2`.
 
 ```bash
 # List available windows
-uv run interpreter --list-windows
+interpreter-v2 --list-windows
 
 # Run with default config
-uv run interpreter
+interpreter-v2
 
 # Run with specific window
-uv run interpreter --window "Tales"
+interpreter-v2 --window "Tales"
 
 # Start in inplace mode (text over game)
-uv run interpreter --overlay-mode inplace
+interpreter-v2 --overlay-mode inplace
 
 # Debug mode (show OCR confidence scores)
-uv run interpreter --debug
+interpreter-v2 --debug
 ```
 
 ## Controls
