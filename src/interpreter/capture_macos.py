@@ -5,27 +5,7 @@ import time
 from typing import Optional
 
 from PIL import Image
-from Quartz.CoreGraphics import (
-    CGDataProviderCopyData,
-    CGDisplayBounds,
-    CGGetActiveDisplayList,
-    CGImageGetBytesPerRow,
-    CGImageGetDataProvider,
-    CGImageGetHeight,
-    CGImageGetWidth,
-    CGRectNull,
-    CGWindowListCopyWindowInfo,
-    CGWindowListCreateImage,
-    kCGNullWindowID,
-    kCGWindowBounds,
-    kCGWindowImageBoundsIgnoreFraming,
-    kCGWindowListExcludeDesktopElements,
-    kCGWindowListOptionIncludingWindow,
-    kCGWindowListOptionOnScreenOnly,
-    kCGWindowName,
-    kCGWindowNumber,
-    kCGWindowOwnerName,
-)
+from Quartz import CoreGraphics as CG
 
 
 def get_window_list() -> list[dict]:
@@ -35,16 +15,16 @@ def get_window_list() -> list[dict]:
         List of window dictionaries with keys: id, title, bounds
     """
     windows = []
-    window_list = CGWindowListCopyWindowInfo(
-        kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements,
-        kCGNullWindowID
+    window_list = CG.CGWindowListCopyWindowInfo(
+        CG.kCGWindowListOptionOnScreenOnly | CG.kCGWindowListExcludeDesktopElements,
+        CG.kCGNullWindowID
     )
 
     for window in window_list:
-        window_id = window.get(kCGWindowNumber)
-        title = window.get(kCGWindowName, "")
-        owner = window.get(kCGWindowOwnerName, "")
-        bounds = window.get(kCGWindowBounds, {})
+        window_id = window.get(CG.kCGWindowNumber)
+        title = window.get(CG.kCGWindowName, "")
+        owner = window.get(CG.kCGWindowOwnerName, "")
+        bounds = window.get(CG.kCGWindowBounds, {})
 
         if title or owner:  # Skip windows without any identifiable name
             windows.append({
@@ -92,14 +72,14 @@ def _get_window_bounds(window_id: int) -> Optional[dict]:
     Returns:
         Bounds dictionary with x, y, width, height, or None if not found.
     """
-    window_list = CGWindowListCopyWindowInfo(
-        kCGWindowListOptionIncludingWindow,
+    window_list = CG.CGWindowListCopyWindowInfo(
+        CG.kCGWindowListOptionIncludingWindow,
         window_id
     )
 
     for window in window_list:
-        if window.get(kCGWindowNumber) == window_id:
-            bounds = window.get(kCGWindowBounds, {})
+        if window.get(CG.kCGWindowNumber) == window_id:
+            bounds = window.get(CG.kCGWindowBounds, {})
             return {
                 "x": int(bounds.get("X", 0)),
                 "y": int(bounds.get("Y", 0)),
@@ -128,7 +108,7 @@ def _is_fullscreen(window_id: int) -> bool:
 
     # Get all active displays
     max_displays = 16
-    (err, display_ids, display_count) = CGGetActiveDisplayList(max_displays, None, None)
+    (err, display_ids, display_count) = CG.CGGetActiveDisplayList(max_displays, None, None)
     if err != 0 or display_count == 0:
         return False
 
@@ -137,7 +117,7 @@ def _is_fullscreen(window_id: int) -> bool:
     window_center_y = bounds["y"] + bounds["height"] // 2
 
     for display_id in display_ids[:display_count]:
-        display_bounds = CGDisplayBounds(display_id)
+        display_bounds = CG.CGDisplayBounds(display_id)
         dx = int(display_bounds.origin.x)
         dy = int(display_bounds.origin.y)
         dw = int(display_bounds.size.width)
@@ -172,7 +152,7 @@ def get_display_bounds_for_window(window_id: int) -> Optional[dict]:
 
     # Get all active displays
     max_displays = 16
-    (err, display_ids, display_count) = CGGetActiveDisplayList(max_displays, None, None)
+    (err, display_ids, display_count) = CG.CGGetActiveDisplayList(max_displays, None, None)
     if err != 0 or display_count == 0:
         return None
 
@@ -181,7 +161,7 @@ def get_display_bounds_for_window(window_id: int) -> Optional[dict]:
     window_center_y = bounds["y"] + bounds["height"] // 2
 
     for display_id in display_ids[:display_count]:
-        display_bounds = CGDisplayBounds(display_id)
+        display_bounds = CG.CGDisplayBounds(display_id)
         dx = int(display_bounds.origin.x)
         dy = int(display_bounds.origin.y)
         dw = int(display_bounds.size.width)
@@ -219,27 +199,27 @@ def capture_window(window_id: int, title_bar_height: int = 30) -> Optional[Image
     # Capture the specific window only (not the screen region)
     # kCGWindowListOptionIncludingWindow captures only this window
     # kCGWindowImageBoundsIgnoreFraming excludes window shadow
-    cg_image = CGWindowListCreateImage(
-        CGRectNull,  # Capture the window's own bounds
-        kCGWindowListOptionIncludingWindow,
+    cg_image = CG.CGWindowListCreateImage(
+        CG.CGRectNull,  # Capture the window's own bounds
+        CG.kCGWindowListOptionIncludingWindow,
         window_id,
-        kCGWindowImageBoundsIgnoreFraming
+        CG.kCGWindowImageBoundsIgnoreFraming
     )
 
     if cg_image is None:
         return None
 
     # Get image dimensions
-    width = CGImageGetWidth(cg_image)
-    height = CGImageGetHeight(cg_image)
-    bytes_per_row = CGImageGetBytesPerRow(cg_image)
+    width = CG.CGImageGetWidth(cg_image)
+    height = CG.CGImageGetHeight(cg_image)
+    bytes_per_row = CG.CGImageGetBytesPerRow(cg_image)
 
     if width == 0 or height == 0:
         return None
 
     # Get the raw pixel data
-    data_provider = CGImageGetDataProvider(cg_image)
-    data = CGDataProviderCopyData(data_provider)
+    data_provider = CG.CGImageGetDataProvider(cg_image)
+    data = CG.CGDataProviderCopyData(data_provider)
 
     # Create PIL Image from raw data (BGRA format)
     # Need to account for bytes_per_row which may include padding
