@@ -1,11 +1,16 @@
 """Unified overlay window for displaying subtitles in banner or inplace mode."""
 
+import platform
 import tkinter as tk
 from tkinter import font as tkfont
 from typing import Optional
 
+# Platform detection
+IS_WINDOWS = platform.system() == "Windows"
+IS_MACOS = platform.system() == "Darwin"
+
 # Overlay layout constants
-DEFAULT_TITLE_BAR_HEIGHT = 30   # macOS title bar height in points
+DEFAULT_TITLE_BAR_HEIGHT = 32 if IS_WINDOWS else 30  # Title bar height varies by OS
 DEFAULT_RETINA_SCALE = 2.0      # Default Retina display scale factor
 BANNER_HEIGHT = 100             # Default banner overlay height in points
 BANNER_BOTTOM_MARGIN = 50       # Gap between banner and screen bottom
@@ -82,10 +87,18 @@ class Overlay:
         self._root.overrideredirect(True)  # Remove window decorations
         self._root.attributes("-topmost", True)  # Always on top
 
-        # macOS transparency setup
-        self._root.attributes("-transparent", True)
-        self._root.config(bg="systemTransparent")
-        self._label_transparent_bg = "systemTransparent"
+        # Platform-specific transparency setup
+        if IS_WINDOWS:
+            # Windows: Use a specific color as transparent
+            self._transparent_color = "#010101"  # Near-black, unlikely to be used
+            self._root.attributes("-transparentcolor", self._transparent_color)
+            self._root.config(bg=self._transparent_color)
+            self._label_transparent_bg = self._transparent_color
+        else:
+            # macOS transparency setup
+            self._root.attributes("-transparent", True)
+            self._root.config(bg="systemTransparent")
+            self._label_transparent_bg = "systemTransparent"
 
         # Create frame for banner mode
         self._frame = tk.Frame(
@@ -95,8 +108,9 @@ class Overlay:
             pady=10,
         )
 
-        # Create cached font for all labels
-        self._font = tkfont.Font(family="Helvetica", size=self.font_size, weight="bold")
+        # Create cached font for all labels (use Arial on Windows, Helvetica on macOS)
+        font_family = "Arial" if IS_WINDOWS else "Helvetica"
+        self._font = tkfont.Font(family=font_family, size=self.font_size, weight="bold")
 
         # Create label for banner mode
         self._banner_label = tk.Label(

@@ -15,7 +15,7 @@ class Config:
         refresh_rate: float = 0.5,
         ocr_confidence: float = 0.6,
         overlay_mode: str = "banner",
-        font_size: int = 24,
+        font_size: int = 40,
         font_color: str = "#FFFFFF",
         background_color: str = "#404040",
     ):
@@ -51,14 +51,14 @@ class Config:
                     break
 
         if config_path and os.path.exists(config_path):
-            with open(config_path, "r") as f:
+            with open(config_path, "r", encoding="utf-8") as f:
                 data = yaml.safe_load(f) or {}
             return cls(
                 window_title=data.get("window_title", "RetroArch"),
                 refresh_rate=float(data.get("refresh_rate", 0.5)),
                 ocr_confidence=float(data.get("ocr_confidence", 0.6)),
                 overlay_mode=data.get("overlay_mode", "banner"),
-                font_size=int(data.get("font_size", 24)),
+                font_size=int(data.get("font_size", 40)),
                 font_color=data.get("font_color", "#FFFFFF"),
                 background_color=data.get("background_color", "#404040"),
             )

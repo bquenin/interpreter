@@ -31,6 +31,7 @@ dependencies = [
     "pyobjc-framework-Quartz>=10.0; sys_platform == 'darwin'",
     # Windows only - window capture
     "pygetwindow>=0.0.9; sys_platform == 'win32'",
+    "windows-capture>=1.4.0; sys_platform == 'win32'",
     # Global hotkeys
     "pynput>=1.7.6",
 ]

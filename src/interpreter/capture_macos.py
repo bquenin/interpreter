@@ -1,5 +1,7 @@
 """macOS-specific window capture using PyObjC/Quartz."""
 
+import threading
+import time
 from typing import Optional
 
 from PIL import Image
@@ -241,3 +243,53 @@ def capture_window(window_id: int, title_bar_height: int = 30) -> Optional[Image
         image = image.crop((0, title_bar_height, width, height))
 
     return image
+
+
+class MacOSCaptureStream:
+    """Continuous window capture wrapping existing Quartz capture.
+
+    Provides the same streaming interface as WindowsCaptureStream for
+    platform-agnostic capture code.
+    """
+
+    def __init__(self, window_id: int):
+        """Initialize the capture stream.
+
+        Args:
+            window_id: The CGWindowID of the window to capture.
+        """
+        self._window_id = window_id
+        self._latest_frame: Optional[Image.Image] = None
+        self._frame_lock = threading.Lock()
+        self._running = False
+        self._thread: Optional[threading.Thread] = None
+
+    def start(self):
+        """Start the capture stream in background."""
+        self._running = True
+        self._thread = threading.Thread(target=self._capture_loop, daemon=True)
+        self._thread.start()
+
+    def _capture_loop(self):
+        """Background thread that continuously captures frames."""
+        while self._running:
+            frame = capture_window(self._window_id)
+            if frame:
+                with self._frame_lock:
+                    self._latest_frame = frame
+            time.sleep(0.033)  # ~30 FPS
+
+    def get_frame(self) -> Optional[Image.Image]:
+        """Get the latest captured frame.
+
+        Returns:
+            PIL Image of the captured frame, or None if no frame available.
+        """
+        with self._frame_lock:
+            return self._latest_frame
+
+    def stop(self):
+        """Stop the capture stream."""
+        self._running = False
+        if self._thread:
+            self._thread.join(timeout=1.0)

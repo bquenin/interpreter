@@ -9,13 +9,13 @@ from PIL import Image
 _system = platform.system()
 
 if _system == "Darwin":
-    from .capture_macos import find_window_by_title, capture_window, get_window_list, get_display_bounds_for_window, _get_window_bounds
+    from .capture_macos import find_window_by_title, capture_window, get_window_list, get_display_bounds_for_window, _get_window_bounds, MacOSCaptureStream
+    CaptureStream = MacOSCaptureStream
 elif _system == "Windows":
-    from .capture_windows import find_window_by_title, capture_window, get_window_list
-    # Windows doesn't have these functions yet
+    from .capture_windows import find_window_by_title, capture_window, get_window_list, _get_window_bounds, WindowsCaptureStream
+    CaptureStream = WindowsCaptureStream
+    # Windows doesn't have display bounds detection yet
     def get_display_bounds_for_window(window_id: int) -> Optional[dict]:
-        return None
-    def _get_window_bounds(window_id: int) -> Optional[dict]:
         return None
 else:
     raise RuntimeError(f"Unsupported platform: {_system}")
@@ -33,6 +33,7 @@ class WindowCapture:
         self.window_title = window_title
         self._window_id: Optional[int] = None
         self._last_bounds: Optional[dict] = None
+        self._stream: Optional[CaptureStream] = None
 
     def find_window(self) -> bool:
         """Find and cache the window ID.
@@ -107,3 +108,48 @@ class WindowCapture:
             List of window dictionaries with id, title, and bounds.
         """
         return get_window_list()
+
+    def start_stream(self) -> bool:
+        """Start the background capture stream.
+
+        Returns:
+            True if stream started successfully, False otherwise.
+        """
+        # Find window first if needed
+        if self._window_id is None:
+            if not self.find_window():
+                return False
+
+        # Create platform-specific stream
+        if _system == "Windows":
+            # Windows uses window title for capture
+            self._stream = CaptureStream(self.window_title)
+        else:
+            # macOS uses window ID for capture
+            self._stream = CaptureStream(self._window_id)
+
+        self._stream.start()
+        return True
+
+    def get_frame(self) -> Optional[Image.Image]:
+        """Get the latest frame from the capture stream.
+
+        Returns:
+            PIL Image of the window, or None if no frame available.
+        """
+        if self._stream is None:
+            return None
+
+        frame = self._stream.get_frame()
+
+        # Update bounds if we got a frame
+        if frame is not None and self._window_id is not None:
+            self._refresh_bounds()
+
+        return frame
+
+    def stop_stream(self):
+        """Stop the background capture stream."""
+        if self._stream is not None:
+            self._stream.stop()
+            self._stream = None

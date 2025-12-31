@@ -126,12 +126,30 @@ def _initialize_components(
 
     print(f"  Window bounds: {capture.bounds}")
 
-    # Initial capture for Retina scale detection
-    initial_image = capture.capture()
+    # Start capture stream
+    if not capture.start_stream():
+        print("Error: Could not start capture stream.")
+        sys.exit(1)
+    print("  Capture stream started")
+
+    # Wait for first frame for Retina scale detection
+    initial_image = None
+    for _ in range(50):  # Wait up to ~2.5 seconds
+        initial_image = capture.get_frame()
+        if initial_image is not None:
+            break
+        time.sleep(0.05)
+
     if initial_image is None:
         print("Error: Could not capture initial image for overlay setup.")
+        capture.stop_stream()
         sys.exit(1)
     image_size = (initial_image.width, initial_image.height)
+
+    # Debug: save initial capture to verify what we're capturing
+    debug_path = "debug_capture.png"
+    initial_image.save(debug_path)
+    print(f"  Debug: saved capture to {debug_path}")
 
     # Create unified overlay
     display_bounds = capture.get_display_bounds()
@@ -164,6 +182,7 @@ def _create_hotkey_handler() -> tuple[dict, callable]:
         "cycle_mode": False,
         "increase_font": False,
         "decrease_font": False,
+        "quit": False,
     }
 
     def on_key_press(key):
@@ -175,6 +194,8 @@ def _create_hotkey_handler() -> tuple[dict, callable]:
                     state["increase_font"] = True
                 elif key.char == '-':
                     state["decrease_font"] = True
+                elif key.char == 'q':
+                    state["quit"] = True
         except AttributeError:
             pass
 
@@ -234,6 +255,10 @@ def _run_main_loop(
             overlay.adjust_font_size(-2)
             print(f"[FONT] Size: {overlay.font_size}")
 
+        if hotkey_state["quit"]:
+            print("\n[QUIT] Exiting...")
+            break
+
         # Skip processing if overlay is paused
         if overlay.paused:
             time.sleep(PAUSED_POLL_INTERVAL)
@@ -248,9 +273,9 @@ def _run_main_loop(
         last_capture_time = current_time
         loop_start = time.perf_counter()
 
-        # Capture window
+        # Get latest frame from stream
         capture_start = time.perf_counter()
-        image = capture.capture()
+        image = capture.get_frame()
         capture_time = time.perf_counter() - capture_start
 
         if image is None:
@@ -398,7 +423,7 @@ def main():
 
     print()
     print("Starting translation loop...")
-    print("Press 'm' to cycle mode (off → banner → inplace), '-/=' to adjust font, Ctrl+C to quit")
+    print("Press 'm' to cycle mode (off → banner → inplace), '-/=' to adjust font, 'q' to quit")
     print("-" * 50)
 
     try:
@@ -410,6 +435,7 @@ def main():
         print("\nInterrupted by user")
     finally:
         keyboard_listener.stop()
+        capture.stop_stream()
         overlay.quit()
         print("Goodbye!")
 

@@ -101,10 +101,20 @@ class Translator:
         self._model_path = get_sugoi_model_path()
 
         # Load CTranslate2 model
+        # Check if CUDA is actually available (not just that ctranslate2 accepts it)
+        device = "cpu"
+        try:
+            import ctypes
+            ctypes.CDLL("cublas64_12.dll")
+            device = "cuda"
+        except OSError:
+            pass  # CUDA not available, use CPU
+
         self._translator = ctranslate2.Translator(
             str(self._model_path),
-            device="auto",  # Automatically use GPU if available
+            device=device,
         )
+        print(f"  Using {'GPU acceleration' if device == 'cuda' else 'CPU'}")
 
         # Load SentencePiece tokenizer
         tokenizer_path = self._model_path / "spm" / "spm.ja.nopretok.model"

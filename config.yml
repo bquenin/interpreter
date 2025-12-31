@@ -14,6 +14,6 @@ refresh_rate: 0.5
 ocr_confidence: 0.6
 
 # Subtitle appearance
-font_size: 24
+font_size: 40
 font_color: "#FFFFFF"
 background_color: "#404040"
