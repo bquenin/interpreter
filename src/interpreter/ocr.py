@@ -48,10 +48,10 @@ class OCR:
         if self._model is not None:
             return
 
-        print("Loading MeikiOCR...")
+        print("  Loading MeikiOCR...", end=" ", flush=True)
         from meikiocr import MeikiOCR
         self._model = MeikiOCR()
-        print("MeikiOCR ready.")
+        print("ready.")
 
     def _run_ocr_and_filter(self, image: Image.Image) -> list[dict]:
         """Run OCR and filter results by confidence threshold.

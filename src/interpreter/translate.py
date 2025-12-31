@@ -91,7 +91,7 @@ class Translator:
         if self._translator is not None:
             return
 
-        print("Loading Sugoi V4...")
+        print("  Loading Sugoi V4...", end=" ", flush=True)
 
         import ctranslate2
         import sentencepiece as spm
@@ -111,14 +111,14 @@ class Translator:
             str(self._model_path),
             device=device,
         )
-        print(f"  Using {'GPU acceleration' if device == 'cuda' else 'CPU'}")
 
         # Load SentencePiece tokenizer
         tokenizer_path = self._model_path / "spm" / "spm.ja.nopretok.model"
         self._tokenizer = spm.SentencePieceProcessor()
         self._tokenizer.Load(str(tokenizer_path))
 
-        print("Sugoi V4 ready.")
+        device_info = "GPU" if device == "cuda" else "CPU"
+        print(f"ready ({device_info}).")
 
     def translate(self, text: str) -> tuple[str, bool]:
         """Translate Japanese text to English.
