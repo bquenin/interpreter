@@ -146,6 +146,10 @@ def _initialize_components(
     display_bounds = capture.get_display_bounds()
     print(f"  Display bounds: {display_bounds}")
 
+    # Enable overlay debug if --debug flag is set
+    if args.debug:
+        Overlay.set_debug(True)
+
     overlay = Overlay(
         font_size=config.font_size,
         font_color=config.font_color,

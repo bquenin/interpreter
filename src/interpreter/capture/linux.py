@@ -15,6 +15,7 @@ from typing import Optional
 from PIL import Image
 from Xlib import X, display, Xatom
 from Xlib.error import BadWindow, BadDrawable
+from Xlib.ext import randr
 
 
 # Module-level display connection (reused for efficiency)
@@ -185,6 +186,72 @@ def _is_fullscreen(window_id: int) -> bool:
     )
 
     return is_fullscreen
+
+
+def get_display_bounds_for_window(window_id: int, debug: bool = False) -> Optional[dict]:
+    """Get the usable display bounds (workarea) for overlay positioning.
+
+    Uses _NET_WORKAREA to get the actual usable screen area, which excludes
+    panels, taskbars, and other reserved areas. This is critical for correct
+    overlay positioning.
+
+    Args:
+        window_id: The X11 window ID (used for future multi-monitor support).
+        debug: If True, print debug information.
+
+    Returns:
+        Dictionary with x, y, width, height of the usable area, or None if not found.
+    """
+    disp = _get_display()
+
+    try:
+        root = disp.screen().root
+
+        # Get _NET_WORKAREA - this gives the usable screen area
+        # excluding panels, taskbars, docks, etc.
+        net_workarea = disp.intern_atom('_NET_WORKAREA')
+        prop = root.get_full_property(net_workarea, Xatom.CARDINAL)
+
+        if prop and len(prop.value) >= 4:
+            # Format: x, y, width, height (repeats for each desktop)
+            workarea = {
+                "x": prop.value[0],
+                "y": prop.value[1],
+                "width": prop.value[2],
+                "height": prop.value[3],
+            }
+            if debug:
+                print(f"[CAPTURE] Workarea: {workarea}")
+            return workarea
+
+    except Exception as e:
+        if debug:
+            print(f"[CAPTURE] Workarea error: {e}")
+
+    # Fallback: try RANDR for monitor bounds
+    try:
+        root = disp.screen().root
+        resources = randr.get_screen_resources(root)
+
+        for output in resources.outputs:
+            output_info = randr.get_output_info(root, output, resources.config_timestamp)
+            if output_info.crtc:
+                crtc_info = randr.get_crtc_info(root, output_info.crtc, resources.config_timestamp)
+                monitor = {
+                    "x": crtc_info.x,
+                    "y": crtc_info.y,
+                    "width": crtc_info.width,
+                    "height": crtc_info.height,
+                }
+                if debug:
+                    print(f"[CAPTURE] RANDR fallback: {monitor}")
+                return monitor
+
+    except Exception as e:
+        if debug:
+            print(f"[CAPTURE] RANDR error: {e}")
+
+    return None
 
 
 def capture_window(window_id: int, title_bar_height: int = 30) -> Optional[Image.Image]:

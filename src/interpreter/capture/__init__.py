@@ -18,11 +18,8 @@ elif _system == "Windows":
     def get_display_bounds_for_window(window_id: int) -> Optional[dict]:
         return None
 elif _system == "Linux":
-    from .linux import find_window_by_title, capture_window, get_window_list, _get_window_bounds, LinuxCaptureStream
+    from .linux import find_window_by_title, capture_window, get_window_list, _get_window_bounds, LinuxCaptureStream, get_display_bounds_for_window
     CaptureStream = LinuxCaptureStream
-    # Linux doesn't have display bounds detection yet
-    def get_display_bounds_for_window(window_id: int) -> Optional[dict]:
-        return None
 else:
     raise RuntimeError(f"Unsupported platform: {_system}")
 

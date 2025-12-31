@@ -21,6 +21,11 @@ def setup_transparency(root: tk.Tk) -> tuple[str, str]:
     """
     transparent_color = "#010101"  # Near-black, unlikely to be used
     root.config(bg=transparent_color)
+
+    # Note: Window type hints like "-type splash/dock/notification" can cause
+    # visibility issues on some window managers. We rely on overrideredirect
+    # and -topmost instead for overlay behavior.
+
     return transparent_color, transparent_color
 
 
@@ -34,7 +39,12 @@ def setup_window(root: tk.Tk, mode: str) -> Optional[Any]:
     Returns:
         None (no platform-specific window handle on Linux).
     """
-    # No special window configuration needed on Linux
+    # Force the window to be visible and update
+    root.update_idletasks()
+    root.deiconify()  # Ensure window is not minimized
+    root.lift()  # Raise to top
+    root.focus_force()  # Try to focus (may help visibility)
+
     return None
 
 
