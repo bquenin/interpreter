@@ -32,8 +32,8 @@ if (-not $uvPath) {
 Write-Host "[2/2] Installing interpreter-v2 from PyPI..." -ForegroundColor Yellow
 uv tool install interpreter-v2
 
-# Update shell to add tools to PATH (suppress output)
-$null = uv tool update-shell 2>&1
+# Update shell to add tools to PATH (suppress all output)
+& { uv tool update-shell } *>$null
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Green
