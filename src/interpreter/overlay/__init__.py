@@ -5,13 +5,16 @@ import tkinter as tk
 from tkinter import font as tkfont
 from typing import Optional
 
+from .. import log
+
 # Debug flag - set via Overlay.set_debug()
 _debug = False
+_logger = log.get_logger()
 
-def _debug_print(*args, **kwargs):
-    """Print debug messages if debug mode is enabled."""
+def _debug_log(msg: str, **kwargs):
+    """Log debug messages if debug mode is enabled."""
     if _debug:
-        print("[OVERLAY]", *args, **kwargs)
+        _logger.debug(msg, **kwargs)
 
 # Import platform-specific implementation
 _system = platform.system()
@@ -103,15 +106,12 @@ class Overlay:
             image_size: Tuple of (width, height) of captured image for scale detection.
             mode: Initial mode - "banner" or "inplace".
         """
-        _debug_print(f"create() called with mode={mode}")
-        _debug_print(f"  display_bounds={display_bounds}")
-        _debug_print(f"  window_bounds={window_bounds}")
-        _debug_print(f"  image_size={image_size}")
-        _debug_print(f"  platform={_system}")
+        _debug_log("overlay create", mode=mode, platform=_system)
+        _debug_log("overlay bounds", display=display_bounds, window=window_bounds, image=image_size)
 
         self._root = tk.Tk()
         self._root.title("Interpreter Overlay")
-        _debug_print(f"  tk.Tk() created")
+        _debug_log("tk root created")
 
         self._display_bounds = display_bounds
         self._window_bounds = window_bounds.copy()
@@ -120,18 +120,15 @@ class Overlay:
         # Auto-detect Retina scale
         if window_bounds["width"] > 0:
             self._retina_scale = image_size[0] / window_bounds["width"]
-        print(f"  Retina scale: {self._retina_scale}x")
+        _debug_log("retina scale", scale=self._retina_scale)
 
         # Configure window properties
-        _debug_print(f"  setting overrideredirect(True)")
         self._root.overrideredirect(True)  # Remove window decorations
-        _debug_print(f"  setting -topmost attribute")
         self._root.attributes("-topmost", True)  # Always on top
 
         # Platform-specific transparency setup
-        _debug_print(f"  calling setup_transparency()")
         self._transparent_color, self._label_transparent_bg = setup_transparency(self._root)
-        _debug_print(f"  transparent_color={self._transparent_color}, label_bg={self._label_transparent_bg}")
+        _debug_log("transparency setup", color=self._transparent_color, label_bg=self._label_transparent_bg)
 
         # Create frame for banner mode
         self._frame = tk.Frame(
@@ -140,11 +137,10 @@ class Overlay:
             padx=20,
             pady=10,
         )
-        _debug_print(f"  frame created with bg={self.background_color}")
 
         # Create cached font for all labels
         self._font = tkfont.Font(family=FONT_FAMILY, size=self.font_size, weight="bold")
-        _debug_print(f"  font created: family={FONT_FAMILY}, size={self.font_size}")
+        _debug_log("font created", family=FONT_FAMILY, size=self.font_size)
 
         # Create label for banner mode
         self._banner_label = tk.Label(
@@ -156,7 +152,6 @@ class Overlay:
             justify=tk.CENTER,
         )
         self._banner_label.pack(expand=True)
-        _debug_print(f"  banner_label created")
 
         # Allow dragging in banner mode
         self._frame.bind("<Button-1>", self._start_drag)
@@ -165,24 +160,23 @@ class Overlay:
         self._banner_label.bind("<B1-Motion>", self._on_drag)
 
         # Apply initial mode
-        _debug_print(f"  applying mode: {mode}")
+        _debug_log("applying mode", mode=mode)
         if mode == "banner":
             self._apply_banner_mode()
         else:
             self._apply_inplace_mode()
 
         # Platform-specific window setup
-        _debug_print(f"  calling setup_window()")
         self._window_handle = setup_window(self._root, mode)
-        _debug_print(f"  window_handle={self._window_handle}")
 
         # Debug: print final window state
         self._root.update_idletasks()
-        _debug_print(f"  final geometry: {self._root.winfo_geometry()}")
-        _debug_print(f"  winfo_x={self._root.winfo_x()}, winfo_y={self._root.winfo_y()}")
-        _debug_print(f"  winfo_width={self._root.winfo_width()}, winfo_height={self._root.winfo_height()}")
-        _debug_print(f"  winfo_viewable={self._root.winfo_viewable()}")
-        _debug_print(f"  winfo_ismapped={self._root.winfo_ismapped()}")
+        _debug_log("window ready",
+                   geometry=self._root.winfo_geometry(),
+                   x=self._root.winfo_x(),
+                   y=self._root.winfo_y(),
+                   width=self._root.winfo_width(),
+                   height=self._root.winfo_height())
 
     # -------------------------------------------------------------------------
     # Mode Management
@@ -254,15 +248,12 @@ class Overlay:
 
     def _apply_banner_mode(self):
         """Configure overlay for banner mode."""
-        _debug_print("_apply_banner_mode()")
-
         # Hide inplace labels
         for label in self._inplace_labels:
             label.place_forget()
 
         # Show banner frame
         self._frame.pack(expand=True, fill=tk.BOTH)
-        _debug_print(f"  frame packed")
 
         # Position at bottom of display
         if self._display_bounds:
@@ -270,31 +261,27 @@ class Overlay:
             height = BANNER_HEIGHT
             x = self._display_bounds["x"]
             y = self._display_bounds["y"] + self._display_bounds["height"] - height - BANNER_BOTTOM_MARGIN
-            _debug_print(f"  using display_bounds: x={x}, y={y}, width={width}, height={height}")
         else:
             width = self._root.winfo_screenwidth()
             height = BANNER_HEIGHT
             x = 0
             y = self._root.winfo_screenheight() - height - BANNER_BOTTOM_MARGIN
-            _debug_print(f"  using screen fallback: x={x}, y={y}, width={width}, height={height}")
 
         # Reset size constraints (inplace mode sets these)
         screen_w = self._root.winfo_screenwidth()
         screen_h = self._root.winfo_screenheight()
-        _debug_print(f"  screen size: {screen_w}x{screen_h}")
         self._root.wm_minsize(1, 1)
         self._root.wm_maxsize(screen_w, screen_h)
 
         self._banner_label.config(wraplength=width - 60)
         geometry_str = f"{width}x{height}+{x}+{y}"
-        _debug_print(f"  setting geometry: {geometry_str}")
         self._root.geometry(geometry_str)
 
         # Make draggable (disable click-through)
         set_click_through(self._window_handle, False)
 
         self._root.update_idletasks()
-        _debug_print(f"  after update_idletasks: geometry={self._root.winfo_geometry()}")
+        _debug_log("banner mode applied", geometry=self._root.winfo_geometry())
 
     def update_text(self, text: str):
         """Update the displayed text (banner mode).
@@ -303,7 +290,6 @@ class Overlay:
             text: Text to display.
         """
         if self._banner_label is None or self._paused:
-            _debug_print(f"update_text skipped: label={self._banner_label is not None}, paused={self._paused}")
             return
 
         self._current_text = text
@@ -493,9 +479,9 @@ class Overlay:
                 self._root.winfo_exists()
                 return True
             else:
-                _debug_print("is_running: _root is None")
+                _debug_log("is_running check", result="root is None")
         except tk.TclError as e:
-            _debug_print(f"is_running: TclError - {e}")
+            _debug_log("is_running check", result="TclError", err=str(e))
         return False
 
     @property
