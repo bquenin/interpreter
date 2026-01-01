@@ -92,11 +92,11 @@ class OCR:
             else:
                 continue
 
-            if self._debug and chars:
+            # Only log rejected regions in debug mode (accepted ones are too verbose)
+            if self._debug and chars and avg_conf < self._confidence_threshold:
                 char_info = ' '.join(f"{c['char']}({c['conf']:.2f})" for c in chars)
-                status = "✓" if avg_conf >= self._confidence_threshold else "✗"
                 punct_note = f" (excl {len(chars) - len(non_punct_chars)} punct)" if len(non_punct_chars) < len(chars) else ""
-                logger.debug("ocr confidence", chars=char_info, avg=f"{avg_conf:.2f}", note=punct_note, status=status)
+                logger.debug("ocr rejected", chars=char_info, avg=f"{avg_conf:.2f}", note=punct_note)
 
             if avg_conf >= self._confidence_threshold:
                 char_bboxes = [c['bbox'] for c in chars if c.get('bbox') and len(c['bbox']) == 4]

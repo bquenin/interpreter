@@ -359,9 +359,6 @@ def _run_main_loop(
                              total_ms=int(total_time*1000))
             continue
 
-        if overlay.mode == "inplace" and debug_mode:
-            logger.debug("found regions", count=len(regions))
-
         # Translate
         translate_time = 0.0
         was_cached = False
@@ -385,11 +382,9 @@ def _run_main_loop(
             # Update overlay with all regions
             overlay.update_regions(translated_regions)
 
-            # Log each region
-            for region, (translated, _) in zip(regions, translated_regions):
-                logger.info("ocr", text=region.text)
-                if translator:
-                    logger.info("translated", text=translated)
+            # Log summary only (individual regions are too verbose)
+            if debug_mode:
+                logger.debug("regions translated", count=len(translated_regions))
         else:
             # Banner mode: single text block
             if translator:

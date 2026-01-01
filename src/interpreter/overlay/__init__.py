@@ -117,7 +117,6 @@ class Overlay:
 
         self._root = tk.Tk()
         self._root.title("Interpreter Overlay")
-        _debug_log("tk root created")
 
         self._display_bounds = display_bounds
         self._window_bounds = window_bounds.copy()
@@ -128,7 +127,6 @@ class Overlay:
         # Auto-detect Retina scale (for coordinate conversion)
         if window_bounds["width"] > 0:
             self._retina_scale = image_size[0] / window_bounds["width"]
-        _debug_log("retina scale", scale=self._retina_scale, image_size=image_size)
 
         # Configure window properties
         self._root.overrideredirect(True)  # Remove window decorations
@@ -136,7 +134,6 @@ class Overlay:
 
         # Platform-specific transparency setup
         self._transparent_color, self._label_transparent_bg = setup_transparency(self._root)
-        _debug_log("transparency setup", color=self._transparent_color, label_bg=self._label_transparent_bg)
 
         # Create frame for banner mode
         self._frame = tk.Frame(
@@ -148,7 +145,6 @@ class Overlay:
 
         # Create cached font for all labels
         self._font = tkfont.Font(family=FONT_FAMILY, size=self.font_size, weight="bold")
-        _debug_log("font created", family=FONT_FAMILY, size=self.font_size)
 
         # Create label for banner mode
         self._banner_label = tk.Label(
@@ -171,20 +167,12 @@ class Overlay:
         self._window_handle = setup_window(self._root, mode)
 
         # Apply initial mode
-        _debug_log("applying mode", mode=mode)
         if mode == "banner":
             self._apply_banner_mode()
         else:
             self._apply_inplace_mode()
 
-        # Debug: print final window state
         self._root.update_idletasks()
-        _debug_log("window ready",
-                   geometry=self._root.winfo_geometry(),
-                   x=self._root.winfo_x(),
-                   y=self._root.winfo_y(),
-                   width=self._root.winfo_width(),
-                   height=self._root.winfo_height())
 
     # -------------------------------------------------------------------------
     # Mode Management
@@ -293,7 +281,6 @@ class Overlay:
         set_click_through(self._window_handle, False)
 
         self._root.update_idletasks()
-        _debug_log("banner mode applied", geometry=self._root.winfo_geometry())
 
     def update_text(self, text: str):
         """Update the displayed text (banner mode).
@@ -542,10 +529,8 @@ class Overlay:
             if self._root:
                 self._root.winfo_exists()
                 return True
-            else:
-                _debug_log("is_running check", result="root is None")
-        except tk.TclError as e:
-            _debug_log("is_running check", result="TclError", err=str(e))
+        except tk.TclError:
+            pass
         return False
 
     @property
