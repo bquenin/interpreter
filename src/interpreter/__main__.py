@@ -238,10 +238,6 @@ def _run_main_loop(
     # Track previous text to avoid re-translating
     previous_text = ""
     last_capture_time = 0
-    # Cache display bounds (refreshed every 5 seconds to reduce X11 calls)
-    cached_display_bounds = capture.get_display_bounds()
-    last_bounds_refresh = time.time()
-    BOUNDS_REFRESH_INTERVAL = 5.0
 
     while overlay.is_running:
         # Process UI events
@@ -303,13 +299,9 @@ def _run_main_loop(
             continue
 
         # Update overlay position if game window moved/resized
-        # Refresh display bounds periodically (reduces X11 RANDR calls)
-        if current_time - last_bounds_refresh > BOUNDS_REFRESH_INTERVAL:
-            cached_display_bounds = capture.get_display_bounds()
-            last_bounds_refresh = current_time
         overlay.update_position(
             capture.bounds,
-            display_bounds=cached_display_bounds,
+            display_bounds=capture.get_display_bounds(),
             image_size=(image.width, image.height)
         )
 
