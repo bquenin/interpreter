@@ -188,7 +188,6 @@ def _create_hotkey_handler() -> tuple[dict, callable, object]:
     # Import input module lazily to avoid slow loading at startup
     print("  Loading keyboard listener...", end=" ", flush=True)
     from .input import KeyboardListener
-    print("done.")
 
     state = {
         "cycle_mode": False,
@@ -438,6 +437,7 @@ def main():
     # Setup hotkeys (this also loads pynput lazily)
     hotkey_state, _, keyboard_listener = _create_hotkey_handler()
     keyboard_listener.start()
+    print("done.")
 
     print()
     print("Starting translation loop...")
