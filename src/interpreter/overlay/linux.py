@@ -5,7 +5,9 @@ from typing import Any, Optional
 
 # Platform constants
 TITLE_BAR_HEIGHT = 30
-FONT_FAMILY = "DejaVu Sans"
+# Use "Helvetica" - Tkinter maps this to "Nimbus Sans L" which is a Helvetica clone
+# Direct fontconfig names like "DejaVu Sans" don't work in Tk's X11 font system
+FONT_FAMILY = "Helvetica"
 
 
 def setup_transparency(root: tk.Tk) -> tuple[str, str]:
