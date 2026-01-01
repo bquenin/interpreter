@@ -413,6 +413,8 @@ class LinuxCaptureStream:
         self._frame_lock = threading.Lock()
         self._running = False
         self._thread: Optional[threading.Thread] = None
+        # Dedicated display connection for capture thread (thread-safety)
+        self._capture_display: Optional[display.Display] = None
 
     def start(self):
         """Start the capture stream in background."""
@@ -420,10 +422,102 @@ class LinuxCaptureStream:
         self._thread = threading.Thread(target=self._capture_loop, daemon=True)
         self._thread.start()
 
+    def _capture_window(self) -> Optional[Image.Image]:
+        """Capture window using the thread's dedicated display connection.
+
+        This is similar to the module-level capture_window() but uses
+        self._capture_display for thread-safety.
+
+        Returns:
+            PIL Image of the window content, or None if capture failed.
+        """
+        if self._capture_display is None:
+            return None
+
+        disp = self._capture_display
+
+        try:
+            window = disp.create_resource_object("window", self._window_id)
+
+            # Try to find content child window (for CSD windows)
+            content_info = _find_content_window(window)
+            if content_info:
+                target_window = content_info[0]
+                crop_title_bar = False
+            else:
+                target_window = window
+                crop_title_bar = True
+
+            # Get window geometry
+            geom = target_window.get_geometry()
+            width = geom.width
+            height = geom.height
+            depth = geom.depth
+
+            if width <= 0 or height <= 0:
+                return None
+
+            # Capture the window contents
+            raw = target_window.get_image(
+                0, 0,
+                width, height,
+                X.ZPixmap,
+                0xFFFFFFFF
+            )
+
+            data = raw.data
+
+            if depth == 24 or depth == 32:
+                expected_size = width * height * 4
+                if len(data) < expected_size:
+                    return None
+
+                image = Image.frombytes(
+                    "RGBA", (width, height),
+                    bytes(data[:expected_size]),
+                    "raw", "BGRA"
+                )
+                image = image.convert("RGB")
+
+            elif depth == 16:
+                expected_size = width * height * 2
+                if len(data) < expected_size:
+                    return None
+
+                pixels = []
+                for i in range(0, expected_size, 2):
+                    pixel = struct.unpack("<H", data[i:i+2])[0]
+                    r = ((pixel >> 11) & 0x1F) << 3
+                    g = ((pixel >> 5) & 0x3F) << 2
+                    b = (pixel & 0x1F) << 3
+                    pixels.extend([r, g, b])
+
+                image = Image.frombytes("RGB", (width, height), bytes(pixels))
+
+            else:
+                return None
+
+            # Only crop title bar if we couldn't find a content window
+            if crop_title_bar:
+                is_fullscreen = _is_fullscreen(self._window_id)
+                if not is_fullscreen and height > 30:
+                    image = image.crop((0, 30, width, height))
+
+            return image
+
+        except (BadWindow, BadDrawable):
+            return None
+        except Exception:
+            return None
+
     def _capture_loop(self):
         """Background thread that continuously captures frames."""
+        # Create dedicated display connection for this thread (thread-safety)
+        # X11 Display objects are not thread-safe, so each thread needs its own
+        self._capture_display = display.Display()
+
         while self._running:
-            frame = capture_window(self._window_id)
+            frame = self._capture_window()
             if frame:
                 with self._frame_lock:
                     self._latest_frame = frame
@@ -443,3 +537,10 @@ class LinuxCaptureStream:
         self._running = False
         if self._thread:
             self._thread.join(timeout=1.0)
+        # Close the dedicated display connection
+        if self._capture_display:
+            try:
+                self._capture_display.close()
+            except Exception:
+                pass
+            self._capture_display = None

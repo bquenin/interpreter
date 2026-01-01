@@ -199,6 +199,24 @@ class Translator:
         translated_tokens = results[0].hypotheses[0]
         result = "".join(translated_tokens).replace("▁", " ").strip()
 
+        # Normalize Unicode characters to ASCII equivalents (fixes rendering issues)
+        result = (
+            result
+            # Curly quotes → straight quotes
+            .replace("\u2018", "'")   # LEFT SINGLE QUOTATION MARK
+            .replace("\u2019", "'")   # RIGHT SINGLE QUOTATION MARK
+            .replace("\u201C", '"')   # LEFT DOUBLE QUOTATION MARK
+            .replace("\u201D", '"')   # RIGHT DOUBLE QUOTATION MARK
+            # Dashes
+            .replace("\u2013", "-")   # EN DASH
+            .replace("\u2014", "--")  # EM DASH
+            .replace("\u2212", "-")   # MINUS SIGN
+            # Spaces
+            .replace("\u00A0", " ")   # NO-BREAK SPACE
+            # Ellipsis
+            .replace("\u2026", "...")  # HORIZONTAL ELLIPSIS
+        )
+
         # Store in cache
         self._cache.put(text, result)
 

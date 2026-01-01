@@ -324,6 +324,10 @@ def _run_main_loop(
                     print(f"[TIMING] capture: {capture_time*1000:.0f}ms | ocr: {ocr_time*1000:.0f}ms | (similar: {similarity:.0%}) | total: {total_time*1000:.0f}ms")
                 continue
             previous_text = text
+            if debug_mode:
+                from datetime import datetime
+                ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+                print(f"[{ts}] TEXT CHANGED (similarity: {similarity:.0%}): {text[:50]}...")
 
         if not text:
             if overlay.mode == "inplace":
@@ -395,6 +399,9 @@ def _run_main_loop(
             else:
                 print(f"[TIMING] capture: {capture_time*1000:.0f}ms | ocr: {ocr_time*1000:.0f}ms | total: {total_time*1000:.0f}ms")
         print()
+
+    if debug_mode:
+        print("[DEBUG] Main loop exited - overlay.is_running =", overlay.is_running)
 
 
 def main():

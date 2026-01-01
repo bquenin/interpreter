@@ -492,8 +492,10 @@ class Overlay:
             if self._root:
                 self._root.winfo_exists()
                 return True
-        except tk.TclError:
-            pass
+            else:
+                _debug_print("is_running: _root is None")
+        except tk.TclError as e:
+            _debug_print(f"is_running: TclError - {e}")
         return False
 
     @property
