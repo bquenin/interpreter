@@ -5,6 +5,10 @@ from pathlib import Path
 
 import yaml
 
+from . import log
+
+logger = log.get_logger()
+
 
 class Config:
     """Application configuration."""
@@ -111,7 +115,7 @@ background_color: "#404040"
         with open(config_path, "w", encoding="utf-8") as f:
             f.write(default_config)
 
-        print(f"Created default config at: {config_path}")
+        logger.info("created default config", path=str(config_path))
 
     def hex_to_rgb(self, hex_color: str) -> tuple[int, int, int]:
         """Convert hex color string to RGB tuple."""

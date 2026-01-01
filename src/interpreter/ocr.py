@@ -6,6 +6,10 @@ from typing import Optional
 import numpy as np
 from PIL import Image
 
+from . import log
+
+logger = log.get_logger()
+
 # Detection thresholds
 DEFAULT_CONFIDENCE_THRESHOLD = 0.6  # Minimum avg confidence per line (0.0-1.0)
 DUPLICATE_OVERLAP_THRESHOLD = 0.5   # Lines with >50% bbox overlap are duplicates
@@ -48,10 +52,10 @@ class OCR:
         if self._model is not None:
             return
 
-        print("  Loading MeikiOCR...", end=" ", flush=True)
+        logger.info("loading meikiocr")
         from meikiocr import MeikiOCR
         self._model = MeikiOCR()
-        print("ready.")
+        logger.info("meikiocr ready")
 
     def _run_ocr_and_filter(self, image: Image.Image) -> list[dict]:
         """Run OCR and filter results by confidence threshold.
@@ -92,7 +96,7 @@ class OCR:
                 char_info = ' '.join(f"{c['char']}({c['conf']:.2f})" for c in chars)
                 status = "✓" if avg_conf >= self._confidence_threshold else "✗"
                 punct_note = f" (excl {len(chars) - len(non_punct_chars)} punct)" if len(non_punct_chars) < len(chars) else ""
-                print(f"[DBG] {char_info} → avg: {avg_conf:.2f}{punct_note} {status}")
+                logger.debug("ocr confidence", chars=char_info, avg=f"{avg_conf:.2f}", note=punct_note, status=status)
 
             if avg_conf >= self._confidence_threshold:
                 char_bboxes = [c['bbox'] for c in chars if c.get('bbox') and len(c['bbox']) == 4]

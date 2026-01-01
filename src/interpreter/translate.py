@@ -7,6 +7,10 @@ from pathlib import Path
 from huggingface_hub import snapshot_download
 from huggingface_hub.utils import LocalEntryNotFoundError
 
+from . import log
+
+logger = log.get_logger()
+
 # Suppress HuggingFace Hub warning about unauthenticated requests
 os.environ["HF_HUB_DISABLE_IMPLICIT_TOKEN"] = "1"
 
@@ -38,7 +42,7 @@ def _get_sugoi_model_path() -> Path:
         pass
 
     # Not cached, download from HuggingFace
-    print("Downloading Sugoi V4 model (~1.1GB)...")
+    logger.info("downloading sugoi v4 model", size="~1.1GB")
     model_path = snapshot_download(repo_id=SUGOI_REPO_ID)
     return Path(model_path)
 
@@ -127,7 +131,7 @@ class Translator:
         if self._translator is not None:
             return
 
-        print("  Loading Sugoi V4...", end=" ", flush=True)
+        logger.info("loading sugoi v4")
 
         import ctranslate2
         import sentencepiece as spm
@@ -162,7 +166,7 @@ class Translator:
         self._tokenizer.Load(str(tokenizer_path))
 
         device_info = "GPU" if device == "cuda" else "CPU"
-        print(f"ready ({device_info}).")
+        logger.info("sugoi v4 ready", device=device_info)
 
     def translate(self, text: str) -> tuple[str, bool]:
         """Translate Japanese text to English.

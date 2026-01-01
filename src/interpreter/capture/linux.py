@@ -17,6 +17,10 @@ from Xlib import X, display, Xatom
 from Xlib.error import BadWindow, BadDrawable
 from Xlib.ext import randr
 
+from .. import log
+
+logger = log.get_logger()
+
 
 # Module-level display connection (reused for efficiency)
 _display: Optional[display.Display] = None
@@ -221,12 +225,12 @@ def get_display_bounds_for_window(window_id: int, debug: bool = False) -> Option
                 "height": prop.value[3],
             }
             if debug:
-                print(f"[CAPTURE] Workarea: {workarea}")
+                logger.debug("workarea", **workarea)
             return workarea
 
     except Exception as e:
         if debug:
-            print(f"[CAPTURE] Workarea error: {e}")
+            logger.debug("workarea error", err=str(e))
 
     # Fallback: try RANDR for monitor bounds
     try:
@@ -244,12 +248,12 @@ def get_display_bounds_for_window(window_id: int, debug: bool = False) -> Option
                     "height": crtc_info.height,
                 }
                 if debug:
-                    print(f"[CAPTURE] RANDR fallback: {monitor}")
+                    logger.debug("randr fallback", **monitor)
                 return monitor
 
     except Exception as e:
         if debug:
-            print(f"[CAPTURE] RANDR error: {e}")
+            logger.debug("randr error", err=str(e))
 
     return None
 

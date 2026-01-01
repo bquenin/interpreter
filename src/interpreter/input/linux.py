@@ -11,6 +11,10 @@ from Xlib import X, XK, display
 from Xlib.ext import record
 from Xlib.protocol import rq
 
+from .. import log
+
+logger = log.get_logger()
+
 
 class KeyboardListener:
     """Global keyboard listener using X11 RECORD extension."""
@@ -40,7 +44,7 @@ class KeyboardListener:
             self._thread = threading.Thread(target=self._listen_loop, daemon=True)
             self._thread.start()
         except Exception as e:
-            print(f"Warning: Keyboard shortcuts unavailable: {e}")
+            logger.warning("keyboard shortcuts unavailable", err=str(e))
 
     def _listen_loop(self) -> None:
         """Background thread that captures keyboard events."""
@@ -51,7 +55,7 @@ class KeyboardListener:
 
             # Check if RECORD extension is available
             if not self._record_display.has_extension("RECORD"):
-                print("Warning: X11 RECORD extension not available")
+                logger.warning("x11 record extension not available")
                 return
 
             # Create recording context for key events
@@ -81,8 +85,8 @@ class KeyboardListener:
             self._record_display.record_free_context(self._context)
 
         except Exception as e:
-            if self._running:  # Only print if not intentionally stopped
-                print(f"Keyboard listener error: {e}")
+            if self._running:  # Only log if not intentionally stopped
+                logger.error("keyboard listener error", err=str(e))
         finally:
             self._cleanup()
 

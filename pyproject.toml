@@ -28,6 +28,8 @@ dependencies = [
     # Model download
     "requests",
     "tqdm",
+    # Logging
+    "structlog>=24.0.0",
     # macOS only - window capture
     "pyobjc-framework-Quartz>=10.0; sys_platform == 'darwin'",
     # Windows only - window capture
