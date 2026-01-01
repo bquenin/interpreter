@@ -5,8 +5,14 @@ This module is executed when running:
 - interpreter (via pyproject.toml entry point)
 """
 
+import faulthandler
 import os
+import signal
 import sys
+
+# Enable faulthandler to dump thread stacks on SIGUSR1
+# Usage: kill -USR1 <pid>  (find pid with: pgrep -f interpreter)
+faulthandler.register(signal.SIGUSR1, all_threads=True)
 
 # Setup GPU libraries early (before any CUDA-dependent imports)
 # This must happen before importing ctranslate2 or onnxruntime
@@ -150,6 +156,10 @@ def _initialize_components(
     display_bounds = capture.get_display_bounds()
     logger.debug("display bounds", **display_bounds)
 
+    # Get content offset (where captured content starts within window)
+    content_offset = capture.get_content_offset()
+    logger.debug("content offset", x=content_offset[0], y=content_offset[1])
+
     # Enable overlay debug if --debug flag is set
     if args.debug:
         Overlay.set_debug(True)
@@ -164,6 +174,7 @@ def _initialize_components(
         window_bounds=capture.bounds,
         image_size=image_size,
         mode=config.overlay_mode,
+        content_offset=content_offset,
     )
     logger.info("overlay created", mode=config.overlay_mode)
 

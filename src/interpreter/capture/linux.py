@@ -159,6 +159,29 @@ def _get_window_bounds(window_id: int) -> Optional[dict]:
         return None
 
 
+def get_content_offset(window_id: int) -> tuple[int, int]:
+    """Get the offset of the content area within a window.
+
+    This finds the content child window (if any) and returns its position
+    relative to the parent window. Used by overlay to align with captured content.
+
+    Args:
+        window_id: The X11 window ID (XID).
+
+    Returns:
+        Tuple of (x_offset, y_offset) in pixels. Returns (0, 0) if no content window found.
+    """
+    disp = _get_display()
+    try:
+        window = disp.create_resource_object("window", window_id)
+        content_info = _find_content_window(window)
+        if content_info:
+            return (content_info[1], content_info[2])
+    except BadWindow:
+        pass
+    return (0, 0)
+
+
 def _is_fullscreen(window_id: int) -> bool:
     """Check if a window is in fullscreen mode.
 

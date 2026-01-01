@@ -19,12 +19,17 @@ def _debug_log(msg: str, **kwargs):
 # Import platform-specific implementation
 _system = platform.system()
 
+# Platform-specific shape mask functions (Linux only)
+_update_shape_mask = None
+_reset_shape_mask = None
+
 if _system == "Darwin":
     from .macos import TITLE_BAR_HEIGHT, FONT_FAMILY, setup_transparency, setup_window, set_click_through
 elif _system == "Windows":
     from .windows import TITLE_BAR_HEIGHT, FONT_FAMILY, setup_transparency, setup_window, set_click_through
 elif _system == "Linux":
     from .linux import TITLE_BAR_HEIGHT, FONT_FAMILY, setup_transparency, setup_window, set_click_through
+    from .linux import update_shape_mask as _update_shape_mask, reset_shape_mask as _reset_shape_mask
 else:
     # Fallback for unsupported platforms
     TITLE_BAR_HEIGHT = 30
@@ -87,6 +92,7 @@ class Overlay:
         # Bounds tracking
         self._display_bounds: Optional[dict] = None
         self._window_bounds: Optional[dict] = None
+        self._image_size: tuple[int, int] = (0, 0)  # Actual captured image size
         self._retina_scale: float = DEFAULT_RETINA_SCALE
         self._title_bar_height: int = TITLE_BAR_HEIGHT
         self._last_regions: list[tuple[str, dict]] = []
@@ -97,7 +103,7 @@ class Overlay:
         global _debug
         _debug = enabled
 
-    def create(self, display_bounds: dict, window_bounds: dict, image_size: tuple[int, int], mode: str = "banner"):
+    def create(self, display_bounds: dict, window_bounds: dict, image_size: tuple[int, int], mode: str = "banner", content_offset: tuple[int, int] = (0, 0)):
         """Create and configure the overlay window.
 
         Args:
@@ -105,9 +111,9 @@ class Overlay:
             window_bounds: Dict with x, y, width, height of game window.
             image_size: Tuple of (width, height) of captured image for scale detection.
             mode: Initial mode - "banner" or "inplace".
+            content_offset: Tuple of (x, y) offset from window bounds to content area.
         """
-        _debug_log("overlay create", mode=mode, platform=_system)
-        _debug_log("overlay bounds", display=display_bounds, window=window_bounds, image=image_size)
+        _debug_log("overlay create", mode=mode, platform=_system, content_offset=content_offset)
 
         self._root = tk.Tk()
         self._root.title("Interpreter Overlay")
@@ -115,12 +121,14 @@ class Overlay:
 
         self._display_bounds = display_bounds
         self._window_bounds = window_bounds.copy()
+        self._image_size = image_size
+        self._content_offset = content_offset  # Offset from window bounds to content
         self._mode = mode
 
-        # Auto-detect Retina scale
+        # Auto-detect Retina scale (for coordinate conversion)
         if window_bounds["width"] > 0:
             self._retina_scale = image_size[0] / window_bounds["width"]
-        _debug_log("retina scale", scale=self._retina_scale)
+        _debug_log("retina scale", scale=self._retina_scale, image_size=image_size)
 
         # Configure window properties
         self._root.overrideredirect(True)  # Remove window decorations
@@ -159,15 +167,15 @@ class Overlay:
         self._banner_label.bind("<Button-1>", self._start_drag)
         self._banner_label.bind("<B1-Motion>", self._on_drag)
 
+        # Platform-specific window setup (must happen before applying mode for shape masks)
+        self._window_handle = setup_window(self._root, mode)
+
         # Apply initial mode
         _debug_log("applying mode", mode=mode)
         if mode == "banner":
             self._apply_banner_mode()
         else:
             self._apply_inplace_mode()
-
-        # Platform-specific window setup
-        self._window_handle = setup_window(self._root, mode)
 
         # Debug: print final window state
         self._root.update_idletasks()
@@ -252,6 +260,10 @@ class Overlay:
         for label in self._inplace_labels:
             label.place_forget()
 
+        # Reset shape mask on Linux (show full window)
+        if _reset_shape_mask:
+            _reset_shape_mask(self._window_handle)
+
         # Show banner frame
         self._frame.pack(expand=True, fill=tk.BOTH)
 
@@ -332,12 +344,28 @@ class Overlay:
         # Hide banner frame
         self._frame.pack_forget()
 
-        # Position over game window (excluding title bar)
-        if self._window_bounds:
-            x = self._window_bounds["x"]
-            y = self._window_bounds["y"] + self._title_bar_height
-            width = self._window_bounds["width"]
-            height = self._window_bounds["height"] - self._title_bar_height
+        # Position over game window content area
+        # Use actual captured image size for overlay dimensions
+        # Window bounds include decorations, but capture only gets content
+        if self._window_bounds and self._image_size[0] > 0:
+            # Use actual image dimensions for overlay size
+            width = self._image_size[0]
+            height = self._image_size[1]
+
+            # Use content offset from capture module
+            # This tells us where the actual captured content starts within the window
+            x_offset = self._content_offset[0]
+            y_offset = self._content_offset[1]
+
+            x = self._window_bounds["x"] + x_offset
+            y = self._window_bounds["y"] + y_offset
+
+            _debug_log("inplace positioning",
+                      window_bounds=self._window_bounds,
+                      image_size=self._image_size,
+                      content_offset=self._content_offset,
+                      final_pos=(x, y),
+                      final_size=(width, height))
         else:
             width = 800
             height = 600
@@ -347,6 +375,28 @@ class Overlay:
         self._root.wm_minsize(width, height)
         self._root.wm_maxsize(width, height)
         self._root.geometry(f"{width}x{height}+{x}+{y}")
+
+        # Debug: add visible border to see overlay position
+        self._debug_borders = []
+        if _debug:
+            border_width = 3
+            border_color = "#FF0000"  # Red border
+            # Top border
+            top = tk.Frame(self._root, bg=border_color, height=border_width)
+            top.place(x=0, y=0, width=width)
+            self._debug_borders.append(top)
+            # Bottom border
+            bottom = tk.Frame(self._root, bg=border_color, height=border_width)
+            bottom.place(x=0, y=height-border_width, width=width)
+            self._debug_borders.append(bottom)
+            # Left border
+            left = tk.Frame(self._root, bg=border_color, width=border_width)
+            left.place(x=0, y=0, height=height)
+            self._debug_borders.append(left)
+            # Right border
+            right = tk.Frame(self._root, bg=border_color, width=border_width)
+            right.place(x=width-border_width, y=0, height=height)
+            self._debug_borders.append(right)
 
         # Make click-through
         set_click_through(self._window_handle, True)
@@ -380,6 +430,9 @@ class Overlay:
         for label in self._inplace_labels:
             label.place_forget()
 
+        # Track which labels are visible for shape mask
+        visible_labels = []
+
         # Render each region
         for i, (text, bbox) in enumerate(self._last_regions):
             if not text or not bbox:
@@ -388,16 +441,27 @@ class Overlay:
             # Get or create label
             label = self._get_or_create_inplace_label(i)
 
-            # Convert image coordinates to overlay coordinates
-            x = bbox["x"] / self._retina_scale
-            y = bbox["y"] / self._retina_scale
-            width = bbox["width"] / self._retina_scale
+            # Use raw image coordinates - overlay now matches image size exactly
+            x = bbox["x"]
+            y = bbox["y"]
+            width = bbox["width"]
 
             # Configure and position label
             label.config(text=text, font=self._font, wraplength=int(width))
             label.place(x=x, y=y)
+            visible_labels.append(label)
 
         self._root.update_idletasks()
+
+        # Apply shape mask on Linux for transparency
+        # Include debug borders if present
+        all_visible = visible_labels.copy()
+        if hasattr(self, '_debug_borders'):
+            all_visible.extend(self._debug_borders)
+
+        # Always call update_shape_mask - with empty list it will hide the window
+        if _update_shape_mask:
+            _update_shape_mask(self._window_handle, all_visible)
 
     def _get_or_create_inplace_label(self, index: int) -> tk.Label:
         """Get an existing inplace label or create a new one."""

@@ -11,14 +11,17 @@ _system = platform.system()
 if _system == "Darwin":
     from .macos import find_window_by_title, capture_window, get_window_list, get_display_bounds_for_window, _get_window_bounds, MacOSCaptureStream
     CaptureStream = MacOSCaptureStream
+    def get_content_offset(window_id: int) -> tuple[int, int]:
+        return (0, 0)  # macOS handles this differently
 elif _system == "Windows":
     from .windows import find_window_by_title, capture_window, get_window_list, _get_window_bounds, WindowsCaptureStream
     CaptureStream = WindowsCaptureStream
-    # Windows doesn't have display bounds detection yet
     def get_display_bounds_for_window(window_id: int) -> Optional[dict]:
         return None
+    def get_content_offset(window_id: int) -> tuple[int, int]:
+        return (0, 0)
 elif _system == "Linux":
-    from .linux import find_window_by_title, capture_window, get_window_list, _get_window_bounds, LinuxCaptureStream, get_display_bounds_for_window
+    from .linux import find_window_by_title, capture_window, get_window_list, _get_window_bounds, LinuxCaptureStream, get_display_bounds_for_window, get_content_offset
     CaptureStream = LinuxCaptureStream
 else:
     raise RuntimeError(f"Unsupported platform: {_system}")
@@ -102,6 +105,19 @@ class WindowCapture:
         if self._window_id is None:
             return None
         return get_display_bounds_for_window(self._window_id)
+
+    def get_content_offset(self) -> tuple[int, int]:
+        """Get the offset of the content area within the window.
+
+        On Linux, windows may have toolbars/decorations that are not captured.
+        This returns the offset from window origin to where the actual content starts.
+
+        Returns:
+            Tuple of (x_offset, y_offset) in pixels.
+        """
+        if self._window_id is None:
+            return (0, 0)
+        return get_content_offset(self._window_id)
 
     @staticmethod
     def list_windows() -> list[dict]:
