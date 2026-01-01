@@ -6,11 +6,7 @@ from pynput import keyboard
 
 
 class KeyboardListener:
-    """Global keyboard listener using pynput.
-
-    Wrapper around pynput's keyboard.Listener to provide a consistent
-    interface across platforms.
-    """
+    """Global keyboard listener using pynput."""
 
     def __init__(self, on_press: Callable[[str], None]):
         """Initialize the keyboard listener.

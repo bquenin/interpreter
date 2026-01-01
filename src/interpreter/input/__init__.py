@@ -1,9 +1,7 @@
 """Platform-agnostic keyboard input interface."""
 
 import platform
-from typing import Callable
 
-# Import platform-specific implementation
 _system = platform.system()
 
 if _system == "Darwin":
