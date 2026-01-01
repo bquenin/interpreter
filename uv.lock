@@ -324,14 +324,15 @@ dependencies = [
     { name = "meikiocr" },
     { name = "mss" },
     { name = "numpy" },
-    { name = "nvidia-cublas-cu12", marker = "sys_platform == 'win32'" },
-    { name = "nvidia-cudnn-cu12", marker = "sys_platform == 'win32'" },
+    { name = "nvidia-cublas-cu12", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+    { name = "nvidia-cudnn-cu12", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
     { name = "onnxruntime" },
     { name = "opencv-python" },
     { name = "pillow" },
     { name = "pygetwindow", marker = "sys_platform == 'win32'" },
-    { name = "pynput" },
+    { name = "pynput", marker = "sys_platform != 'linux'" },
     { name = "pyobjc-framework-quartz", marker = "sys_platform == 'darwin'" },
+    { name = "python-xlib", marker = "sys_platform == 'linux'" },
     { name = "pyyaml" },
     { name = "requests" },
     { name = "sentencepiece" },
@@ -345,14 +346,15 @@ requires-dist = [
     { name = "meikiocr" },
     { name = "mss", specifier = ">=9.0.0" },
     { name = "numpy" },
-    { name = "nvidia-cublas-cu12", marker = "sys_platform == 'win32'" },
-    { name = "nvidia-cudnn-cu12", marker = "sys_platform == 'win32'" },
+    { name = "nvidia-cublas-cu12", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+    { name = "nvidia-cudnn-cu12", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
     { name = "onnxruntime" },
     { name = "opencv-python" },
     { name = "pillow", specifier = ">=10.0.0" },
     { name = "pygetwindow", marker = "sys_platform == 'win32'", specifier = ">=0.0.9" },
-    { name = "pynput", specifier = ">=1.7.6" },
+    { name = "pynput", marker = "sys_platform != 'linux'", specifier = ">=1.7.6" },
     { name = "pyobjc-framework-quartz", marker = "sys_platform == 'darwin'", specifier = ">=10.0" },
+    { name = "python-xlib", marker = "sys_platform == 'linux'", specifier = ">=0.33" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "requests" },
     { name = "sentencepiece" },
@@ -477,6 +479,8 @@ name = "nvidia-cublas-cu12"
 version = "12.9.1.4"
 source = { registry = "https://pypi.org/simple" }
 wheels = [
+    { url = "https://files.pythonhosted.org/packages/82/6c/90d3f532f608a03a13c1d6c16c266ffa3828e8011b1549d3b61db2ad59f5/nvidia_cublas_cu12-12.9.1.4-py3-none-manylinux_2_27_aarch64.whl", hash = "sha256:7a950dae01add3b415a5a5cdc4ec818fb5858263e9cca59004bb99fdbbd3a5d6", size = 575006342, upload-time = "2025-06-05T20:04:16.902Z" },
+    { url = "https://files.pythonhosted.org/packages/77/3c/aa88abe01f3be3d1f8f787d1d33dc83e76fec05945f9a28fbb41cfb99cd5/nvidia_cublas_cu12-12.9.1.4-py3-none-manylinux_2_27_x86_64.whl", hash = "sha256:453611eb21a7c1f2c2156ed9f3a45b691deda0440ec550860290dc901af5b4c2", size = 581242350, upload-time = "2025-06-05T20:04:51.979Z" },
     { url = "https://files.pythonhosted.org/packages/45/a1/a17fade6567c57452cfc8f967a40d1035bb9301db52f27808167fbb2be2f/nvidia_cublas_cu12-12.9.1.4-py3-none-win_amd64.whl", hash = "sha256:1e5fee10662e6e52bd71dec533fbbd4971bb70a5f24f3bc3793e5c2e9dc640bf", size = 553153899, upload-time = "2025-06-05T20:13:35.556Z" },
 ]
 
@@ -485,9 +489,11 @@ name = "nvidia-cudnn-cu12"
 version = "9.17.1.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-cublas-cu12", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux')" },
+    { name = "nvidia-cublas-cu12", marker = "sys_platform != 'darwin'" },
 ]
 wheels = [
+    { url = "https://files.pythonhosted.org/packages/da/55/9987152bd99746b6d5d899a3e920f72f565f5adb4835dc44899382482e2c/nvidia_cudnn_cu12-9.17.1.4-py3-none-manylinux_2_27_aarch64.whl", hash = "sha256:d18d61bdd596fca0dbe459c129f6eb7a24ed2e6de1d7988b0a37ac63184ee05d", size = 646648394, upload-time = "2025-12-22T16:42:08.8Z" },
+    { url = "https://files.pythonhosted.org/packages/91/8b/b15aef578b64ff8b72f68f682b6a8254ee6aa6d3d236b4282a4d32dbdf1a/nvidia_cudnn_cu12-9.17.1.4-py3-none-manylinux_2_27_x86_64.whl", hash = "sha256:b5083ced291edb2baf8eab09951c6bc58b79b2023c4ec885657a63acdf51d0bd", size = 647835891, upload-time = "2025-12-22T16:43:28.317Z" },
     { url = "https://files.pythonhosted.org/packages/56/67/e4b10d08c0658bb7e42766fe5cd5c450d0524425e70d12b5eb85a979318e/nvidia_cudnn_cu12-9.17.1.4-py3-none-win_amd64.whl", hash = "sha256:0760c843fb109631edf5bd4234f2a260a13a05c18ee2a20783fbb4eb04d56645", size = 634329630, upload-time = "2025-12-22T16:45:33.451Z" },
 ]
 
@@ -682,11 +688,11 @@ name = "pynput"
 version = "1.8.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "evdev", marker = "'linux' in sys_platform" },
+    { name = "evdev", marker = "(platform_machine != 'aarch64' and 'linux' in sys_platform) or (sys_platform != 'linux' and 'linux' in sys_platform)" },
     { name = "pyobjc-framework-applicationservices", marker = "sys_platform == 'darwin'" },
     { name = "pyobjc-framework-quartz", marker = "sys_platform == 'darwin'" },
-    { name = "python-xlib", marker = "'linux' in sys_platform" },
-    { name = "six" },
+    { name = "python-xlib", marker = "(platform_machine != 'aarch64' and 'linux' in sys_platform) or (sys_platform != 'linux' and 'linux' in sys_platform)" },
+    { name = "six", marker = "platform_machine != 'aarch64' or sys_platform != 'linux'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/f0/c3/dccf44c68225046df5324db0cc7d563a560635355b3e5f1d249468268a6f/pynput-1.8.1.tar.gz", hash = "sha256:70d7c8373ee98911004a7c938742242840a5628c004573d84ba849d4601df81e", size = 82289, upload-time = "2025-03-17T17:12:01.481Z" }
 wheels = [

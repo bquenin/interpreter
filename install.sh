@@ -38,11 +38,11 @@ else
     echo -e "${GREEN}[1/4] uv is already installed${NC}"
 fi
 
-# Linux/Wayland: Install build tools BEFORE interpreter (needed for pynput/evdev)
+# Linux: Install build tools BEFORE interpreter (needed for pynput/evdev)
 NEEDS_LOGOUT=false
-WAYLAND_SETUP_FAILED=false
-if [ "$OS" = "Linux" ] && [ -n "$WAYLAND_DISPLAY" ]; then
-    echo -e "${YELLOW}[2/4] Setting up Wayland keyboard support...${NC}"
+LINUX_SETUP_FAILED=false
+if [ "$OS" = "Linux" ]; then
+    echo -e "${YELLOW}[2/4] Setting up Linux keyboard support...${NC}"
 
     # Check if build tools are needed (try to find cc)
     if ! command -v cc &> /dev/null; then
@@ -64,9 +64,9 @@ if [ "$OS" = "Linux" ] && [ -n "$WAYLAND_DISPLAY" ]; then
 
         if [ "$INSTALL_OK" = false ]; then
             echo -e "${YELLOW}     Could not install build tools automatically.${NC}"
-            echo -e "${YELLOW}     Keyboard shortcuts may not work on Wayland.${NC}"
+            echo -e "${YELLOW}     Keyboard shortcuts may not work.${NC}"
             echo -e "${YELLOW}     To fix later: install gcc/build-essential manually.${NC}"
-            WAYLAND_SETUP_FAILED=true
+            LINUX_SETUP_FAILED=true
         fi
     else
         echo -e "${GREEN}     Build tools already installed${NC}"
@@ -80,27 +80,24 @@ if [ "$OS" = "Linux" ] && [ -n "$WAYLAND_DISPLAY" ]; then
         else
             echo -e "${YELLOW}     Could not add to input group (needs sudo).${NC}"
             echo -e "${YELLOW}     To fix: sudo usermod -a -G input $USER${NC}"
-            WAYLAND_SETUP_FAILED=true
+            LINUX_SETUP_FAILED=true
         fi
     else
         echo -e "${GREEN}     Already in input group${NC}"
     fi
 
-    if [ "$WAYLAND_SETUP_FAILED" = false ]; then
-        echo -e "${GREEN}     Wayland keyboard support configured!${NC}"
+    if [ "$LINUX_SETUP_FAILED" = false ]; then
+        echo -e "${GREEN}     Linux keyboard support configured!${NC}"
     fi
 else
-    if [ "$OS" = "Linux" ]; then
-        echo -e "${GREEN}[2/4] Linux/X11 detected - no extra setup needed${NC}"
-    else
-        echo -e "${GREEN}[2/4] macOS detected - no extra setup needed${NC}"
-    fi
+    echo -e "${GREEN}[2/4] macOS detected - no extra setup needed${NC}"
 fi
 
 # Install or upgrade interpreter-v2
 echo -e "${YELLOW}[3/4] Installing interpreter-v2 from GitHub...${NC}"
 echo -e "${GRAY}     (this may take a minute on first install)${NC}"
-uv tool install --upgrade "git+https://github.com/bquenin/interpreter@main" 2>&1 || true
+BRANCH="${INTERPRETER_BRANCH:-main}"
+uv tool install --upgrade "git+https://github.com/bquenin/interpreter@${BRANCH}" 2>&1 || true
 uv tool update-shell > /dev/null 2>&1 || true
 
 # Pre-compile bytecode and warm up OS caches
@@ -121,7 +118,7 @@ echo ""
 
 if [ "$NEEDS_LOGOUT" = true ]; then
     echo -e "${YELLOW}IMPORTANT: Log out and back in for keyboard${NC}"
-    echo -e "${YELLOW}shortcuts to work on Wayland.${NC}"
+    echo -e "${YELLOW}shortcuts to work.${NC}"
     echo ""
 fi
 
