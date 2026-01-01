@@ -1,22 +1,39 @@
-"""Linux keyboard input using X11 via python-xlib.
+"""Linux keyboard input with fallback chain.
 
-Uses the RECORD extension to capture global keyboard events without
-requiring root privileges or evdev (which needs compilation).
+Tries multiple backends in order:
+1. pynput (if installed - requires evdev compilation + input group)
+2. X11 RECORD (works on X11 sessions, not Wayland)
+3. Error with helpful message
 """
 
+import os
 import threading
 from typing import Callable, Optional
 
+# Try pynput first (best compatibility if available)
+_USE_PYNPUT = False
+try:
+    from pynput import keyboard as pynput_keyboard
+    _USE_PYNPUT = True
+except ImportError:
+    pass
+
+# Fall back to X11 RECORD
 from Xlib import X, XK, display
 from Xlib.ext import record
 from Xlib.protocol import rq
 
 
-class KeyboardListener:
-    """Global keyboard listener using X11 RECORD extension.
+def _is_wayland() -> bool:
+    """Check if running on Wayland."""
+    return bool(os.environ.get("WAYLAND_DISPLAY"))
 
-    This provides the same interface as pynput's keyboard.Listener
-    but uses python-xlib directly, avoiding the evdev dependency.
+
+class KeyboardListener:
+    """Global keyboard listener with automatic backend selection.
+
+    Uses pynput if available (best compatibility), otherwise falls back
+    to X11 RECORD (X11 sessions only).
     """
 
     def __init__(self, on_press: Callable[[str], None]):
@@ -29,6 +46,12 @@ class KeyboardListener:
         self._on_press = on_press
         self._running = False
         self._thread: Optional[threading.Thread] = None
+        self._backend: Optional[str] = None
+
+        # For pynput backend
+        self._pynput_listener = None
+
+        # For X11 RECORD backend
         self._record_display: Optional[display.Display] = None
         self._local_display: Optional[display.Display] = None
         self._context: Optional[int] = None
@@ -39,8 +62,49 @@ class KeyboardListener:
             return
 
         self._running = True
-        self._thread = threading.Thread(target=self._listen_loop, daemon=True)
-        self._thread.start()
+
+        # Try pynput first (works on both X11 and Wayland with proper setup)
+        if _USE_PYNPUT:
+            try:
+                self._start_pynput()
+                self._backend = "pynput"
+                return
+            except Exception as e:
+                if _is_wayland():
+                    print(f"Warning: pynput failed on Wayland: {e}")
+                    print("  To fix: sudo usermod -a -G input $USER (then log out/in)")
+                # Fall through to X11 RECORD
+
+        # Try X11 RECORD (X11 sessions only)
+        if not _is_wayland():
+            self._thread = threading.Thread(target=self._listen_loop, daemon=True)
+            self._thread.start()
+            self._backend = "x11-record"
+        else:
+            print("Warning: Keyboard shortcuts unavailable on Wayland without pynput")
+            print("  Install: pip install pynput (requires build-essential)")
+            print("  Then: sudo usermod -a -G input $USER (log out/in)")
+
+    def _start_pynput(self) -> None:
+        """Start pynput backend."""
+        def on_pynput_press(key):
+            try:
+                # Get character from key
+                if hasattr(key, 'char') and key.char:
+                    char = key.char
+                else:
+                    # Handle special keys
+                    key_name = str(key).replace("Key.", "")
+                    special = {'minus': '-', 'equal': '='}
+                    char = special.get(key_name)
+
+                if char and self._on_press:
+                    self._on_press(char)
+            except Exception:
+                pass
+
+        self._pynput_listener = pynput_keyboard.Listener(on_press=on_pynput_press)
+        self._pynput_listener.start()
 
     def _listen_loop(self) -> None:
         """Background thread that captures keyboard events."""
@@ -145,7 +209,15 @@ class KeyboardListener:
         """Stop listening for keyboard events."""
         self._running = False
 
-        # Disable the recording context to unblock the listener thread
+        # Stop pynput backend
+        if self._pynput_listener:
+            try:
+                self._pynput_listener.stop()
+            except Exception:
+                pass
+            self._pynput_listener = None
+
+        # Stop X11 RECORD backend
         if self._context and self._local_display:
             try:
                 self._local_display.record_disable_context(self._context)
