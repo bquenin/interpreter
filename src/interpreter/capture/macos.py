@@ -15,8 +15,9 @@ def get_window_list() -> list[dict]:
         List of window dictionaries with keys: id, title, bounds
     """
     windows = []
+    # Use kCGWindowListOptionAll to include windows on other Spaces (e.g., fullscreen apps)
     window_list = CG.CGWindowListCopyWindowInfo(
-        CG.kCGWindowListOptionOnScreenOnly | CG.kCGWindowListExcludeDesktopElements,
+        CG.kCGWindowListOptionAll | CG.kCGWindowListExcludeDesktopElements,
         CG.kCGNullWindowID
     )
 
@@ -39,7 +40,8 @@ def get_window_list() -> list[dict]:
                 }
             })
 
-    return windows
+    # Sort alphabetically by title
+    return sorted(windows, key=lambda w: w["title"].lower())
 
 
 def find_window_by_title(title_substring: str) -> Optional[dict]:

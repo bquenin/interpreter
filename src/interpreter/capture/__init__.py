@@ -56,17 +56,19 @@ else:
 class WindowCapture:
     """Captures screenshots of a specific window by title."""
 
-    def __init__(self, window_title: str, capture_interval: float = 0.25):
+    def __init__(self, window_title: str, capture_interval: float = 0.25, window_id: Optional[int] = None, bounds: Optional[dict] = None):
         """Initialize the window capture.
 
         Args:
             window_title: Partial title of the window to capture.
             capture_interval: Seconds between background captures (Linux only).
+            window_id: Optional window ID to use directly (skips title search).
+            bounds: Optional window bounds if window_id is provided.
         """
         self.window_title = window_title
-        self._window_id: Optional[int] = None
-        self._actual_title: Optional[str] = None  # Full window title (for Windows capture)
-        self._last_bounds: Optional[dict] = None
+        self._window_id: Optional[int] = window_id
+        self._actual_title: Optional[str] = window_title if window_id else None
+        self._last_bounds: Optional[dict] = bounds
         self._stream: Optional[CaptureStream] = None
         self._capture_interval = capture_interval
 
@@ -76,6 +78,14 @@ class WindowCapture:
         Returns:
             True if window was found, False otherwise.
         """
+        # If we already have a window ID, just verify it's still valid
+        if self._window_id is not None:
+            bounds = _get_window_bounds(self._window_id)
+            if bounds:
+                self._last_bounds = bounds
+                return True
+            # Window ID no longer valid, fall through to search by title
+
         window = find_window_by_title(self.window_title)
         if window:
             self._window_id = window["id"]

@@ -165,15 +165,16 @@ hotkeys:
             config_dir.mkdir(parents=True, exist_ok=True)
             config_path = str(config_dir / "config.yml")
 
+        # Explicitly convert to basic types to avoid Python-specific YAML tags
         data = {
-            "window_title": self.window_title,
-            "refresh_rate": self.refresh_rate,
-            "ocr_confidence": self.ocr_confidence,
-            "overlay_mode": self.overlay_mode,
-            "font_size": self.font_size,
-            "font_color": self.font_color,
-            "background_color": self.background_color,
-            "hotkeys": self.hotkeys,
+            "window_title": str(self.window_title) if self.window_title else "",
+            "refresh_rate": float(self.refresh_rate),
+            "ocr_confidence": float(self.ocr_confidence),
+            "overlay_mode": str(self.overlay_mode),
+            "font_size": int(self.font_size),
+            "font_color": str(self.font_color),
+            "background_color": str(self.background_color),
+            "hotkeys": {str(k): str(v) for k, v in self.hotkeys.items()},
         }
 
         with open(config_path, "w", encoding="utf-8") as f:

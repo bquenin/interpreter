@@ -213,9 +213,13 @@ class MainWindow(QMainWindow):
         selected_idx = -1
         for i, win in enumerate(self._windows_list):
             title = win.get("title", "Unknown")
-            if len(title) > 60:
-                title = title[:60] + "..."
-            self._window_combo.addItem(title)
+            bounds = win.get("bounds", {})
+            width = bounds.get("width", 0)
+            height = bounds.get("height", 0)
+            if len(title) > 50:
+                title = title[:50] + "..."
+            display_text = f"{title} ({width}x{height})"
+            self._window_combo.addItem(display_text)
 
             # Auto-select if matches config
             if self._config.window_title and self._config.window_title.lower() in win.get("title", "").lower():
@@ -240,8 +244,10 @@ class MainWindow(QMainWindow):
 
         window = self._windows_list[idx]
         title = window.get("title", "")
+        window_id = window.get("id")
+        bounds = window.get("bounds")
 
-        self._capture = WindowCapture(title)
+        self._capture = WindowCapture(title, window_id=window_id, bounds=bounds)
         if not self._capture.find_window():
             self._status_label.setText("Status: Window not found")
             return
@@ -287,6 +293,10 @@ class MainWindow(QMainWindow):
         self._status_label.setText("Status: Idle")
         self._fps_label.setText("FPS: --")
         self._timing_label.setText("Timing: --")
+
+        # Clear preview
+        self._preview_label.clear()
+        self._preview_label.setText("No preview")
 
         # Hide overlays
         self._banner_overlay.hide()
