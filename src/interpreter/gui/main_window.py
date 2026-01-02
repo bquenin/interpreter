@@ -170,9 +170,6 @@ class MainWindow(QMainWindow):
         self._fps_label = QLabel("FPS: --")
         status_layout.addWidget(self._fps_label)
 
-        self._timing_label = QLabel("Timing: --")
-        status_layout.addWidget(self._timing_label)
-
         # Preview
         self._preview_label = QLabel()
         self._preview_label.setFixedSize(320, 240)
@@ -292,7 +289,6 @@ class MainWindow(QMainWindow):
         self._pause_btn.setEnabled(False)
         self._status_label.setText("Status: Idle")
         self._fps_label.setText("FPS: --")
-        self._timing_label.setText("Timing: --")
 
         # Clear preview
         self._preview_label.clear()
