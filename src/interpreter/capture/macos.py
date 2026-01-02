@@ -1,5 +1,6 @@
 """macOS-specific window capture using PyObjC/Quartz."""
 
+import os
 import threading
 import time
 from typing import Optional
@@ -15,6 +16,8 @@ def get_window_list() -> list[dict]:
         List of window dictionaries with keys: id, title, bounds
     """
     windows = []
+    own_pid = os.getpid()
+
     # Use kCGWindowListOptionAll to include windows on other Spaces (e.g., fullscreen apps)
     window_list = CG.CGWindowListCopyWindowInfo(
         CG.kCGWindowListOptionAll | CG.kCGWindowListExcludeDesktopElements,
@@ -25,11 +28,13 @@ def get_window_list() -> list[dict]:
         window_id = window.get(CG.kCGWindowNumber)
         title = window.get(CG.kCGWindowName, "")
         owner = window.get(CG.kCGWindowOwnerName, "")
+        owner_pid = window.get(CG.kCGWindowOwnerPID, 0)
         bounds = window.get(CG.kCGWindowBounds, {})
 
         # Only include normal application windows (layer 0) with a title
+        # Exclude our own windows (by PID or by title)
         layer = window.get(CG.kCGWindowLayer, -1)
-        if layer != 0 or not title:
+        if layer != 0 or not title or owner_pid == own_pid or title == "Interpreter":
             continue
 
         windows.append({
