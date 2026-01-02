@@ -277,18 +277,15 @@ def _is_fullscreen(window_id: int) -> bool:
     return is_fullscreen
 
 
-# Cache for monitor list (RANDR queries can be slow and cause deadlocks)
+# Cache for monitor list (RANDR queries can cause deadlocks, cache for entire session)
 _monitors_cache: list[dict] = []
-_monitors_cache_time: float = 0
-_MONITORS_CACHE_TTL: float = 30.0  # Refresh every 30 seconds
 
 
 def _get_monitors() -> list[dict]:
-    """Get list of monitors, using cache to avoid frequent RANDR calls."""
-    global _monitors_cache, _monitors_cache_time
+    """Get list of monitors, cached for the entire session."""
+    global _monitors_cache
 
-    now = time.time()
-    if _monitors_cache and (now - _monitors_cache_time) < _MONITORS_CACHE_TTL:
+    if _monitors_cache:
         return _monitors_cache
 
     disp = _get_display()
@@ -314,9 +311,8 @@ def _get_monitors() -> list[dict]:
 
     if monitors:
         _monitors_cache = monitors
-        _monitors_cache_time = now
 
-    return _monitors_cache if _monitors_cache else monitors
+    return _monitors_cache
 
 
 def get_display_bounds_for_window(window_id: int, debug: bool = False) -> Optional[dict]:
