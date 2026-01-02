@@ -26,3 +26,9 @@ ENV/
 .DS_Store
 Thumbs.db
 .env
+
+# Claude Code
+.claude/
+
+# Debug files
+debug_capture.png
