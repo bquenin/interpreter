@@ -27,18 +27,22 @@ def get_window_list() -> list[dict]:
         owner = window.get(CG.kCGWindowOwnerName, "")
         bounds = window.get(CG.kCGWindowBounds, {})
 
-        if title or owner:  # Skip windows without any identifiable name
-            windows.append({
-                "id": window_id,
-                "title": title or owner,
-                "owner": owner,
-                "bounds": {
-                    "x": int(bounds.get("X", 0)),
-                    "y": int(bounds.get("Y", 0)),
-                    "width": int(bounds.get("Width", 0)),
-                    "height": int(bounds.get("Height", 0)),
-                }
-            })
+        # Only include normal application windows (layer 0) with a title
+        layer = window.get(CG.kCGWindowLayer, -1)
+        if layer != 0 or not title:
+            continue
+
+        windows.append({
+            "id": window_id,
+            "title": title,
+            "owner": owner,
+            "bounds": {
+                "x": int(bounds.get("X", 0)),
+                "y": int(bounds.get("Y", 0)),
+                "width": int(bounds.get("Width", 0)),
+                "height": int(bounds.get("Height", 0)),
+            }
+        })
 
     # Sort alphabetically by title
     return sorted(windows, key=lambda w: w["title"].lower())
