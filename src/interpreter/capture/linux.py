@@ -8,6 +8,7 @@ Most retro game emulators run under XWayland, so this covers the primary use cas
 """
 
 import struct
+import threading
 import time
 from typing import Optional
 
@@ -523,58 +524,198 @@ def capture_window(window_id: int, title_bar_height: int = None) -> Optional[Ima
 
 
 class LinuxCaptureStream:
-    """On-demand window capture using X11.
+    """Continuous background window capture using X11.
 
-    Unlike macOS/Windows which use efficient streaming APIs, Linux X11 capture
-    is slow for large windows (~3 seconds for 5K). This class captures on-demand
-    when get_frame() is called, rather than continuously in background.
+    Captures frames in a background thread at a fixed interval.
+    The main thread can get the latest frame without blocking.
 
     Provides the same interface as MacOSCaptureStream and WindowsCaptureStream
     for platform-agnostic capture code.
     """
 
-    def __init__(self, window_id: int):
-        """Initialize the capture.
+    # Thresholds for capture time warnings
+    CAPTURE_TIME_WARNING_MS = 100  # Warn if capture takes longer than this
+    CAPTURE_TIME_SAMPLE_COUNT = 5  # Number of frames to sample for average
+
+    def __init__(self, window_id: int, capture_interval: float = 0.25):
+        """Initialize the capture stream.
 
         Args:
             window_id: The X11 window ID (XID) of the window to capture.
+            capture_interval: Minimum seconds between captures.
         """
         self._window_id = window_id
-        self._window_invalid = False
+        self._capture_interval = capture_interval
+        self._latest_frame: Optional[Image.Image] = None
+        self._frame_lock = threading.Lock()
         self._running = False
+        self._thread: Optional[threading.Thread] = None
+        self._capture_display: Optional[display.Display] = None
+        self._window_invalid = False
+        self._capture_times: list[float] = []  # Recent capture times in ms
+        self._warning_shown = False
 
     def start(self):
-        """Start the capture (no-op for on-demand capture)."""
+        """Start the capture stream in background."""
         self._running = True
-        logger.debug("capture started (on-demand mode)", window_id=self._window_id)
+        self._thread = threading.Thread(target=self._capture_loop, daemon=True)
+        self._thread.start()
+        logger.debug("capture started (continuous)", window_id=self._window_id,
+                    interval_ms=int(self._capture_interval * 1000))
 
     @property
     def window_invalid(self) -> bool:
         """Check if the window ID is invalid (window was destroyed)."""
         return self._window_invalid
 
-    def get_frame(self) -> Optional[Image.Image]:
-        """Capture and return a frame on-demand.
+    def _capture_loop(self):
+        """Background thread that captures frames continuously."""
+        # Create dedicated display connection for thread-safety
+        self._capture_display = display.Display()
 
-        Returns:
-            PIL Image of the captured frame, or None if capture failed.
+        while self._running and not self._window_invalid:
+            # Measure capture time
+            start_time = time.perf_counter()
+            frame = self._capture_frame()
+            capture_time_ms = (time.perf_counter() - start_time) * 1000
+
+            if frame:
+                with self._frame_lock:
+                    self._latest_frame = frame
+
+                # Track capture times and check for slow capture
+                self._check_capture_performance(capture_time_ms, frame.size)
+
+            time.sleep(self._capture_interval)
+
+        # Cleanup
+        if self._capture_display:
+            try:
+                self._capture_display.close()
+            except Exception:
+                pass
+            self._capture_display = None
+
+    def _check_capture_performance(self, capture_time_ms: float, frame_size: tuple[int, int]):
+        """Check capture performance and warn if too slow.
+
+        Args:
+            capture_time_ms: Time taken for the last capture in milliseconds.
+            frame_size: Tuple of (width, height) of the captured frame.
         """
-        if not self._running or self._window_invalid:
+        # Log on first successful capture
+        if len(self._capture_times) == 0:
+            width, height = frame_size
+            logger.info("capture started", window_id=hex(self._window_id), resolution=f"{width}x{height}")
+
+        # Only sample the first few frames
+        if len(self._capture_times) < self.CAPTURE_TIME_SAMPLE_COUNT:
+            self._capture_times.append(capture_time_ms)
+
+        # Check after we have enough samples
+        if len(self._capture_times) == self.CAPTURE_TIME_SAMPLE_COUNT and not self._warning_shown:
+            avg_time = sum(self._capture_times) / len(self._capture_times)
+
+            if avg_time > self.CAPTURE_TIME_WARNING_MS:
+                self._warning_shown = True
+                width, height = frame_size
+                pixels = width * height
+                megapixels = pixels / 1_000_000
+
+                logger.warning(
+                    "slow capture detected",
+                    avg_capture_ms=int(avg_time),
+                    resolution=f"{width}x{height}",
+                    megapixels=f"{megapixels:.1f}MP",
+                    hint="High resolution capture causes game stuttering. "
+                         "Consider: (1) Run game in windowed mode at lower resolution, "
+                         "(2) Lower display resolution, or (3) Increase capture interval in config."
+                )
+
+    def _capture_frame(self) -> Optional[Image.Image]:
+        """Capture a single frame using the thread's display connection."""
+        if self._capture_display is None:
             return None
+
+        disp = self._capture_display
 
         try:
-            # capture_window returns None for various reasons (not viewable,
-            # invalid geometry, etc.) - this doesn't mean window is invalid
-            return capture_window(self._window_id)
+            window = disp.create_resource_object("window", self._window_id)
+
+            attrs = window.get_attributes()
+            if attrs.map_state != X.IsViewable:
+                return None
+
+            # Try to find content child window (for CSD windows)
+            content_info = _find_content_window(window)
+            if content_info:
+                target_window = content_info[0]
+                crop_title_bar = False
+            else:
+                target_window = window
+                crop_title_bar = True
+
+            geom = target_window.get_geometry()
+            width = geom.width
+            height = geom.height
+            depth = geom.depth
+
+            if width <= 0 or height <= 0:
+                return None
+
+            raw = target_window.get_image(0, 0, width, height, X.ZPixmap, 0xFFFFFFFF)
+            data = raw.data
+
+            if depth == 24 or depth == 32:
+                expected_size = width * height * 4
+                if len(data) < expected_size:
+                    return None
+                image = Image.frombytes("RGBA", (width, height),
+                                       bytes(data[:expected_size]), "raw", "BGRA")
+                image = image.convert("RGB")
+            elif depth == 16:
+                expected_size = width * height * 2
+                if len(data) < expected_size:
+                    return None
+                pixels = []
+                for i in range(0, expected_size, 2):
+                    pixel = struct.unpack("<H", data[i:i+2])[0]
+                    r = ((pixel >> 11) & 0x1F) << 3
+                    g = ((pixel >> 5) & 0x3F) << 2
+                    b = (pixel & 0x1F) << 3
+                    pixels.extend([r, g, b])
+                image = Image.frombytes("RGB", (width, height), bytes(pixels))
+            else:
+                return None
+
+            # Crop title bar if needed
+            if crop_title_bar and not _is_fullscreen(self._window_id):
+                title_bar = _get_title_bar_height(self._window_id)
+                if title_bar > 0 and height > title_bar:
+                    image = image.crop((0, title_bar, width, height))
+
+            return image
+
         except (BadDrawable, BadWindow):
-            # Window was actually destroyed
-            logger.debug("capture failed: window destroyed", window_id=self._window_id)
             self._window_invalid = True
+            with self._frame_lock:
+                self._latest_frame = None
             return None
-        except Exception as e:
-            logger.debug("capture failed", error=str(e))
+        except Exception:
             return None
 
+    def get_frame(self) -> Optional[Image.Image]:
+        """Get the latest captured frame (non-blocking).
+
+        Returns:
+            PIL Image of the captured frame, or None if no frame available.
+        """
+        with self._frame_lock:
+            return self._latest_frame
+
     def stop(self):
-        """Stop the capture."""
+        """Stop the capture stream."""
         self._running = False
+        if self._thread:
+            self._thread.join(timeout=2.0)
+        self._thread = None

@@ -38,16 +38,18 @@ else:
 class WindowCapture:
     """Captures screenshots of a specific window by title."""
 
-    def __init__(self, window_title: str):
+    def __init__(self, window_title: str, capture_interval: float = 0.25):
         """Initialize the window capture.
 
         Args:
             window_title: Partial title of the window to capture.
+            capture_interval: Seconds between background captures (Linux only).
         """
         self.window_title = window_title
         self._window_id: Optional[int] = None
         self._last_bounds: Optional[dict] = None
         self._stream: Optional[CaptureStream] = None
+        self._capture_interval = capture_interval
 
     def find_window(self) -> bool:
         """Find and cache the window ID.
@@ -151,8 +153,11 @@ class WindowCapture:
         if _system == "Windows":
             # Windows uses window title for capture
             self._stream = CaptureStream(self.window_title)
+        elif _system == "Linux":
+            # Linux uses background thread with configurable interval
+            self._stream = CaptureStream(self._window_id, self._capture_interval)
         else:
-            # macOS and Linux use window ID for capture
+            # macOS uses window ID for capture
             self._stream = CaptureStream(self._window_id)
 
         self._stream.start()
