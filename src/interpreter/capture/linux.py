@@ -8,7 +8,6 @@ Most retro game emulators run under XWayland, so this covers the primary use cas
 """
 
 import struct
-import threading
 import time
 from typing import Optional
 
@@ -524,193 +523,58 @@ def capture_window(window_id: int, title_bar_height: int = None) -> Optional[Ima
 
 
 class LinuxCaptureStream:
-    """Continuous window capture using X11.
+    """On-demand window capture using X11.
 
-    Provides the same streaming interface as MacOSCaptureStream and
-    WindowsCaptureStream for platform-agnostic capture code.
+    Unlike macOS/Windows which use efficient streaming APIs, Linux X11 capture
+    is slow for large windows (~3 seconds for 5K). This class captures on-demand
+    when get_frame() is called, rather than continuously in background.
+
+    Provides the same interface as MacOSCaptureStream and WindowsCaptureStream
+    for platform-agnostic capture code.
     """
 
     def __init__(self, window_id: int):
-        """Initialize the capture stream.
+        """Initialize the capture.
 
         Args:
             window_id: The X11 window ID (XID) of the window to capture.
         """
         self._window_id = window_id
-        self._latest_frame: Optional[Image.Image] = None
-        self._frame_lock = threading.Lock()
-        self._running = False
-        self._thread: Optional[threading.Thread] = None
-        # Dedicated display connection for capture thread (thread-safety)
-        self._capture_display: Optional[display.Display] = None
-        # Flag set when window becomes invalid (e.g., fullscreen transition)
         self._window_invalid = False
+        self._running = False
 
     def start(self):
-        """Start the capture stream in background."""
+        """Start the capture (no-op for on-demand capture)."""
         self._running = True
-        self._thread = threading.Thread(target=self._capture_loop, daemon=True)
-        self._thread.start()
-
-    def _capture_window(self) -> Optional[Image.Image]:
-        """Capture window using the thread's dedicated display connection.
-
-        This is similar to the module-level capture_window() but uses
-        self._capture_display for thread-safety.
-
-        Returns:
-            PIL Image of the window content, or None if capture failed.
-        """
-        if self._capture_display is None:
-            return None
-
-        disp = self._capture_display
-
-        try:
-            window = disp.create_resource_object("window", self._window_id)
-
-            # Check if window is viewable (ready for capture)
-            # During fullscreen transitions, window may exist but not be ready
-            attrs = window.get_attributes()
-            if attrs.map_state != X.IsViewable:
-                return None
-
-            # Try to find content child window (for CSD windows)
-            content_info = _find_content_window(window)
-            if content_info:
-                target_window = content_info[0]
-                crop_title_bar = False
-            else:
-                target_window = window
-                crop_title_bar = True
-
-            # Get window geometry
-            geom = target_window.get_geometry()
-            width = geom.width
-            height = geom.height
-            depth = geom.depth
-
-            if width <= 0 or height <= 0:
-                return None
-
-            # Capture the window contents
-            raw = target_window.get_image(
-                0, 0,
-                width, height,
-                X.ZPixmap,
-                0xFFFFFFFF
-            )
-
-            data = raw.data
-
-            if depth == 24 or depth == 32:
-                expected_size = width * height * 4
-                if len(data) < expected_size:
-                    logger.debug("capture failed: insufficient data", expected=expected_size, actual=len(data))
-                    return None
-
-                image = Image.frombytes(
-                    "RGBA", (width, height),
-                    bytes(data[:expected_size]),
-                    "raw", "BGRA"
-                )
-                image = image.convert("RGB")
-
-            elif depth == 16:
-                expected_size = width * height * 2
-                if len(data) < expected_size:
-                    logger.debug("capture failed: insufficient data (16-bit)", expected=expected_size, actual=len(data))
-                    return None
-
-                pixels = []
-                for i in range(0, expected_size, 2):
-                    pixel = struct.unpack("<H", data[i:i+2])[0]
-                    r = ((pixel >> 11) & 0x1F) << 3
-                    g = ((pixel >> 5) & 0x3F) << 2
-                    b = (pixel & 0x1F) << 3
-                    pixels.extend([r, g, b])
-
-                image = Image.frombytes("RGB", (width, height), bytes(pixels))
-
-            else:
-                logger.debug("capture failed: unsupported depth", depth=depth)
-                return None
-
-            # Only crop title bar if we couldn't find a content window
-            if crop_title_bar:
-                is_fullscreen = _is_fullscreen(self._window_id)
-                if not is_fullscreen:
-                    title_bar = _get_title_bar_height(self._window_id)
-                    if height > title_bar:
-                        image = image.crop((0, title_bar, width, height))
-
-            return image
-
-        except BadDrawable:
-            # Window was destroyed (e.g., fullscreen transition)
-            logger.debug("capture BadDrawable", window_id=self._window_id)
-            self._window_invalid = True
-            with self._frame_lock:
-                self._latest_frame = None
-            return None
-        except BadWindow:
-            # Window was destroyed
-            logger.debug("capture BadWindow", window_id=self._window_id)
-            self._window_invalid = True
-            with self._frame_lock:
-                self._latest_frame = None
-            return None
-        except Exception as e:
-            logger.debug("capture failed: exception", error=str(e))
-            return None
+        logger.debug("capture started (on-demand mode)", window_id=self._window_id)
 
     @property
     def window_invalid(self) -> bool:
         """Check if the window ID is invalid (window was destroyed)."""
         return self._window_invalid
 
-    def _capture_loop(self):
-        """Background thread that continuously captures frames."""
-        # Create dedicated display connection for this thread (thread-safety)
-        # X11 Display objects are not thread-safe, so each thread needs its own
-        self._capture_display = display.Display()
-        logger.debug("capture thread started", window_id=self._window_id)
-        first_frame = True
-
-        while self._running and not self._window_invalid:
-            start = time.time()
-            frame = self._capture_window()
-            elapsed = time.time() - start
-            if frame:
-                with self._frame_lock:
-                    self._latest_frame = frame
-                if first_frame:
-                    logger.debug("first frame captured", window_id=self._window_id, elapsed_ms=int(elapsed*1000))
-                    first_frame = False
-            elif elapsed > 0.1:  # Log slow failures
-                logger.debug("capture slow/failed", window_id=self._window_id, elapsed_ms=int(elapsed*1000))
-            time.sleep(0.033)  # ~30 FPS
-
-        logger.debug("capture thread exiting", window_id=self._window_id, invalid=self._window_invalid)
-
     def get_frame(self) -> Optional[Image.Image]:
-        """Get the latest captured frame.
+        """Capture and return a frame on-demand.
 
         Returns:
-            PIL Image of the captured frame, or None if no frame available.
+            PIL Image of the captured frame, or None if capture failed.
         """
-        with self._frame_lock:
-            return self._latest_frame
+        if not self._running or self._window_invalid:
+            return None
+
+        try:
+            # capture_window returns None for various reasons (not viewable,
+            # invalid geometry, etc.) - this doesn't mean window is invalid
+            return capture_window(self._window_id)
+        except (BadDrawable, BadWindow):
+            # Window was actually destroyed
+            logger.debug("capture failed: window destroyed", window_id=self._window_id)
+            self._window_invalid = True
+            return None
+        except Exception as e:
+            logger.debug("capture failed", error=str(e))
+            return None
 
     def stop(self):
-        """Stop the capture stream."""
+        """Stop the capture."""
         self._running = False
-        if self._thread:
-            self._thread.join(timeout=1.0)
-        # Close the dedicated display connection
-        if self._capture_display:
-            try:
-                self._capture_display.close()
-            except Exception:
-                pass
-            self._capture_display = None
