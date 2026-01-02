@@ -99,6 +99,16 @@ def _parse_arguments() -> argparse.Namespace:
         default=None,
         help="Overlay mode: banner (subtitle at bottom) or inplace (over game text)"
     )
+    parser.add_argument(
+        "--capture-only",
+        action="store_true",
+        help="Only capture frames, skip OCR and translation (for testing)"
+    )
+    parser.add_argument(
+        "--no-capture",
+        action="store_true",
+        help="Disable capture thread entirely (for testing if capture causes stuttering)"
+    )
 
     return parser.parse_args()
 
@@ -118,7 +128,9 @@ def _initialize_components(
     logger.info("initializing components")
 
     # Initialize screen capture
-    capture = WindowCapture(config.window_title)
+    # Use 30 FPS capture interval (matches old streaming mode that didn't stutter)
+    capture_interval = 0.033  # ~30 FPS
+    capture = WindowCapture(config.window_title, capture_interval=capture_interval)
     if not capture.find_window():
         logger.error("window not found", title=config.window_title)
         logger.info("use --list-windows to see available windows")
@@ -126,29 +138,35 @@ def _initialize_components(
     logger.info("window found", title=config.window_title)
     logger.debug("window bounds", **capture.bounds)
 
-    # Start capture stream
-    if not capture.start_stream():
-        logger.error("could not start capture stream")
-        sys.exit(1)
-    logger.info("capture stream started")
+    # Start capture stream (unless --no-capture)
+    if args.no_capture:
+        logger.info("capture disabled (--no-capture)")
+        # Use window bounds for overlay sizing
+        initial_image = None
+        image_size = (capture.bounds["width"], capture.bounds["height"])
+    else:
+        if not capture.start_stream():
+            logger.error("could not start capture stream")
+            sys.exit(1)
+        logger.info("capture stream started")
 
-    # Wait for first frame for Retina scale detection
-    # Large windows (especially 4K/5K fullscreen) can take 3-4 seconds for first capture
-    initial_image = None
-    for _ in range(100):  # Wait up to ~5 seconds
-        initial_image = capture.get_frame()
-        if initial_image is not None:
-            break
-        time.sleep(0.05)
+        # Wait for first frame for Retina scale detection
+        # Large windows (especially 4K/5K fullscreen) can take 3-4 seconds for first capture
+        initial_image = None
+        for _ in range(100):  # Wait up to ~5 seconds
+            initial_image = capture.get_frame()
+            if initial_image is not None:
+                break
+            time.sleep(0.05)
 
-    if initial_image is None:
-        logger.error("could not capture initial image for overlay setup")
-        capture.stop_stream()
-        sys.exit(1)
-    image_size = (initial_image.width, initial_image.height)
+        if initial_image is None:
+            logger.error("could not capture initial image for overlay setup")
+            capture.stop_stream()
+            sys.exit(1)
+        image_size = (initial_image.width, initial_image.height)
 
     # Debug: save initial capture to verify what we're capturing
-    if args.debug:
+    if args.debug and initial_image is not None:
         debug_path = "debug_capture.png"
         initial_image.save(debug_path)
         logger.debug("saved capture", path=debug_path)
@@ -178,6 +196,11 @@ def _initialize_components(
         content_offset=content_offset,
     )
     logger.info("overlay created", mode=config.overlay_mode)
+
+    # Skip OCR/translator in capture-only mode
+    if args.capture_only:
+        logger.info("capture-only mode, skipping OCR and translator")
+        return capture, None, None, overlay
 
     # Initialize and load OCR
     ocr = OCR(confidence_threshold=config.ocr_confidence, debug=args.debug)
@@ -235,6 +258,8 @@ def _run_main_loop(
     config: Config,
     hotkey_state: dict,
     debug_mode: bool,
+    capture_only: bool = False,
+    no_capture: bool = False,
 ) -> None:
     """Run the main translation loop.
 
@@ -246,6 +271,8 @@ def _run_main_loop(
         config: Application configuration.
         hotkey_state: Dict with hotkey flags.
         debug_mode: Whether to print debug info.
+        capture_only: If True, skip OCR and translation (for testing capture performance).
+        no_capture: If True, capture is disabled entirely.
     """
     # Track previous text to avoid re-translating
     previous_text = ""
@@ -298,6 +325,12 @@ def _run_main_loop(
         last_capture_time = current_time
         loop_start = time.perf_counter()
 
+        # Skip capture in no-capture mode (just keep overlay alive)
+        if no_capture:
+            if debug_mode:
+                logger.debug("no capture mode")
+            continue
+
         # Get latest frame from stream
         capture_start = time.perf_counter()
         image = capture.get_frame()
@@ -309,7 +342,8 @@ def _run_main_loop(
                 overlay.update_position(
                     capture.bounds,
                     display_bounds=capture.get_display_bounds(),
-                    image_size=None
+                    image_size=None,
+                    content_offset=capture.get_content_offset()
                 )
             if overlay.mode == "inplace":
                 overlay.update_regions([])
@@ -321,8 +355,15 @@ def _run_main_loop(
         overlay.update_position(
             capture.bounds,
             display_bounds=capture.get_display_bounds(),
-            image_size=(image.width, image.height)
+            image_size=(image.width, image.height),
+            content_offset=capture.get_content_offset()
         )
+
+        # Skip OCR/translation in capture-only mode
+        if capture_only:
+            if debug_mode:
+                logger.debug("capture only", capture_ms=int(capture_time*1000))
+            continue
 
         # Extract text
         ocr_start = time.perf_counter()
@@ -482,7 +523,9 @@ def main():
     try:
         _run_main_loop(
             overlay, capture, ocr, translator,
-            config, hotkey_state, args.debug
+            config, hotkey_state, args.debug,
+            capture_only=args.capture_only,
+            no_capture=args.no_capture
         )
     except KeyboardInterrupt:
         logger.info("interrupted by user")

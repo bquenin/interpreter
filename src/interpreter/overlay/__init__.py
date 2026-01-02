@@ -215,18 +215,24 @@ class Overlay:
         if self._root:
             self._root.update_idletasks()
 
-    def update_position(self, window_bounds: dict, display_bounds: dict = None, image_size: tuple[int, int] = None):
+    def update_position(self, window_bounds: dict, display_bounds: dict = None, image_size: tuple[int, int] = None, content_offset: tuple[int, int] = None):
         """Update overlay position to follow the game window.
 
         Args:
             window_bounds: New window bounds dict with x, y, width, height.
             display_bounds: Optional display bounds for banner mode repositioning.
             image_size: Optional tuple of (width, height) to recalculate retina scale.
+            content_offset: Optional tuple of (x, y) offset for content area within window.
         """
         # Check for window bounds changes
         window_changed = window_bounds != self._window_bounds
         if window_changed:
             self._window_bounds = window_bounds.copy()
+
+        # Check for content offset changes (e.g., fullscreen transition)
+        if content_offset is not None and content_offset != self._content_offset:
+            _debug_log("content offset changed", old=self._content_offset, new=content_offset)
+            self._content_offset = content_offset
 
         # Check for image size changes (e.g., fullscreen transition)
         image_changed = image_size and image_size != self._image_size
@@ -345,22 +351,22 @@ class Overlay:
         # Hide banner frame
         self._frame.pack_forget()
 
-        # Position over game window content area
+        # On Linux, use fitted window approach - skip fullscreen overlay setup
+        if _system == "Linux":
+            set_click_through(self._window_handle, True)
+            self._render_inplace_regions()
+            _debug_log("inplace mode COMPLETE (fitted)", total_ms=int((time.time() - start_time) * 1000))
+            return
+
+        # macOS/Windows: Position fullscreen overlay over game window content area
         if self._window_bounds:
-            # Use content offset from capture module
-            # This tells us where the actual captured content starts within the window
             x_offset = self._content_offset[0]
             y_offset = self._content_offset[1]
 
-            # For SSD apps (content_offset is 0,0), window bounds = content bounds
-            # Use window bounds directly for size to avoid lag from stale captures
-            # For CSD apps, use image_size since window bounds include title bar
             if y_offset == 0 and self._window_bounds["width"] > 0:
-                # SSD app - window bounds are content bounds
                 width = self._window_bounds["width"]
                 height = self._window_bounds["height"]
             elif self._image_size[0] > 0:
-                # CSD app - use captured image size (excludes title bar)
                 width = self._image_size[0]
                 height = self._image_size[1]
             else:
@@ -392,32 +398,26 @@ class Overlay:
         self._debug_borders = []
         if _debug:
             border_width = 3
-            border_color = "#FF0000"  # Red border
-            # Top border
+            border_color = "#FF0000"
             top = tk.Frame(self._root, bg=border_color, height=border_width)
             top.place(x=0, y=0, width=width)
             self._debug_borders.append(top)
-            # Bottom border
             bottom = tk.Frame(self._root, bg=border_color, height=border_width)
             bottom.place(x=0, y=height-border_width, width=width)
             self._debug_borders.append(bottom)
-            # Left border
             left = tk.Frame(self._root, bg=border_color, width=border_width)
             left.place(x=0, y=0, height=height)
             self._debug_borders.append(left)
-            # Right border
             right = tk.Frame(self._root, bg=border_color, width=border_width)
             right.place(x=width-border_width, y=0, height=height)
             self._debug_borders.append(right)
 
-        # Make click-through
         set_click_through(self._window_handle, True)
 
         t2 = time.time()
         self._root.update_idletasks()
         _debug_log("update_idletasks done", elapsed_ms=int((time.time() - t2) * 1000))
 
-        # Re-render any existing regions
         self._render_inplace_regions()
 
         _debug_log("inplace mode COMPLETE", total_ms=int((time.time() - start_time) * 1000))
@@ -530,6 +530,12 @@ class Overlay:
         win_w = int(max_x - min_x)
         win_h = int(max_y - min_y)
 
+        _debug_log("fitted window positioning",
+                  window_bounds=self._window_bounds,
+                  content_offset=self._content_offset,
+                  bbox_bounds=(int(min_x), int(min_y), int(max_x), int(max_y)),
+                  final_geometry=f"{win_w}x{win_h}+{win_x}+{win_y}")
+
         # Position labels relative to new window origin
         visible_labels = []
         for i, (text, bbox) in enumerate(self._last_regions):
@@ -553,6 +559,36 @@ class Overlay:
         self._root.wm_maxsize(win_w + 100, win_h + 100)
         self._root.geometry(f"{win_w}x{win_h}+{win_x}+{win_y}")
         self._root.update_idletasks()
+
+        # Debug: add red border around fitted window
+        if _debug:
+            # Clear old debug borders
+            if hasattr(self, '_debug_borders'):
+                for border in self._debug_borders:
+                    border.destroy()
+            self._debug_borders = []
+
+            border_width = 3
+            border_color = "#FF0000"
+            # Top
+            top = tk.Frame(self._root, bg=border_color, height=border_width)
+            top.place(x=0, y=0, width=win_w)
+            self._debug_borders.append(top)
+            # Bottom
+            bottom = tk.Frame(self._root, bg=border_color, height=border_width)
+            bottom.place(x=0, y=win_h - border_width, width=win_w)
+            self._debug_borders.append(bottom)
+            # Left
+            left = tk.Frame(self._root, bg=border_color, width=border_width)
+            left.place(x=0, y=0, height=win_h)
+            self._debug_borders.append(left)
+            # Right
+            right = tk.Frame(self._root, bg=border_color, width=border_width)
+            right.place(x=win_w - border_width, y=0, height=win_h)
+            self._debug_borders.append(right)
+
+            self._root.update_idletasks()  # Compute border geometry
+            visible_labels.extend(self._debug_borders)
 
         # Now apply shape mask - should work on smaller window
         if _update_shape_mask:

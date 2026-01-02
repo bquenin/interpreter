@@ -182,7 +182,9 @@ def update_shape_mask(window_handle: Any, labels: list[tk.Label]) -> None:
             shape.SO.Set, shape.SK.Input, 0, 0, 0, rects
         )
 
-        window_handle.display.sync()
+        # Use flush() instead of sync() to avoid blocking
+        # sync() waits for X server round-trip which can cause game stuttering
+        window_handle.display.flush()
         window_handle.shape_applied = True
         logger.debug("shape mask: applied successfully")
 
@@ -211,7 +213,7 @@ def reset_shape_mask(window_handle: Any) -> None:
         window_handle.toplevel.shape_mask(
             shape.SO.Set, shape.SK.Input, 0, 0, 0
         )
-        window_handle.display.sync()
+        window_handle.display.flush()
         window_handle.shape_applied = False
 
     except Exception:
