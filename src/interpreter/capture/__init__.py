@@ -209,8 +209,6 @@ class WindowCapture:
             logger.debug("recovery complete", elapsed_ms=int(elapsed * 1000))
             _invalid_time = 0
 
-        logger.debug("get_frame result", has_frame=frame is not None)
-
         # Update bounds if we got a frame
         if frame is not None and self._window_id is not None:
             self._refresh_bounds()

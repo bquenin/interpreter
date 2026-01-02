@@ -133,8 +133,9 @@ def _initialize_components(
     logger.info("capture stream started")
 
     # Wait for first frame for Retina scale detection
+    # Large windows (especially 4K/5K fullscreen) can take 3-4 seconds for first capture
     initial_image = None
-    for _ in range(50):  # Wait up to ~2.5 seconds
+    for _ in range(100):  # Wait up to ~5 seconds
         initial_image = capture.get_frame()
         if initial_image is not None:
             break
@@ -303,6 +304,13 @@ def _run_main_loop(
         capture_time = time.perf_counter() - capture_start
 
         if image is None:
+            # Still update overlay position if window moved (e.g., fullscreen transition)
+            if capture.bounds:
+                overlay.update_position(
+                    capture.bounds,
+                    display_bounds=capture.get_display_bounds(),
+                    image_size=None
+                )
             if overlay.mode == "inplace":
                 overlay.update_regions([])
             else:

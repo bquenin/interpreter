@@ -58,12 +58,16 @@ def _get_window_title(disp: display.Display, window) -> str:
 
 
 def _get_window_geometry(window) -> Optional[dict]:
-    """Get window geometry (position and size)."""
+    """Get window geometry in absolute screen coordinates."""
     try:
+        disp = _get_display()
         geom = window.get_geometry()
+        # Translate to root window coordinates for absolute screen position
+        root = disp.screen().root
+        coords = root.translate_coords(window, 0, 0)
         return {
-            "x": geom.x,
-            "y": geom.y,
+            "x": coords.x,
+            "y": coords.y,
             "width": geom.width,
             "height": geom.height,
         }
@@ -432,6 +436,11 @@ def capture_window(window_id: int, title_bar_height: int = None) -> Optional[Ima
     try:
         window = disp.create_resource_object("window", window_id)
 
+        # Check if window is viewable (ready for capture)
+        attrs = window.get_attributes()
+        if attrs.map_state != X.IsViewable:
+            return None
+
         # Try to find content child window (for CSD windows)
         content_info = _find_content_window(window)
         if content_info:
@@ -560,6 +569,12 @@ class LinuxCaptureStream:
         try:
             window = disp.create_resource_object("window", self._window_id)
 
+            # Check if window is viewable (ready for capture)
+            # During fullscreen transitions, window may exist but not be ready
+            attrs = window.get_attributes()
+            if attrs.map_state != X.IsViewable:
+                return None
+
             # Try to find content child window (for CSD windows)
             content_info = _find_content_window(window)
             if content_info:
@@ -576,7 +591,6 @@ class LinuxCaptureStream:
             depth = geom.depth
 
             if width <= 0 or height <= 0:
-                logger.debug("capture failed: invalid dimensions", width=width, height=height)
                 return None
 
             # Capture the window contents
