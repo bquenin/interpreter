@@ -15,15 +15,25 @@ class Config:
 
     DEFAULT_WINDOW_TITLE = "Snes9x"
 
+    # Default hotkeys
+    DEFAULT_HOTKEYS = {
+        "toggle_overlay": "space",
+        "switch_mode": "m",
+        "increase_font": "=",
+        "decrease_font": "-",
+        "quit": "q",
+    }
+
     def __init__(
         self,
         window_title: str = "Snes9x",
         refresh_rate: float = 0.5,
         ocr_confidence: float = 0.6,
         overlay_mode: str = "banner",
-        font_size: int = 40,
+        font_size: int = 26,
         font_color: str = "#FFFFFF",
         background_color: str = "#404040",
+        hotkeys: dict | None = None,
         config_path: str | None = None,
     ):
         self.window_title = window_title
@@ -33,6 +43,7 @@ class Config:
         self.font_size = font_size
         self.font_color = font_color
         self.background_color = background_color
+        self.hotkeys = hotkeys if hotkeys is not None else self.DEFAULT_HOTKEYS.copy()
         self.config_path = config_path
 
     @classmethod
@@ -63,14 +74,21 @@ class Config:
             config_path = str(Path(config_path).resolve())
             with open(config_path, "r", encoding="utf-8") as f:
                 data = yaml.safe_load(f) or {}
+
+            # Load hotkeys with defaults for any missing keys
+            hotkeys_data = data.get("hotkeys", {})
+            hotkeys = cls.DEFAULT_HOTKEYS.copy()
+            hotkeys.update(hotkeys_data)
+
             return cls(
                 window_title=data.get("window_title", cls.DEFAULT_WINDOW_TITLE),
                 refresh_rate=float(data.get("refresh_rate", 0.5)),
                 ocr_confidence=float(data.get("ocr_confidence", 0.6)),
                 overlay_mode=data.get("overlay_mode", "banner"),
-                font_size=int(data.get("font_size", 40)),
+                font_size=int(data.get("font_size", 26)),
                 font_color=data.get("font_color", "#FFFFFF"),
                 background_color=data.get("background_color", "#404040"),
+                hotkeys=hotkeys,
                 config_path=config_path,
             )
 
@@ -108,9 +126,19 @@ ocr_confidence: 0.6
 overlay_mode: banner
 
 # Subtitle appearance
-font_size: 40
+font_size: 26
 font_color: "#FFFFFF"
 background_color: "#404040"
+
+# Hotkeys - single characters or special key names
+# Special keys: f1-f12, escape, space, enter, tab, backspace, delete,
+#               insert, home, end, page_up, page_down, up, down, left, right
+hotkeys:
+  toggle_overlay: "space"
+  switch_mode: "m"
+  increase_font: "="
+  decrease_font: "-"
+  quit: "q"
 """
         with open(config_path, "w", encoding="utf-8") as f:
             f.write(default_config)

@@ -124,7 +124,11 @@ class KeyboardListener:
                         pass  # Don't crash on callback errors
 
     def _keysym_to_char(self, keysym: int) -> Optional[str]:
-        """Convert X11 keysym to character string."""
+        """Convert X11 keysym to character string.
+
+        Returns either a single character (e.g., 'm', '`') or a special key name
+        (e.g., 'f1', 'escape', 'space') to match pynput's naming convention.
+        """
         # Handle common ASCII characters
         if 0x20 <= keysym <= 0x7e:
             return chr(keysym)
@@ -135,13 +139,44 @@ class KeyboardListener:
             # Single character names are the character itself
             if len(keysym_name) == 1:
                 return keysym_name
-            # Map special key names
-            special_keys = {
+
+            # Map X11 keysym names to pynput-compatible names
+            name_lower = keysym_name.lower()
+
+            # Character keys with multi-char X11 names
+            char_keys = {
                 'minus': '-',
                 'equal': '=',
                 'plus': '+',
+                'grave': '`',
+                'quoteleft': '`',
             }
-            return special_keys.get(keysym_name.lower())
+            if name_lower in char_keys:
+                return char_keys[name_lower]
+
+            # Special keys - return pynput-compatible names
+            special_keys = {
+                'escape': 'escape',
+                'return': 'enter',
+                'space': 'space',
+                'tab': 'tab',
+                'backspace': 'backspace',
+                'delete': 'delete',
+                'insert': 'insert',
+                'home': 'home',
+                'end': 'end',
+                'prior': 'page_up',
+                'next': 'page_down',
+                'up': 'up',
+                'down': 'down',
+                'left': 'left',
+                'right': 'right',
+                'f1': 'f1', 'f2': 'f2', 'f3': 'f3', 'f4': 'f4',
+                'f5': 'f5', 'f6': 'f6', 'f7': 'f7', 'f8': 'f8',
+                'f9': 'f9', 'f10': 'f10', 'f11': 'f11', 'f12': 'f12',
+            }
+            if name_lower in special_keys:
+                return special_keys[name_lower]
 
         return None
 

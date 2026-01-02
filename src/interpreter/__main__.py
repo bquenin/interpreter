@@ -219,8 +219,11 @@ def _initialize_components(
     return capture, ocr, translator, overlay
 
 
-def _create_hotkey_handler() -> tuple[dict, callable, object]:
+def _create_hotkey_handler(hotkeys: dict) -> tuple[dict, callable, object]:
     """Create hotkey state, handler function, and keyboard listener.
+
+    Args:
+        hotkeys: Dictionary mapping action names to key strings.
 
     Returns:
         Tuple of (state_dict, handler_function, keyboard_listener).
@@ -231,22 +234,21 @@ def _create_hotkey_handler() -> tuple[dict, callable, object]:
     from .input import KeyboardListener
 
     state = {
-        "cycle_mode": False,
+        "toggle_overlay": False,
+        "switch_mode": False,
         "increase_font": False,
         "decrease_font": False,
         "quit": False,
     }
 
-    def on_key_press(char: str):
-        """Handle key press - receives character directly."""
-        if char == 'm':
-            state["cycle_mode"] = True
-        elif char == '=':
-            state["increase_font"] = True
-        elif char == '-':
-            state["decrease_font"] = True
-        elif char == 'q':
-            state["quit"] = True
+    # Build reverse mapping: key -> action
+    key_to_action = {v: k for k, v in hotkeys.items()}
+
+    def on_key_press(key: str):
+        """Handle key press - receives character or special key name."""
+        action = key_to_action.get(key)
+        if action and action in state:
+            state[action] = True
 
     listener = KeyboardListener(on_press=on_key_press)
     return state, on_key_press, listener
@@ -285,19 +287,26 @@ def _run_main_loop(
         overlay.update()
 
         # Handle global hotkeys
-        if hotkey_state["cycle_mode"]:
-            hotkey_state["cycle_mode"] = False
-            # Cycle: off → banner → inplace → off
+        if hotkey_state["toggle_overlay"]:
+            hotkey_state["toggle_overlay"] = False
+            # Toggle overlay on/off
             if overlay.paused:
-                overlay.set_mode("banner")
                 overlay.resume()
-                logger.info("mode changed", mode="banner")
-            elif overlay.mode == "banner":
-                overlay.set_mode("inplace")
-                logger.info("mode changed", mode="inplace")
+                logger.info("overlay shown", mode=overlay.mode)
             else:
                 overlay.pause()
-                logger.info("mode changed", mode="off")
+                logger.info("overlay hidden")
+
+        if hotkey_state["switch_mode"]:
+            hotkey_state["switch_mode"] = False
+            # Switch between banner and inplace modes (only when visible)
+            if not overlay.paused:
+                if overlay.mode == "banner":
+                    overlay.set_mode("inplace")
+                    logger.info("mode changed", mode="inplace")
+                else:
+                    overlay.set_mode("banner")
+                    logger.info("mode changed", mode="banner")
 
         if hotkey_state["increase_font"]:
             hotkey_state["increase_font"] = False
@@ -509,6 +518,7 @@ def main():
         "window": config.window_title,
         "refresh_rate": config.refresh_rate,
         "overlay_mode": config.overlay_mode,
+        "font_size": config.font_size,
     }
     if sys.platform == "win32":
         from .capture.windows import get_windows_version_string
@@ -522,12 +532,13 @@ def main():
     capture, ocr, translator, overlay = _initialize_components(config, args)
 
     # Setup hotkeys (this also loads pynput lazily)
-    hotkey_state, _, keyboard_listener = _create_hotkey_handler()
+    hotkey_state, _, keyboard_listener = _create_hotkey_handler(config.hotkeys)
     keyboard_listener.start()
     logger.info("keyboard listener started")
 
     logger.info("starting translation loop")
-    logger.info("hotkeys: m=cycle mode, -/+=font size, q=quit")
+    hk = config.hotkeys
+    logger.info(f"hotkeys: {hk['toggle_overlay']}=toggle, {hk['switch_mode']}=mode, {hk['decrease_font']}/{hk['increase_font']}=font, {hk['quit']}=quit")
 
     try:
         _run_main_loop(
