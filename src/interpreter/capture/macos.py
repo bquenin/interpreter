@@ -302,20 +302,41 @@ class MacOSCaptureStream:
         self._running = False
         self._thread: Optional[threading.Thread] = None
 
+        # FPS tracking in the capture thread
+        self._frame_count = 0
+        self._fps = 0.0
+        self._fps_update_time = time.time()
+
     def start(self):
         """Start the capture stream in background."""
         self._running = True
+        self._frame_count = 0
+        self._fps = 0.0
+        self._fps_update_time = time.time()
         self._thread = threading.Thread(target=self._capture_loop, daemon=True)
         self._thread.start()
 
     def _capture_loop(self):
-        """Background thread that continuously captures frames."""
+        """Background thread that continuously captures frames.
+
+        Captures as fast as possible without artificial delay. The actual
+        capture rate is limited by the system (CGWindowListCreateImage speed).
+        Cross-Space capture may be throttled by macOS to ~5-6 FPS.
+        """
         while self._running:
             frame = capture_window(self._window_id)
             if frame:
                 with self._frame_lock:
                     self._latest_frame = frame
-            time.sleep(0.033)  # ~30 FPS
+                    self._frame_count += 1
+
+                    # Update FPS every second
+                    now = time.time()
+                    elapsed = now - self._fps_update_time
+                    if elapsed >= 1.0:
+                        self._fps = self._frame_count / elapsed
+                        self._frame_count = 0
+                        self._fps_update_time = now
 
     def get_frame(self) -> Optional[Image.Image]:
         """Get the latest captured frame.
@@ -325,6 +346,16 @@ class MacOSCaptureStream:
         """
         with self._frame_lock:
             return self._latest_frame
+
+    @property
+    def fps(self) -> float:
+        """Get the current capture frame rate.
+
+        Returns:
+            Frames per second being captured by the background thread.
+        """
+        with self._frame_lock:
+            return self._fps
 
     def stop(self):
         """Stop the capture stream."""

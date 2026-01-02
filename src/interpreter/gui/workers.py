@@ -15,6 +15,8 @@ class CaptureWorker(QObject):
 
     Uses a QTimer to poll frames from the capture stream.
     Emits frame_ready signal when a new frame is available.
+    The FPS comes from the capture stream itself, which tracks actual
+    capture rate in its background thread.
     """
 
     frame_ready = Signal(object, float, dict)  # PIL Image, fps, bounds
@@ -25,17 +27,9 @@ class CaptureWorker(QObject):
         self._timer = QTimer()
         self._timer.timeout.connect(self._fetch_frame)
 
-        # FPS tracking
-        self._frame_count = 0
-        self._fps = 0.0
-        self._fps_update_time = time.time()
-
     def set_capture(self, capture: Optional[WindowCapture]):
         """Set the capture instance."""
         self._capture = capture
-        self._frame_count = 0
-        self._fps = 0.0
-        self._fps_update_time = time.time()
 
     def start(self, interval_ms: int = 33):
         """Start polling for frames.
@@ -57,18 +51,12 @@ class CaptureWorker(QObject):
 
         frame = self._capture.get_frame()
         if frame is not None:
-            # Update FPS
-            self._frame_count += 1
-            now = time.time()
-            elapsed = now - self._fps_update_time
-            if elapsed >= 1.0:
-                self._fps = self._frame_count / elapsed
-                self._frame_count = 0
-                self._fps_update_time = now
+            # Get FPS from the capture stream (tracks actual capture rate)
+            fps = self._capture.fps
 
             # Emit frame with bounds
             bounds = self._capture.bounds or {}
-            self.frame_ready.emit(frame, self._fps, bounds)
+            self.frame_ready.emit(frame, fps, bounds)
 
 
 class ProcessWorker(QObject):
