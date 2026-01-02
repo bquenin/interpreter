@@ -48,7 +48,7 @@ TOOL_DIR="$HOME/.local/share/uv/tools/interpreter-v2"
 if [ -d "$TOOL_DIR" ]; then
     # Compile bytecode
     "$TOOL_DIR/bin/python" -m compileall -q "$TOOL_DIR/lib" 2>/dev/null || true
-    # Warm up OS caches (Gatekeeper, dyld) by running once
+    # Warm up OS caches by running once
     interpreter-v2 --list-windows > /dev/null 2>&1 || true
 fi
 
