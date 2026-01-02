@@ -3,7 +3,7 @@ name = "interpreter-v2"
 version = "2.1.0"
 description = "Offline screen translator for Japanese retro games"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.14"
 license = "MIT"
 authors = [
     { name = "qube" }
