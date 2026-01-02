@@ -6,12 +6,15 @@ Uses two separate windows to avoid shape mask reset issues:
 """
 
 import platform
-import time
 import tkinter as tk
 from tkinter import font as tkfont
 from typing import Optional
 
 from .. import log
+
+# Platform detection
+_system = platform.system()
+_is_windows = _system == "Windows"
 
 # Debug flag - set via Overlay.set_debug()
 _debug = False
@@ -21,9 +24,6 @@ def _debug_log(msg: str, **kwargs):
     """Log debug messages if debug mode is enabled."""
     if _debug:
         _logger.debug(msg, **kwargs)
-
-# Import platform-specific implementation
-_system = platform.system()
 
 # Platform-specific shape mask functions (Linux only)
 _update_shape_mask = None
@@ -207,8 +207,11 @@ class Overlay:
         # Enable click-through
         set_click_through(self._inplace_handle, True)
 
-        # Start hidden
-        self._inplace_root.withdraw()
+        # Start hidden (use off-screen on Windows)
+        if _is_windows:
+            self._inplace_root.geometry("+10000+10000")
+        else:
+            self._inplace_root.withdraw()
 
     def _position_banner(self):
         """Position the banner window at bottom of display."""
@@ -245,15 +248,28 @@ class Overlay:
         else:
             self._show_inplace()
 
+    def _hide_window(self, window: tk.Tk | tk.Toplevel):
+        """Hide a window in a platform-appropriate way.
+
+        On Windows, withdraw() on the parent Tk window also hides Toplevel children,
+        so we move windows off-screen instead.
+        """
+        if _is_windows:
+            # Move off-screen (keeps window "visible" so children work)
+            window.geometry("+10000+10000")
+        else:
+            window.withdraw()
+
     def _show_banner(self):
         """Show banner window, hide inplace window."""
         _debug_log("showing banner window")
         # Hide inplace
         if self._inplace_root:
-            self._inplace_root.withdraw()
+            self._hide_window(self._inplace_root)
         # Show banner
         if self._banner_root:
             self._banner_root.deiconify()
+            self._position_banner()  # Restore position
             self._banner_root.lift()
             # Restore text if any
             if self._current_text and self._banner_label:
@@ -264,7 +280,7 @@ class Overlay:
         _debug_log("showing inplace window")
         # Hide banner
         if self._banner_root:
-            self._banner_root.withdraw()
+            self._hide_window(self._banner_root)
         # Show inplace and render regions
         if self._inplace_root:
             self._inplace_root.deiconify()
@@ -400,7 +416,7 @@ class Overlay:
 
         if not self._last_regions:
             # No regions - hide window
-            self._inplace_root.withdraw()
+            self._hide_window(self._inplace_root)
             return
 
         # Calculate bounding box of all regions
@@ -420,29 +436,38 @@ class Overlay:
             max_y = max(max_y, y + h)
 
         if min_x == float('inf'):
-            self._inplace_root.withdraw()
+            self._hide_window(self._inplace_root)
             return
 
-        # Add padding
+        # Add padding (in image coordinates)
         padding = 10
         min_x = max(0, min_x - padding)
         min_y = max(0, min_y - padding)
         max_x += padding
         max_y += padding
 
-        # Calculate window position (relative to game window)
-        win_x = self._window_bounds["x"] + self._content_offset[0] + int(min_x)
-        win_y = self._window_bounds["y"] + self._content_offset[1] + int(min_y)
-        win_w = int(max_x - min_x)
-        win_h = int(max_y - min_y)
+        # Convert from image coordinates to screen coordinates
+        scale = self._retina_scale if self._retina_scale > 0 else 1.0
+        min_x_screen = min_x / scale
+        min_y_screen = min_y / scale
+        max_x_screen = max_x / scale
+        max_y_screen = max_y / scale
+
+        # Calculate window position (relative to game window, in screen coordinates)
+        win_x = int(self._window_bounds["x"] + self._content_offset[0] + min_x_screen)
+        win_y = int(self._window_bounds["y"] + self._content_offset[1] + min_y_screen)
+        win_w = int(max_x_screen - min_x_screen)
+        win_h = int(max_y_screen - min_y_screen)
 
         _debug_log("fitted window positioning",
                   window_bounds=self._window_bounds,
                   content_offset=self._content_offset,
+                  retina_scale=scale,
                   bbox_bounds=(int(min_x), int(min_y), int(max_x), int(max_y)),
+                  screen_bounds=(int(min_x_screen), int(min_y_screen), int(max_x_screen), int(max_y_screen)),
                   final_geometry=f"{win_w}x{win_h}+{win_x}+{win_y}")
 
-        # Position labels relative to new window origin
+        # Position labels relative to new window origin (in screen coordinates)
         visible_labels = []
         for i, (text, bbox) in enumerate(self._last_regions):
             if not text or not bbox:
@@ -450,12 +475,13 @@ class Overlay:
 
             label = self._get_or_create_inplace_label(i)
 
-            rel_x = bbox["x"] - min_x
-            rel_y = bbox["y"] - min_y
-            width = bbox["width"]
+            # Convert label position from image to screen coordinates
+            rel_x = (bbox["x"] - min_x) / scale
+            rel_y = (bbox["y"] - min_y) / scale
+            width = bbox["width"] / scale
 
             label.config(text=text, font=self._inplace_font, wraplength=int(width))
-            label.place(x=rel_x, y=rel_y)
+            label.place(x=int(rel_x), y=int(rel_y))
             visible_labels.append(label)
 
         # Resize and reposition window
@@ -521,9 +547,9 @@ class Overlay:
             return
         self._paused = True
         if self._banner_root:
-            self._banner_root.withdraw()
+            self._hide_window(self._banner_root)
         if self._inplace_root:
-            self._inplace_root.withdraw()
+            self._hide_window(self._inplace_root)
 
     def resume(self):
         """Resume the overlay (shows appropriate window)."""

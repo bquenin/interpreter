@@ -10,9 +10,10 @@ import os
 import signal
 import sys
 
-# Enable faulthandler to dump thread stacks on SIGUSR1
+# Enable faulthandler to dump thread stacks on SIGUSR1 (Unix only)
 # Usage: kill -USR1 <pid>  (find pid with: pgrep -f interpreter)
-faulthandler.register(signal.SIGUSR1, all_threads=True)
+if hasattr(signal, "SIGUSR1"):
+    faulthandler.register(signal.SIGUSR1, all_threads=True)
 
 # Setup GPU libraries early (before any CUDA-dependent imports)
 # This must happen before importing ctranslate2 or onnxruntime
@@ -173,7 +174,8 @@ def _initialize_components(
 
     # Create unified overlay
     display_bounds = capture.get_display_bounds()
-    logger.debug("display bounds", **display_bounds)
+    if display_bounds:
+        logger.debug("display bounds", **display_bounds)
 
     # Get content offset (where captured content starts within window)
     content_offset = capture.get_content_offset()
@@ -501,11 +503,18 @@ def main():
     except Exception:
         pkg_version = "dev"
 
-    logger.info("interpreter starting",
-                version=pkg_version,
-                window=config.window_title,
-                refresh_rate=config.refresh_rate,
-                overlay_mode=config.overlay_mode)
+    # Log startup info including OS version on Windows
+    startup_info = {
+        "version": pkg_version,
+        "window": config.window_title,
+        "refresh_rate": config.refresh_rate,
+        "overlay_mode": config.overlay_mode,
+    }
+    if sys.platform == "win32":
+        from .capture.windows import get_windows_version_string
+        startup_info["os"] = get_windows_version_string()
+
+    logger.info("interpreter starting", **startup_info)
     if config.config_path:
         logger.info("config loaded", path=config.config_path)
 
