@@ -17,10 +17,14 @@ _invalid_time: float = 0
 _system = platform.system()
 
 if _system == "Darwin":
-    from .macos import find_window_by_title, capture_window, get_window_list, get_display_bounds_for_window, _get_window_bounds, MacOSCaptureStream
+    from .macos import find_window_by_title, capture_window, get_window_list, get_display_bounds_for_window, _get_window_bounds, MacOSCaptureStream, _get_title_bar_height_pixels, _is_fullscreen
     CaptureStream = MacOSCaptureStream
     def get_content_offset(window_id: int) -> tuple[int, int]:
-        return (0, 0)  # macOS handles this differently
+        # macOS capture crops the title bar, so we need to report that offset
+        # In fullscreen mode, no cropping happens
+        if _is_fullscreen(window_id):
+            return (0, 0)
+        return (0, _get_title_bar_height_pixels())
 elif _system == "Windows":
     from .windows import find_window_by_title, capture_window, get_window_list, _get_window_bounds, _get_screen_size, get_title_bar_height, WindowsCaptureStream
     CaptureStream = WindowsCaptureStream

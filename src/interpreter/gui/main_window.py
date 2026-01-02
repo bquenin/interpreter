@@ -103,7 +103,8 @@ class MainWindow(QMainWindow):
         self._pause_btn.setEnabled(False)
         overlay_layout.addWidget(self._pause_btn)
 
-        self._mode_btn = QPushButton(f"Mode: {self._mode.title()}")
+        next_mode = "Inplace" if self._mode == "banner" else "Banner"
+        self._mode_btn = QPushButton(f"Switch to {next_mode}")
         self._mode_btn.clicked.connect(self._toggle_mode)
         overlay_layout.addWidget(self._mode_btn)
 
@@ -170,6 +171,9 @@ class MainWindow(QMainWindow):
         self._fps_label = QLabel("FPS: --")
         status_layout.addWidget(self._fps_label)
 
+        self._mode_label = QLabel(f"Mode: {self._mode.title()}")
+        status_layout.addWidget(self._mode_label)
+
         # Preview
         self._preview_label = QLabel()
         self._preview_label.setFixedSize(320, 240)
@@ -199,6 +203,7 @@ class MainWindow(QMainWindow):
 
         self._process_worker.set_ocr(self._ocr)
         self._process_worker.set_translator(self._translator)
+        self._process_worker.set_mode(self._mode)  # Sync mode from config
 
         self._status_label.setText("Status: Ready")
 
@@ -316,7 +321,11 @@ class MainWindow(QMainWindow):
         else:
             self._mode = "banner"
 
-        self._mode_btn.setText(f"Mode: {self._mode.title()}")
+        # Update UI: button shows what we'll switch TO, label shows current mode
+        next_mode = "Inplace" if self._mode == "banner" else "Banner"
+        self._mode_btn.setText(f"Switch to {next_mode}")
+        self._mode_label.setText(f"Mode: {self._mode.title()}")
+
         self._process_worker.set_mode(self._mode)
         self._config.overlay_mode = self._mode
 
@@ -367,7 +376,16 @@ class MainWindow(QMainWindow):
     def _on_regions_ready(self, regions: list):
         """Handle translated regions (inplace mode)."""
         if not self._paused:
-            self._inplace_overlay.set_regions(regions)
+            # Get content offset from capture (accounts for title bar cropping)
+            # The offset is in pixels, but overlay uses points, so we need to convert
+            content_offset = (0, 0)
+            if self._capture:
+                content_offset = self._capture.get_content_offset()
+            # Convert from pixels to points using scale factor
+            from PySide6.QtWidgets import QApplication
+            scale = QApplication.primaryScreen().devicePixelRatio()
+            title_bar_offset = int(content_offset[1] / scale)
+            self._inplace_overlay.set_regions(regions, title_bar_offset)
 
     # Settings handlers
     def _on_refresh_rate_changed(self, value: int):

@@ -145,16 +145,24 @@ class InplaceOverlay(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
 
+        # macOS: ensure window stays on top
+        if _system == "Darwin":
+            self.setAttribute(Qt.WidgetAttribute.WA_MacAlwaysShowToolWindow, True)
+
         # Full screen size by default
         screen = QApplication.primaryScreen().geometry()
         self.setGeometry(screen)
 
-    def set_regions(self, regions: list[tuple[str, dict]]):
+    def set_regions(self, regions: list[tuple[str, dict]], title_bar_offset: int = 0):
         """Update text regions.
 
         Args:
             regions: List of (text, bbox) tuples where bbox is a dict with x, y, width, height
+            title_bar_offset: Offset in points to account for title bar (overlay includes it, capture doesn't)
         """
+        # Get scale factor for coordinate conversion (Retina displays use 2x)
+        scale = QApplication.primaryScreen().devicePixelRatio()
+
         # Remove old labels
         for label in self._labels:
             label.deleteLater()
@@ -166,15 +174,23 @@ class InplaceOverlay(QWidget):
                 continue
             label = QLabel(text, self)
             label.setFont(QFont("Arial", self._font_size, QFont.Weight.Bold))
+            # Convert hex background color to rgba with transparency
+            bg_color = self._background_color.lstrip('#')
+            r, g, b = int(bg_color[0:2], 16), int(bg_color[2:4], 16), int(bg_color[4:6], 16)
             label.setStyleSheet(
                 f"color: {self._font_color}; "
-                f"background-color: rgba(0, 0, 0, 180); "
+                f"background-color: rgba({r}, {g}, {b}, 200); "
                 "padding: 4px 8px; "
                 "border-radius: 4px;"
             )
             label.adjustSize()
-            # Position at bbox location (bbox is a dict with x, y, width, height)
-            label.move(bbox.get("x", 0), bbox.get("y", 0))
+            # Position at bbox location, converting from pixels to points
+            # OCR returns coordinates in captured image pixels (Retina 2x)
+            # Qt uses screen points, so divide by scale factor
+            # Add title_bar_offset because overlay includes title bar but capture doesn't
+            x = int(bbox.get("x", 0) / scale)
+            y = int(bbox.get("y", 0) / scale) + title_bar_offset
+            label.move(x, y)
             label.show()
             self._labels.append(label)
 
