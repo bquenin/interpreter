@@ -34,6 +34,20 @@ powershell -c "irm https://raw.githubusercontent.com/bquenin/interpreter/main/in
 
 Then run with `interpreter-v2`.
 
+## Upgrading
+
+To update to the latest version, run the install script again:
+
+**macOS/Linux:**
+```bash
+curl -LsSf https://raw.githubusercontent.com/bquenin/interpreter/main/install.sh | bash
+```
+
+**Windows (PowerShell):**
+```powershell
+powershell -c "irm https://raw.githubusercontent.com/bquenin/interpreter/main/install.ps1 | iex"
+```
+
 ## Usage
 
 ```bash

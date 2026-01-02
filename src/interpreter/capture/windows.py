@@ -4,11 +4,73 @@ Uses PrintWindow API to capture window content even when obscured by other windo
 """
 
 import ctypes
+import sys
 import threading
 from ctypes import wintypes
 from typing import Optional
 
 from PIL import Image
+
+# Windows build number requirements for Graphics Capture API features
+# - Build 18362 (Win10 1903): Basic Windows Graphics Capture API
+# - Build 22000 (Win11): IsBorderRequired property to disable yellow border
+MIN_BUILD_GRAPHICS_CAPTURE = 18362
+MIN_BUILD_BORDER_TOGGLE = 22000
+
+
+def get_windows_build() -> int:
+    """Get the Windows build number.
+
+    Returns:
+        Windows build number (e.g., 22000 for Windows 11, 19045 for Windows 10 22H2).
+        Returns 0 if detection fails or not on Windows.
+    """
+    if sys.platform != "win32":
+        return 0
+
+    try:
+        # Use RtlGetVersion for accurate version (not subject to compatibility shims)
+        # GetVersionEx can return wrong values due to app manifest compatibility
+        ntdll = ctypes.windll.ntdll
+
+        class OSVERSIONINFOEXW(ctypes.Structure):
+            _fields_ = [
+                ("dwOSVersionInfoSize", wintypes.DWORD),
+                ("dwMajorVersion", wintypes.DWORD),
+                ("dwMinorVersion", wintypes.DWORD),
+                ("dwBuildNumber", wintypes.DWORD),
+                ("dwPlatformId", wintypes.DWORD),
+                ("szCSDVersion", wintypes.WCHAR * 128),
+                ("wServicePackMajor", wintypes.WORD),
+                ("wServicePackMinor", wintypes.WORD),
+                ("wSuiteMask", wintypes.WORD),
+                ("wProductType", wintypes.BYTE),
+                ("wReserved", wintypes.BYTE),
+            ]
+
+        version_info = OSVERSIONINFOEXW()
+        version_info.dwOSVersionInfoSize = ctypes.sizeof(OSVERSIONINFOEXW)
+        ntdll.RtlGetVersion(ctypes.byref(version_info))
+        return version_info.dwBuildNumber
+    except Exception:
+        return 0
+
+
+def get_windows_version_string() -> str:
+    """Get a human-readable Windows version string.
+
+    Returns:
+        Version string like 'Windows 11 (build 22000)' or 'Windows 10 (build 19045)'.
+    """
+    build = get_windows_build()
+    if build == 0:
+        return "Unknown"
+
+    # Windows 11 starts at build 22000
+    if build >= 22000:
+        return f"Windows 11 (build {build})"
+    else:
+        return f"Windows 10 (build {build})"
 
 # Windows-specific imports
 try:
@@ -21,6 +83,32 @@ except ImportError:
 DIB_RGB_COLORS = 0
 BI_RGB = 0
 PW_RENDERFULLCONTENT = 2  # Capture even if window is layered/composited
+
+# System metrics constants
+SM_CYCAPTION = 4      # Title bar height
+SM_CYFRAME = 33       # Window frame height
+SM_CXPADDEDBORDER = 92  # Padded border width (Vista+)
+
+
+def get_title_bar_height() -> int:
+    """Get the system title bar height in screen pixels.
+
+    Uses GetSystemMetrics to get the actual title bar height for the current
+    Windows theme and DPI setting.
+
+    Returns:
+        Title bar height in screen pixels.
+    """
+    user32 = ctypes.windll.user32
+    # SM_CYCAPTION gives the title bar height
+    caption_height = user32.GetSystemMetrics(SM_CYCAPTION)
+    # SM_CYFRAME gives the window frame thickness
+    frame_height = user32.GetSystemMetrics(SM_CYFRAME)
+    # SM_CXPADDEDBORDER gives extra padding (Windows Vista+)
+    padded_border = user32.GetSystemMetrics(SM_CXPADDEDBORDER)
+
+    # Total non-client area at top = caption + frame + padded border
+    return caption_height + frame_height + padded_border
 
 
 class BITMAPINFOHEADER(ctypes.Structure):
@@ -270,10 +358,7 @@ class WindowsCaptureStream:
     This can capture DirectX/OpenGL content even when the window is in the background.
     """
 
-    # Title bar height to crop in captured pixels
-    # At 200% DPI, a 32px logical title bar is ~64px in the capture
-    # Using 70px to be safe
-    TITLE_BAR_HEIGHT_PX = 70
+    # Title bar cropping is now computed dynamically via get_title_bar_height_capture_pixels()
 
     def __init__(self, window_title: str):
         """Initialize the capture stream.
@@ -288,16 +373,37 @@ class WindowsCaptureStream:
         self._running = False
 
     def start(self):
-        """Start the capture stream in background."""
+        """Start the capture stream in background.
+
+        Raises:
+            RuntimeError: If Windows version doesn't support Graphics Capture API.
+        """
         from windows_capture import WindowsCapture, Frame, InternalCaptureControl
         import numpy as np
+
+        # Check Windows version for Graphics Capture API support
+        build = get_windows_build()
+        if build < MIN_BUILD_GRAPHICS_CAPTURE:
+            raise RuntimeError(
+                f"Windows Graphics Capture API requires Windows 10 version 1903 or later "
+                f"(build {MIN_BUILD_GRAPHICS_CAPTURE}+). Your system is build {build}. "
+                f"Please update Windows to use this application."
+            )
+
+        # Determine border setting based on Windows version
+        # - Windows 11 (build 22000+): Can disable border with draw_border=False
+        # - Windows 10 1903-21H2: Must use draw_border=None (yellow border will appear)
+        if build >= MIN_BUILD_BORDER_TOGGLE:
+            draw_border = False  # Disable yellow capture border
+        else:
+            draw_border = None  # Skip border config (yellow border will appear)
 
         self._running = True
 
         # Create capture instance
         self._capture = WindowsCapture(
             cursor_capture=False,
-            draw_border=False,
+            draw_border=draw_border,
             window_name=self._window_title,
         )
 
@@ -318,7 +424,12 @@ class WindowsCaptureStream:
 
                 # Crop out title bar only if not fullscreen
                 if not is_fullscreen:
-                    title_bar_px = WindowsCaptureStream.TITLE_BAR_HEIGHT_PX
+                    # Get title bar height in screen pixels
+                    title_bar_screen = get_title_bar_height()
+                    # Compute actual scale from frame size vs screen size
+                    scale = frame.width / screen_w if screen_w > 0 else 1.0
+                    # Convert to capture pixels and add safety padding
+                    title_bar_px = int(title_bar_screen * scale) + 10
                     if frame.height > title_bar_px:
                         frame = frame.crop(0, title_bar_px, frame.width, frame.height)
 
