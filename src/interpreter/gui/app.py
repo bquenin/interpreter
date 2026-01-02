@@ -1,5 +1,6 @@
 """PySide6 application entry point with system tray."""
 
+import platform
 import sys
 
 from PySide6.QtWidgets import QApplication, QSystemTrayIcon, QMenu
@@ -10,6 +11,45 @@ from ..config import Config
 from .main_window import MainWindow
 
 
+def _disable_app_nap():
+    """Disable macOS App Nap to prevent throttling when on different Space.
+
+    When the target window is fullscreen (on a different Space), macOS may
+    throttle our app thinking it's not visible. This prevents that.
+    """
+    if platform.system() != "Darwin":
+        return None
+
+    try:
+        from Foundation import NSProcessInfo
+
+        process_info = NSProcessInfo.processInfo()
+        # NSActivityUserInitiatedAllowingIdleSystemSleep = 0x00FFFFFF
+        # This tells macOS we're doing important user-initiated work
+        activity = process_info.beginActivityWithOptions_reason_(
+            0x00FFFFFF,
+            "Real-time screen capture and translation"
+        )
+        return activity
+    except ImportError:
+        return None
+    except Exception:
+        return None
+
+
+def _enable_app_nap(activity):
+    """Re-enable App Nap by ending the activity."""
+    if activity is None:
+        return
+
+    try:
+        from Foundation import NSProcessInfo
+        process_info = NSProcessInfo.processInfo()
+        process_info.endActivity_(activity)
+    except Exception:
+        pass
+
+
 class InterpreterApp:
     """Main application with system tray integration."""
 
@@ -18,9 +58,13 @@ class InterpreterApp:
         self._app: QApplication = None
         self._window: MainWindow = None
         self._tray: QSystemTrayIcon = None
+        self._app_nap_activity = None
 
     def setup(self):
         """Set up the application."""
+        # Disable App Nap to prevent throttling when capturing fullscreen windows
+        self._app_nap_activity = _disable_app_nap()
+
         # Enable high DPI scaling
         QApplication.setHighDpiScaleFactorRoundingPolicy(
             Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
@@ -92,6 +136,9 @@ class InterpreterApp:
         # Clean up window resources
         if self._window:
             self._window.cleanup()
+
+        # Re-enable App Nap
+        _enable_app_nap(self._app_nap_activity)
 
     def _quit(self):
         """Quit the application."""
