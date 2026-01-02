@@ -190,31 +190,3 @@ def update_shape_mask(window_handle: Any, labels: list[tk.Label]) -> None:
 
     except Exception as e:
         logger.debug("shape mask: failed", error=str(e))
-
-
-def reset_shape_mask(window_handle: Any) -> None:
-    """Reset X11 shape mask to show the full window (for banner mode).
-
-    Args:
-        window_handle: LinuxWindowHandle from setup_window.
-    """
-    if not _xlib_available or window_handle is None:
-        return
-
-    if not isinstance(window_handle, LinuxWindowHandle):
-        return
-
-    try:
-        # Reset to full window by setting shape to None
-        # This removes the shape mask entirely
-        window_handle.toplevel.shape_mask(
-            shape.SO.Set, shape.SK.Bounding, 0, 0, 0  # 0 = X.NONE
-        )
-        window_handle.toplevel.shape_mask(
-            shape.SO.Set, shape.SK.Input, 0, 0, 0
-        )
-        window_handle.display.flush()
-        window_handle.shape_applied = False
-
-    except Exception:
-        pass
