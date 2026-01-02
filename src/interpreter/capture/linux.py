@@ -67,7 +67,7 @@ def _get_window_geometry(window) -> Optional[dict]:
             "width": geom.width,
             "height": geom.height,
         }
-    except BadWindow:
+    except (BadWindow, BadDrawable):
         return None
 
 
@@ -143,20 +143,73 @@ def find_window_by_title(title_substring: str) -> Optional[dict]:
 
 
 def _get_window_bounds(window_id: int) -> Optional[dict]:
-    """Get the current bounds of a window by its ID.
+    """Get the current bounds of a window by its ID in absolute screen coordinates.
 
     Args:
         window_id: The X11 window ID (XID).
 
     Returns:
-        Bounds dictionary with x, y, width, height, or None if not found.
+        Bounds dictionary with x, y, width, height in root coordinates, or None if not found.
     """
     disp = _get_display()
     try:
         window = disp.create_resource_object("window", window_id)
-        return _get_window_geometry(window)
-    except BadWindow:
+        geom = window.get_geometry()
+
+        # Translate to root window coordinates for absolute screen position
+        # This is critical for multi-monitor setups
+        root = disp.screen().root
+        coords = root.translate_coords(window, 0, 0)
+
+        return {
+            "x": coords.x,
+            "y": coords.y,
+            "width": geom.width,
+            "height": geom.height,
+        }
+    except (BadWindow, BadDrawable):
         return None
+
+
+def _get_title_bar_height(window_id: int) -> int:
+    """Detect the title bar height for CSD (client-side decoration) windows.
+
+    Only returns a non-zero value for GTK/CSD windows where the title bar
+    is part of the client window content. For SSD (server-side decoration)
+    windows, the WM draws the title bar separately and X11 capture doesn't
+    include it, so we return 0.
+
+    Args:
+        window_id: The X11 window ID (XID).
+
+    Returns:
+        Title bar height in pixels for CSD windows, 0 for SSD windows.
+    """
+    disp = _get_display()
+    try:
+        window = disp.create_resource_object("window", window_id)
+
+        # Only use _GTK_FRAME_EXTENTS for CSD detection
+        # This property is only set by GTK apps that draw their own title bar
+        # For SSD apps (like RetroArch), the WM draws the title bar separately
+        # and X11 get_image() doesn't include it
+        gtk_frame_extents = disp.intern_atom('_GTK_FRAME_EXTENTS')
+        prop = window.get_full_property(gtk_frame_extents, Xatom.CARDINAL)
+        if prop and len(prop.value) >= 4:
+            # Format: left, right, top, bottom
+            top = prop.value[2]
+            logger.debug("gtk frame extents (CSD)", left=prop.value[0], right=prop.value[1],
+                        top=prop.value[2], bottom=prop.value[3])
+            if top > 0:
+                return top
+
+        # No _GTK_FRAME_EXTENTS means SSD - WM draws title bar separately
+        # X11 capture doesn't include it, so no cropping needed
+
+    except (BadWindow, BadDrawable):
+        pass
+
+    return 0
 
 
 def get_content_offset(window_id: int) -> tuple[int, int]:
@@ -165,11 +218,14 @@ def get_content_offset(window_id: int) -> tuple[int, int]:
     This finds the content child window (if any) and returns its position
     relative to the parent window. Used by overlay to align with captured content.
 
+    When no content child window is found, returns the title bar height offset
+    (since capture will crop the title bar in that case).
+
     Args:
         window_id: The X11 window ID (XID).
 
     Returns:
-        Tuple of (x_offset, y_offset) in pixels. Returns (0, 0) if no content window found.
+        Tuple of (x_offset, y_offset) in pixels.
     """
     disp = _get_display()
     try:
@@ -177,7 +233,13 @@ def get_content_offset(window_id: int) -> tuple[int, int]:
         content_info = _find_content_window(window)
         if content_info:
             return (content_info[1], content_info[2])
-    except BadWindow:
+
+        # No content child found - capture will crop title bar
+        # unless window is fullscreen
+        if not _is_fullscreen(window_id):
+            title_bar = _get_title_bar_height(window_id)
+            return (0, title_bar)
+    except (BadWindow, BadDrawable):
         pass
     return (0, 0)
 
@@ -215,47 +277,23 @@ def _is_fullscreen(window_id: int) -> bool:
     return is_fullscreen
 
 
-def get_display_bounds_for_window(window_id: int, debug: bool = False) -> Optional[dict]:
-    """Get the usable display bounds (workarea) for overlay positioning.
+# Cache for monitor list (RANDR queries can be slow and cause deadlocks)
+_monitors_cache: list[dict] = []
+_monitors_cache_time: float = 0
+_MONITORS_CACHE_TTL: float = 30.0  # Refresh every 30 seconds
 
-    Uses _NET_WORKAREA to get the actual usable screen area, which excludes
-    panels, taskbars, and other reserved areas. This is critical for correct
-    overlay positioning.
 
-    Args:
-        window_id: The X11 window ID (used for future multi-monitor support).
-        debug: If True, print debug information.
+def _get_monitors() -> list[dict]:
+    """Get list of monitors, using cache to avoid frequent RANDR calls."""
+    global _monitors_cache, _monitors_cache_time
 
-    Returns:
-        Dictionary with x, y, width, height of the usable area, or None if not found.
-    """
+    now = time.time()
+    if _monitors_cache and (now - _monitors_cache_time) < _MONITORS_CACHE_TTL:
+        return _monitors_cache
+
     disp = _get_display()
+    monitors = []
 
-    try:
-        root = disp.screen().root
-
-        # Get _NET_WORKAREA - this gives the usable screen area
-        # excluding panels, taskbars, docks, etc.
-        net_workarea = disp.intern_atom('_NET_WORKAREA')
-        prop = root.get_full_property(net_workarea, Xatom.CARDINAL)
-
-        if prop and len(prop.value) >= 4:
-            # Format: x, y, width, height (repeats for each desktop)
-            workarea = {
-                "x": prop.value[0],
-                "y": prop.value[1],
-                "width": prop.value[2],
-                "height": prop.value[3],
-            }
-            if debug:
-                logger.debug("workarea", **workarea)
-            return workarea
-
-    except Exception as e:
-        if debug:
-            logger.debug("workarea error", err=str(e))
-
-    # Fallback: try RANDR for monitor bounds
     try:
         root = disp.screen().root
         resources = randr.get_screen_resources(root)
@@ -270,15 +308,71 @@ def get_display_bounds_for_window(window_id: int, debug: bool = False) -> Option
                     "width": crtc_info.width,
                     "height": crtc_info.height,
                 }
+                monitors.append(monitor)
+    except Exception:
+        pass
+
+    if monitors:
+        _monitors_cache = monitors
+        _monitors_cache_time = now
+
+    return _monitors_cache if _monitors_cache else monitors
+
+
+def get_display_bounds_for_window(window_id: int, debug: bool = False) -> Optional[dict]:
+    """Get the display bounds for the monitor containing the window.
+
+    For multi-monitor setups, finds which monitor contains the window
+    and returns that monitor's bounds.
+
+    Args:
+        window_id: The X11 window ID to find the containing monitor for.
+        debug: If True, print debug information.
+
+    Returns:
+        Dictionary with x, y, width, height of the monitor, or None if not found.
+    """
+    # Get window position to find which monitor it's on
+    window_bounds = _get_window_bounds(window_id)
+    if window_bounds and debug:
+        logger.debug("window bounds for display lookup", **window_bounds)
+
+    # Get monitors (cached to avoid RANDR deadlocks)
+    monitors = _get_monitors()
+
+    if not monitors:
+        if debug:
+            logger.debug("no monitors found via RANDR")
+        return None
+
+    if debug:
+        for monitor in monitors:
+            logger.debug("found monitor", **monitor)
+
+    # If we have window bounds, find the monitor containing the window center
+    if window_bounds:
+        win_center_x = window_bounds["x"] + window_bounds["width"] // 2
+        win_center_y = window_bounds["y"] + window_bounds["height"] // 2
+
+        for monitor in monitors:
+            mon_x = monitor["x"]
+            mon_y = monitor["y"]
+            mon_right = mon_x + monitor["width"]
+            mon_bottom = mon_y + monitor["height"]
+
+            if mon_x <= win_center_x < mon_right and mon_y <= win_center_y < mon_bottom:
                 if debug:
-                    logger.debug("randr fallback", **monitor)
+                    logger.debug("window on monitor", win_center=(win_center_x, win_center_y), monitor=monitor)
                 return monitor
 
-    except Exception as e:
+        # Window center not on any monitor, use first
         if debug:
-            logger.debug("randr error", err=str(e))
+            logger.debug("window center not on any monitor, using first", win_center=(win_center_x, win_center_y))
 
-    return None
+    # Fallback: return first monitor
+    if debug:
+        logger.debug("using first monitor as fallback")
+    return monitors[0]
 
 
 def _find_content_window(window) -> Optional[tuple]:
@@ -321,7 +415,7 @@ def _find_content_window(window) -> Optional[tuple]:
         return None
 
 
-def capture_window(window_id: int, title_bar_height: int = 30) -> Optional[Image.Image]:
+def capture_window(window_id: int, title_bar_height: int = None) -> Optional[Image.Image]:
     """Capture a screenshot of a specific window.
 
     For CSD windows (with client-side decorations), this will attempt to
@@ -329,12 +423,14 @@ def capture_window(window_id: int, title_bar_height: int = 30) -> Optional[Image
 
     Args:
         window_id: The X11 window ID (XID) of the window to capture.
-        title_bar_height: Height of window title bar to crop (default: 30).
+        title_bar_height: Height of window title bar to crop. If None, auto-detects.
                          Only used as fallback if no content window found.
 
     Returns:
         PIL Image of the window content, or None if capture failed.
     """
+    if title_bar_height is None:
+        title_bar_height = _get_title_bar_height(window_id)
     disp = _get_display()
 
     try:
@@ -442,6 +538,8 @@ class LinuxCaptureStream:
         self._thread: Optional[threading.Thread] = None
         # Dedicated display connection for capture thread (thread-safety)
         self._capture_display: Optional[display.Display] = None
+        # Flag set when window becomes invalid (e.g., fullscreen transition)
+        self._window_invalid = False
 
     def start(self):
         """Start the capture stream in background."""
@@ -482,6 +580,7 @@ class LinuxCaptureStream:
             depth = geom.depth
 
             if width <= 0 or height <= 0:
+                logger.debug("capture failed: invalid dimensions", width=width, height=height)
                 return None
 
             # Capture the window contents
@@ -497,6 +596,7 @@ class LinuxCaptureStream:
             if depth == 24 or depth == 32:
                 expected_size = width * height * 4
                 if len(data) < expected_size:
+                    logger.debug("capture failed: insufficient data", expected=expected_size, actual=len(data))
                     return None
 
                 image = Image.frombytes(
@@ -509,6 +609,7 @@ class LinuxCaptureStream:
             elif depth == 16:
                 expected_size = width * height * 2
                 if len(data) < expected_size:
+                    logger.debug("capture failed: insufficient data (16-bit)", expected=expected_size, actual=len(data))
                     return None
 
                 pixels = []
@@ -522,33 +623,65 @@ class LinuxCaptureStream:
                 image = Image.frombytes("RGB", (width, height), bytes(pixels))
 
             else:
+                logger.debug("capture failed: unsupported depth", depth=depth)
                 return None
 
             # Only crop title bar if we couldn't find a content window
             if crop_title_bar:
                 is_fullscreen = _is_fullscreen(self._window_id)
-                if not is_fullscreen and height > 30:
-                    image = image.crop((0, 30, width, height))
+                if not is_fullscreen:
+                    title_bar = _get_title_bar_height(self._window_id)
+                    if height > title_bar:
+                        image = image.crop((0, title_bar, width, height))
 
             return image
 
-        except (BadWindow, BadDrawable):
+        except BadDrawable:
+            # Window was destroyed (e.g., fullscreen transition)
+            logger.debug("capture BadDrawable", window_id=self._window_id)
+            self._window_invalid = True
+            with self._frame_lock:
+                self._latest_frame = None
             return None
-        except Exception:
+        except BadWindow:
+            # Window was destroyed
+            logger.debug("capture BadWindow", window_id=self._window_id)
+            self._window_invalid = True
+            with self._frame_lock:
+                self._latest_frame = None
             return None
+        except Exception as e:
+            logger.debug("capture failed: exception", error=str(e))
+            return None
+
+    @property
+    def window_invalid(self) -> bool:
+        """Check if the window ID is invalid (window was destroyed)."""
+        return self._window_invalid
 
     def _capture_loop(self):
         """Background thread that continuously captures frames."""
         # Create dedicated display connection for this thread (thread-safety)
         # X11 Display objects are not thread-safe, so each thread needs its own
         self._capture_display = display.Display()
+        logger.debug("capture thread started", window_id=self._window_id)
+        first_frame = True
 
-        while self._running:
+        while self._running and not self._window_invalid:
+            start = time.time()
             frame = self._capture_window()
+            elapsed = time.time() - start
             if frame:
                 with self._frame_lock:
                     self._latest_frame = frame
+                if first_frame:
+                    logger.debug("first frame captured", window_id=self._window_id, elapsed_ms=int(elapsed*1000))
+                    first_frame = False
+            elif elapsed > 0.1:  # Log slow failures
+                logger.debug("capture slow/failed", window_id=self._window_id, elapsed_ms=int(elapsed*1000))
             time.sleep(0.033)  # ~30 FPS
+
+        logger.debug("capture thread exiting", window_id=self._window_id, invalid=self._window_invalid)
 
     def get_frame(self) -> Optional[Image.Image]:
         """Get the latest captured frame.

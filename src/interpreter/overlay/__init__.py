@@ -1,6 +1,7 @@
 """Unified overlay window for displaying subtitles in banner or inplace mode."""
 
 import platform
+import time
 import tkinter as tk
 from tkinter import font as tkfont
 from typing import Optional
@@ -223,6 +224,12 @@ class Overlay:
         if window_changed:
             self._window_bounds = window_bounds.copy()
 
+        # Check for image size changes (e.g., fullscreen transition)
+        image_changed = image_size and image_size != self._image_size
+        if image_changed:
+            _debug_log("image size changed", old_size=self._image_size, new_size=image_size)
+            self._image_size = image_size
+
         # Recalculate retina scale if image size provided
         if image_size and window_bounds["width"] > 0:
             self._retina_scale = image_size[0] / window_bounds["width"]
@@ -233,7 +240,7 @@ class Overlay:
             self._display_bounds = display_bounds.copy()
 
         # Apply changes based on mode
-        if self._mode == "inplace" and window_changed:
+        if self._mode == "inplace" and (window_changed or image_changed):
             self._apply_inplace_mode()
         elif self._mode == "banner" and display_changed:
             self._apply_banner_mode()
@@ -328,21 +335,33 @@ class Overlay:
 
     def _apply_inplace_mode(self):
         """Configure overlay for inplace mode."""
+        start_time = time.time()
+        _debug_log("inplace mode START")
+
         # Hide banner frame
         self._frame.pack_forget()
 
         # Position over game window content area
-        # Use actual captured image size for overlay dimensions
-        # Window bounds include decorations, but capture only gets content
-        if self._window_bounds and self._image_size[0] > 0:
-            # Use actual image dimensions for overlay size
-            width = self._image_size[0]
-            height = self._image_size[1]
-
+        if self._window_bounds:
             # Use content offset from capture module
             # This tells us where the actual captured content starts within the window
             x_offset = self._content_offset[0]
             y_offset = self._content_offset[1]
+
+            # For SSD apps (content_offset is 0,0), window bounds = content bounds
+            # Use window bounds directly for size to avoid lag from stale captures
+            # For CSD apps, use image_size since window bounds include title bar
+            if y_offset == 0 and self._window_bounds["width"] > 0:
+                # SSD app - window bounds are content bounds
+                width = self._window_bounds["width"]
+                height = self._window_bounds["height"]
+            elif self._image_size[0] > 0:
+                # CSD app - use captured image size (excludes title bar)
+                width = self._image_size[0]
+                height = self._image_size[1]
+            else:
+                width = self._window_bounds["width"]
+                height = self._window_bounds["height"]
 
             x = self._window_bounds["x"] + x_offset
             y = self._window_bounds["y"] + y_offset
@@ -359,9 +378,11 @@ class Overlay:
             x = 100
             y = 100
 
+        t1 = time.time()
         self._root.wm_minsize(width, height)
         self._root.wm_maxsize(width, height)
         self._root.geometry(f"{width}x{height}+{x}+{y}")
+        _debug_log("geometry set", elapsed_ms=int((time.time() - t1) * 1000))
 
         # Debug: add visible border to see overlay position
         self._debug_borders = []
@@ -388,10 +409,14 @@ class Overlay:
         # Make click-through
         set_click_through(self._window_handle, True)
 
+        t2 = time.time()
         self._root.update_idletasks()
+        _debug_log("update_idletasks done", elapsed_ms=int((time.time() - t2) * 1000))
 
         # Re-render any existing regions
         self._render_inplace_regions()
+
+        _debug_log("inplace mode COMPLETE", total_ms=int((time.time() - start_time) * 1000))
 
     def update_regions(self, regions: list[tuple[str, dict]]):
         """Update the displayed text regions (inplace mode).
@@ -483,6 +508,9 @@ class Overlay:
             self._frame.pack_forget()
         for label in self._inplace_labels:
             label.place_forget()
+        # Update shape mask to hide everything (Linux)
+        if _system == "Linux" and self._window_handle:
+            _update_shape_mask(self._window_handle, [])
 
     def resume(self):
         """Resume the overlay (restores content)."""

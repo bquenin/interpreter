@@ -1,9 +1,17 @@
 """Platform-agnostic screen capture interface."""
 
 import platform
+import time
 from typing import Optional
 
 from PIL import Image
+
+from .. import log
+
+logger = log.get_logger()
+
+# Track when window became invalid for timing measurement
+_invalid_time: float = 0
 
 # Import platform-specific implementation
 _system = platform.system()
@@ -156,10 +164,52 @@ class WindowCapture:
         Returns:
             PIL Image of the window, or None if no frame available.
         """
+        global _invalid_time
+
+        # No stream - try to find window and start one
         if self._stream is None:
+            if self.find_window():
+                logger.debug("window found, starting stream", window_id=self._window_id)
+                self.start_stream()
             return None
 
+        # Check if window became invalid (e.g., fullscreen transition)
+        if hasattr(self._stream, 'window_invalid') and self._stream.window_invalid:
+            _invalid_time = time.time()
+            old_id = self._window_id
+            logger.debug("window invalid, stopping stream", old_id=old_id)
+            # Stop the broken stream immediately
+            self._stream.stop()
+            self._stream = None
+            # Try to find new window and start stream
+            if self.find_window():
+                logger.debug("window found", old_id=old_id, new_id=self._window_id, changed=old_id != self._window_id)
+                self.start_stream()
+                logger.debug("stream restarted", window_id=self._window_id)
+            else:
+                logger.debug("window not found during recovery")
+            return None  # No frame this iteration
+
         frame = self._stream.get_frame()
+
+        # Double-check: window might have become invalid between our initial check and now
+        if hasattr(self._stream, 'window_invalid') and self._stream.window_invalid:
+            old_id = self._window_id
+            logger.debug("window invalid after frame fetch, discarding", old_id=old_id)
+            self._stream.stop()
+            self._stream = None
+            if self.find_window():
+                logger.debug("window found", old_id=old_id, new_id=self._window_id)
+                self.start_stream()
+            return None  # Discard stale frame
+
+        # Log recovery timing when we get first frame after window change
+        if frame is not None and _invalid_time > 0:
+            elapsed = time.time() - _invalid_time
+            logger.debug("recovery complete", elapsed_ms=int(elapsed * 1000))
+            _invalid_time = 0
+
+        logger.debug("get_frame result", has_frame=frame is not None)
 
         # Update bounds if we got a frame
         if frame is not None and self._window_id is not None:
