@@ -69,14 +69,35 @@ interpreter-v2 --debug
 
 ## Controls
 
+Default hotkeys (configurable in `config.yml`):
+
 | Key | Action |
 |-----|--------|
-| `m` | Cycle overlay mode: off → banner → inplace |
+| `Space` | Toggle overlay on/off |
+| `m` | Switch mode: banner ↔ inplace |
 | `-` | Decrease font size |
 | `=` | Increase font size |
 | `q` | Quit |
 
 In banner mode, you can drag the overlay to reposition it.
+
+### Custom Hotkeys
+
+You can customize hotkeys in `config.yml`:
+
+```yaml
+hotkeys:
+  toggle_overlay: "space"   # Toggle overlay on/off
+  switch_mode: "m"          # Switch between banner/inplace
+  increase_font: "="        # Increase font size
+  decrease_font: "-"        # Decrease font size
+  quit: "q"                 # Quit application
+```
+
+Supported key values:
+- Single characters: `a`-`z`, `0`-`9`, `` ` ``, `-`, `=`, etc.
+- Function keys: `f1`-`f12`
+- Special keys: `space`, `escape`, `enter`, `tab`, `backspace`, `delete`, `insert`, `home`, `end`, `page_up`, `page_down`, `up`, `down`, `left`, `right`
 
 ## Overlay Modes
 

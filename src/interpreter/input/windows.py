@@ -22,7 +22,11 @@ class KeyboardListener:
         """Handle key press events from pynput."""
         try:
             if hasattr(key, 'char') and key.char:
+                # Regular character key (e.g., 'm', 'q', '`')
                 self._on_press(key.char)
+            elif hasattr(key, 'name') and key.name:
+                # Special key (e.g., 'f1', 'escape', 'space')
+                self._on_press(key.name)
         except AttributeError:
             pass
 
