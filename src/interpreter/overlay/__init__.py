@@ -175,6 +175,10 @@ class Overlay:
 
         self._root.update_idletasks()
 
+        # On Linux, delay initial shape mask to ensure window is fully mapped
+        if _system == "Linux" and mode == "inplace" and _update_shape_mask:
+            self._root.after(100, lambda: _update_shape_mask(self._window_handle, []))
+
     # -------------------------------------------------------------------------
     # Mode Management
     # -------------------------------------------------------------------------
@@ -445,6 +449,12 @@ class Overlay:
         # Track which labels are visible for shape mask
         visible_labels = []
 
+        # On Linux, use fitted window approach instead of shape masks
+        # Shape masks don't work reliably with Mutter/XWayland over fullscreen
+        if _system == "Linux":
+            self._render_inplace_fitted()
+            return
+
         # Render each region
         for i, (text, bbox) in enumerate(self._last_regions):
             if not text or not bbox:
@@ -474,6 +484,79 @@ class Overlay:
         # Always call update_shape_mask - with empty list it will hide the window
         if _update_shape_mask:
             _update_shape_mask(self._window_handle, all_visible)
+
+    def _render_inplace_fitted(self):
+        """Render regions using a fitted window (Linux-specific).
+
+        Instead of a fullscreen overlay with shape masks, resize the window
+        to just fit the label bounding boxes. This works better with
+        Mutter/XWayland which doesn't respect shape masks over fullscreen.
+        """
+        if not self._last_regions:
+            # No regions - hide window
+            self._root.withdraw()
+            return
+
+        # Calculate bounding box of all regions
+        min_x = float('inf')
+        min_y = float('inf')
+        max_x = 0
+        max_y = 0
+
+        for text, bbox in self._last_regions:
+            if not text or not bbox:
+                continue
+            x, y = bbox["x"], bbox["y"]
+            w, h = bbox["width"], bbox.get("height", 80)  # Estimate height
+            min_x = min(min_x, x)
+            min_y = min(min_y, y)
+            max_x = max(max_x, x + w)
+            max_y = max(max_y, y + h)
+
+        if min_x == float('inf'):
+            self._root.withdraw()
+            return
+
+        # Add padding
+        padding = 10
+        min_x = max(0, min_x - padding)
+        min_y = max(0, min_y - padding)
+        max_x += padding
+        max_y += padding
+
+        # Calculate window position (relative to game window)
+        win_x = self._window_bounds["x"] + self._content_offset[0] + int(min_x)
+        win_y = self._window_bounds["y"] + self._content_offset[1] + int(min_y)
+        win_w = int(max_x - min_x)
+        win_h = int(max_y - min_y)
+
+        # Position labels relative to new window origin
+        visible_labels = []
+        for i, (text, bbox) in enumerate(self._last_regions):
+            if not text or not bbox:
+                continue
+
+            label = self._get_or_create_inplace_label(i)
+
+            # Position relative to the fitted window
+            rel_x = bbox["x"] - min_x
+            rel_y = bbox["y"] - min_y
+            width = bbox["width"]
+
+            label.config(text=text, font=self._font, wraplength=int(width))
+            label.place(x=rel_x, y=rel_y)
+            visible_labels.append(label)
+
+        # Resize and reposition window
+        self._root.deiconify()
+        self._root.wm_minsize(1, 1)
+        self._root.wm_maxsize(win_w + 100, win_h + 100)
+        self._root.geometry(f"{win_w}x{win_h}+{win_x}+{win_y}")
+        self._root.update_idletasks()
+
+        # Now apply shape mask - should work on smaller window
+        if _update_shape_mask:
+            _update_shape_mask(self._window_handle, visible_labels)
 
     def _get_or_create_inplace_label(self, index: int) -> tk.Label:
         """Get an existing inplace label or create a new one."""

@@ -35,6 +35,7 @@ def setup_transparency(root: tk.Tk) -> tuple[str, str]:
     """Configure transparency for Linux/X11.
 
     Uses X11 Shape extension for true transparency (non-rectangular windows).
+    For XWayland/Wayland, also tries compositor-based transparency hints.
 
     Args:
         root: The Tkinter root window.
@@ -45,6 +46,12 @@ def setup_transparency(root: tk.Tk) -> tuple[str, str]:
     # Background color - will be hidden by shape mask in inplace mode
     transparent_color = "#010101"
     root.config(bg=transparent_color)
+
+    # Try to set transparent color attribute (some compositors support this)
+    try:
+        root.attributes('-transparentcolor', transparent_color)
+    except Exception:
+        pass  # Not supported on this platform/compositor
 
     return transparent_color, transparent_color
 
@@ -60,6 +67,10 @@ def setup_window(root: tk.Tk, mode: str) -> Optional[LinuxWindowHandle]:
         LinuxWindowHandle for shape mask operations, or None if unavailable.
     """
     global _display
+    from .. import log
+    logger = log.get_logger()
+
+    logger.debug("setup_window called", mode=mode, xlib_available=_xlib_available)
 
     # Force the window to be visible and update
     root.update_idletasks()
@@ -68,6 +79,7 @@ def setup_window(root: tk.Tk, mode: str) -> Optional[LinuxWindowHandle]:
     root.focus_force()
 
     if not _xlib_available:
+        logger.debug("setup_window: xlib not available")
         return None
 
     try:
@@ -84,9 +96,24 @@ def setup_window(root: tk.Tk, mode: str) -> Optional[LinuxWindowHandle]:
                 break
             toplevel = geom.parent
 
+        logger.debug("setup_window: found toplevel", tk_id=window_id, toplevel_id=toplevel.id)
+
+        # Check if shape extension is available
+        try:
+            from Xlib.ext import shape
+            # Try to query existing shape to verify extension works
+            shape.query_extents(toplevel)
+            logger.debug("setup_window: shape extension available")
+        except Exception as e:
+            logger.debug("setup_window: shape extension check failed", error=str(e))
+
+        # Don't set DOCK window type - it can interfere with shape masks
+        # Window type is left as default
+
         return LinuxWindowHandle(root, toplevel, _display)
 
-    except Exception:
+    except Exception as e:
+        logger.debug("setup_window: failed", error=str(e))
         return None
 
 
@@ -112,10 +139,19 @@ def update_shape_mask(window_handle: Any, labels: list[tk.Label]) -> None:
         window_handle: LinuxWindowHandle from setup_window.
         labels: List of Tkinter Label widgets to make visible.
     """
-    if not _xlib_available or window_handle is None:
+    from .. import log
+    logger = log.get_logger()
+
+    if not _xlib_available:
+        logger.debug("shape mask: xlib not available")
+        return
+
+    if window_handle is None:
+        logger.debug("shape mask: no window handle")
         return
 
     if not isinstance(window_handle, LinuxWindowHandle):
+        logger.debug("shape mask: invalid window handle type")
         return
 
     try:
@@ -134,6 +170,8 @@ def update_shape_mask(window_handle: Any, labels: list[tk.Label]) -> None:
         if not rects:
             rects = [(-1, -1, 1, 1)]
 
+        logger.debug("shape mask: applying", num_rects=len(rects), rects=rects[:3])
+
         # Apply bounding shape (what pixels are visible)
         window_handle.toplevel.shape_rectangles(
             shape.SO.Set, shape.SK.Bounding, 0, 0, 0, rects
@@ -146,9 +184,10 @@ def update_shape_mask(window_handle: Any, labels: list[tk.Label]) -> None:
 
         window_handle.display.sync()
         window_handle.shape_applied = True
+        logger.debug("shape mask: applied successfully")
 
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("shape mask: failed", error=str(e))
 
 
 def reset_shape_mask(window_handle: Any) -> None:
