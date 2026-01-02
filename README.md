@@ -16,7 +16,7 @@ Offline screen translator for Japanese retro games. Captures text from any windo
 ## Requirements
 
 - Python 3.11+
-- macOS or Windows
+- macOS, Windows, or Linux (X11/XWayland)
 
 ## Installation
 
