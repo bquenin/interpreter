@@ -5,8 +5,33 @@ import threading
 import time
 from typing import Optional
 
+from AppKit import NSWindow, NSScreen, NSTitledWindowMask, NSClosableWindowMask, NSMiniaturizableWindowMask
 from PIL import Image
 from Quartz import CoreGraphics as CG
+
+
+def _get_title_bar_height_pixels() -> int:
+    """Get the standard macOS title bar height in pixels.
+
+    Uses NSWindow API to get the title bar height in points,
+    then multiplies by the display scale factor.
+
+    Returns:
+        Title bar height in pixels for the current display.
+    """
+    # Get scale factor from main screen
+    scale = NSScreen.mainScreen().backingScaleFactor()
+
+    # Calculate title bar height using NSWindow API
+    content_rect = ((0, 0), (100, 100))
+    style_mask = NSTitledWindowMask | NSClosableWindowMask | NSMiniaturizableWindowMask
+    frame_rect = NSWindow.frameRectForContentRect_styleMask_(content_rect, style_mask)
+
+    # Difference in height is the title bar (in points)
+    title_bar_points = frame_rect[1][1] - content_rect[1][1]
+
+    # Convert to pixels
+    return int(title_bar_points * scale)
 
 
 def get_window_list() -> list[dict]:
@@ -189,23 +214,25 @@ def get_display_bounds_for_window(window_id: int) -> Optional[dict]:
     return None
 
 
-def capture_window(window_id: int, title_bar_height: int = 30) -> Optional[Image.Image]:
+def capture_window(window_id: int) -> Optional[Image.Image]:
     """Capture a screenshot of a specific window using CGWindowListCreateImage.
 
     This captures the actual window content, not the screen region,
     so overlapping windows (like the subtitle overlay) won't be included.
     Automatically detects fullscreen mode and skips title bar cropping.
+    Uses macOS API to determine correct title bar height for current display.
 
     Args:
         window_id: The CGWindowID of the window to capture.
-        title_bar_height: Height of window title bar to crop (default: 30).
-                         Ignored for fullscreen windows.
 
     Returns:
         PIL Image of the window content (excluding title bar), or None if capture failed.
     """
     # Check if fullscreen before capturing
     is_fullscreen = _is_fullscreen(window_id)
+
+    # Get title bar height from macOS API (accounts for display scale)
+    title_bar_height = _get_title_bar_height_pixels() if not is_fullscreen else 0
 
     # Capture the specific window only (not the screen region)
     # kCGWindowListOptionIncludingWindow captures only this window
@@ -249,8 +276,8 @@ def capture_window(window_id: int, title_bar_height: int = 30) -> Optional[Image
     # Convert to RGB (drop alpha channel)
     image = image.convert("RGB")
 
-    # Crop out the title bar if not fullscreen
-    if not is_fullscreen and title_bar_height > 0 and height > title_bar_height:
+    # Crop out the title bar if needed
+    if title_bar_height > 0 and height > title_bar_height:
         image = image.crop((0, title_bar_height, width, height))
 
     return image
