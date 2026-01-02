@@ -65,6 +65,7 @@ class WindowCapture:
         """
         self.window_title = window_title
         self._window_id: Optional[int] = None
+        self._actual_title: Optional[str] = None  # Full window title (for Windows capture)
         self._last_bounds: Optional[dict] = None
         self._stream: Optional[CaptureStream] = None
         self._capture_interval = capture_interval
@@ -78,6 +79,7 @@ class WindowCapture:
         window = find_window_by_title(self.window_title)
         if window:
             self._window_id = window["id"]
+            self._actual_title = window["title"]  # Store actual title for Windows capture
             self._last_bounds = window["bounds"]
             return True
         return False
@@ -169,8 +171,8 @@ class WindowCapture:
 
         # Create platform-specific stream
         if _system == "Windows":
-            # Windows uses window title for capture
-            self._stream = CaptureStream(self.window_title)
+            # Windows uses exact window title for capture
+            self._stream = CaptureStream(self._actual_title)
         elif _system == "Linux":
             # Linux uses background thread with configurable interval
             self._stream = CaptureStream(self._window_id, self._capture_interval)
