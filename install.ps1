@@ -31,10 +31,17 @@ if (-not $uvPath) {
 # Install or upgrade interpreter-v2
 Write-Host "[2/3] Installing interpreter-v2 from GitHub..." -ForegroundColor Yellow
 Write-Host "     (this may take a minute on first install)" -ForegroundColor Gray
-$ErrorActionPreference = 'SilentlyContinue'
-uv tool install --upgrade "git+https://github.com/bquenin/interpreter@main" | Out-Host
-uv tool update-shell | Out-Null
-$ErrorActionPreference = 'Stop'
+# Use Python 3.13 explicitly - onnxruntime doesn't have wheels for 3.14 yet
+uv tool install --upgrade --python 3.13 "git+https://github.com/bquenin/interpreter@main" 2>&1 | Out-Host
+if ($LASTEXITCODE -ne 0) {
+    Write-Host ""
+    Write-Host "Installation failed!" -ForegroundColor Red
+    Write-Host "This may be due to missing dependencies. Try:" -ForegroundColor Yellow
+    Write-Host "  uv python install 3.13"
+    Write-Host "  Then run this installer again."
+    exit 1
+}
+uv tool update-shell 2>&1 | Out-Null
 
 # Pre-compile bytecode and warm up OS caches
 Write-Host "[3/3] Optimizing for fast startup..." -ForegroundColor Yellow
