@@ -19,7 +19,7 @@ echo ""
 
 # Check if uv is installed
 if ! command -v uv &> /dev/null; then
-    echo -e "${YELLOW}[1/2] Installing uv package manager...${NC}"
+    echo -e "${YELLOW}[1/3] Installing uv package manager...${NC}"
     curl -LsSf https://astral.sh/uv/install.sh | sh
 
     # Add uv to PATH for this session
@@ -32,13 +32,14 @@ if ! command -v uv &> /dev/null; then
     fi
     echo -e "${GREEN}uv installed successfully!${NC}"
 else
-    echo -e "${GREEN}[1/2] uv is already installed${NC}"
+    echo -e "${GREEN}[1/3] uv is already installed${NC}"
 fi
 
 # Install or upgrade interpreter-v2
 echo -e "${YELLOW}[2/3] Installing interpreter-v2 from GitHub...${NC}"
 echo -e "${GRAY}     (this may take a minute on first install)${NC}"
-uv tool install --upgrade "git+https://github.com/bquenin/interpreter@main" 2>&1 || true
+BRANCH="${INTERPRETER_BRANCH:-main}"
+uv tool install --upgrade "git+https://github.com/bquenin/interpreter@${BRANCH}" 2>&1 || true
 uv tool update-shell > /dev/null 2>&1 || true
 
 # Pre-compile bytecode and warm up OS caches
@@ -47,7 +48,7 @@ TOOL_DIR="$HOME/.local/share/uv/tools/interpreter-v2"
 if [ -d "$TOOL_DIR" ]; then
     # Compile bytecode
     "$TOOL_DIR/bin/python" -m compileall -q "$TOOL_DIR/lib" 2>/dev/null || true
-    # Warm up OS caches (Gatekeeper, dyld) by running once
+    # Warm up OS caches by running once
     interpreter-v2 --list-windows > /dev/null 2>&1 || true
 fi
 

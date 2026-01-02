@@ -28,16 +28,20 @@ dependencies = [
     # Model download
     "requests",
     "tqdm",
+    # Logging
+    "structlog>=24.0.0",
     # macOS only - window capture
     "pyobjc-framework-Quartz>=10.0; sys_platform == 'darwin'",
     # Windows only - window capture
     "pygetwindow>=0.0.9; sys_platform == 'win32'",
     "windows-capture>=1.4.0; sys_platform == 'win32'",
-    # Windows only - GPU acceleration (CUDA 12)
-    "nvidia-cublas-cu12; sys_platform == 'win32'",
-    "nvidia-cudnn-cu12; sys_platform == 'win32'",
-    # Global hotkeys
-    "pynput>=1.7.6",
+    # Linux only - window capture (X11)
+    "python-xlib>=0.33; sys_platform == 'linux'",
+    # GPU acceleration (CUDA 12) - Windows and Linux
+    "nvidia-cublas-cu12; sys_platform == 'win32' or sys_platform == 'linux'",
+    "nvidia-cudnn-cu12; sys_platform == 'win32' or sys_platform == 'linux'",
+    # Global hotkeys - pynput for macOS/Windows, python-xlib for Linux
+    "pynput>=1.7.6; sys_platform != 'linux'",
 ]
 
 [project.scripts]

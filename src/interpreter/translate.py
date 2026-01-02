@@ -1,10 +1,50 @@
 """Translation module using Sugoi V4 for offline Japanese to English."""
 
+import os
 from difflib import SequenceMatcher
+from pathlib import Path
+
+from huggingface_hub import snapshot_download
+from huggingface_hub.utils import LocalEntryNotFoundError
+
+from . import log
+
+logger = log.get_logger()
+
+# Suppress HuggingFace Hub warning about unauthenticated requests
+os.environ["HF_HUB_DISABLE_IMPLICIT_TOKEN"] = "1"
+
+# Official HuggingFace repository for Sugoi V4
+SUGOI_REPO_ID = "entai2965/sugoi-v4-ja-en-ctranslate2"
 
 # Translation cache defaults
 DEFAULT_CACHE_SIZE = 200            # Max cached translations
 DEFAULT_SIMILARITY_THRESHOLD = 0.9  # Fuzzy match threshold for cache lookup
+
+
+def _get_sugoi_model_path() -> Path:
+    """Get path to Sugoi V4 translation model, downloading if needed.
+
+    Downloads from official HuggingFace source on first use.
+    Model is cached in standard HuggingFace cache (~/.cache/huggingface/).
+
+    Returns:
+        Path to the model directory.
+    """
+    # First try to load from cache (no network request)
+    try:
+        model_path = snapshot_download(
+            repo_id=SUGOI_REPO_ID,
+            local_files_only=True,
+        )
+        return Path(model_path)
+    except LocalEntryNotFoundError:
+        pass
+
+    # Not cached, download from HuggingFace
+    logger.info("downloading sugoi v4 model", size="~1.1GB")
+    model_path = snapshot_download(repo_id=SUGOI_REPO_ID)
+    return Path(model_path)
 
 
 def text_similarity(a: str, b: str) -> float:
@@ -91,26 +131,34 @@ class Translator:
         if self._translator is not None:
             return
 
-        print("  Loading Sugoi V4...", end=" ", flush=True)
+        logger.info("loading sugoi v4")
 
         import ctranslate2
         import sentencepiece as spm
 
         # Get model path (downloads from HuggingFace if needed)
-        from .models import get_sugoi_model_path
-        self._model_path = get_sugoi_model_path()
+        self._model_path = _get_sugoi_model_path()
 
-        # Load CTranslate2 model with GPU if available
+        # Load CTranslate2 model with GPU if available, fallback to CPU
+        device = "cpu"
         try:
             cuda_types = ctranslate2.get_supported_compute_types("cuda")
-            device = "cuda" if cuda_types else "cpu"
+            if cuda_types:
+                # Try to load with GPU
+                self._translator = ctranslate2.Translator(
+                    str(self._model_path),
+                    device="cuda",
+                )
+                device = "cuda"
         except Exception:
-            device = "cpu"
+            # GPU failed, will use CPU below
+            pass
 
-        self._translator = ctranslate2.Translator(
-            str(self._model_path),
-            device=device,
-        )
+        if device == "cpu":
+            self._translator = ctranslate2.Translator(
+                str(self._model_path),
+                device="cpu",
+            )
 
         # Load SentencePiece tokenizer
         tokenizer_path = self._model_path / "spm" / "spm.ja.nopretok.model"
@@ -118,7 +166,7 @@ class Translator:
         self._tokenizer.Load(str(tokenizer_path))
 
         device_info = "GPU" if device == "cuda" else "CPU"
-        print(f"ready ({device_info}).")
+        logger.info("sugoi v4 ready", device=device_info)
 
     def translate(self, text: str) -> tuple[str, bool]:
         """Translate Japanese text to English.
@@ -154,6 +202,24 @@ class Translator:
         # Decode output - join tokens and clean up SentencePiece markers
         translated_tokens = results[0].hypotheses[0]
         result = "".join(translated_tokens).replace("▁", " ").strip()
+
+        # Normalize Unicode characters to ASCII equivalents (fixes rendering issues)
+        result = (
+            result
+            # Curly quotes → straight quotes
+            .replace("\u2018", "'")   # LEFT SINGLE QUOTATION MARK
+            .replace("\u2019", "'")   # RIGHT SINGLE QUOTATION MARK
+            .replace("\u201C", '"')   # LEFT DOUBLE QUOTATION MARK
+            .replace("\u201D", '"')   # RIGHT DOUBLE QUOTATION MARK
+            # Dashes
+            .replace("\u2013", "-")   # EN DASH
+            .replace("\u2014", "--")  # EM DASH
+            .replace("\u2212", "-")   # MINUS SIGN
+            # Spaces
+            .replace("\u00A0", " ")   # NO-BREAK SPACE
+            # Ellipsis
+            .replace("\u2026", "...")  # HORIZONTAL ELLIPSIS
+        )
 
         # Store in cache
         self._cache.put(text, result)

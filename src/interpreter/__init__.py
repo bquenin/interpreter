@@ -7,7 +7,17 @@ transparent overlay.
 
 __version__ = "2.0.1"
 
-# Public API
-from .__main__ import main, list_windows
+
+def main():
+    """Entry point for the application."""
+    from .__main__ import main as _main
+    return _main()
+
+
+def list_windows():
+    """List available windows."""
+    from .__main__ import list_windows as _list_windows
+    return _list_windows()
+
 
 __all__ = ["main", "list_windows", "__version__"]

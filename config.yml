@@ -1,5 +1,5 @@
 # Window to capture (partial title match)
-window_title: "Tales"
+window_title: "RetroArch"
 
 # Refresh rate in seconds (how often to capture and process the screen)
 # Lower = more responsive but higher CPU usage. With local models:

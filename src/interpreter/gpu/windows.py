@@ -1,22 +1,24 @@
-"""GPU setup utilities for Windows CUDA support."""
+"""Windows GPU setup using CUDA DLLs from pip packages."""
 
 import os
 import sys
 from pathlib import Path
 
+# Module-level state
+_cuda_available = False
 
-def setup_cuda_dlls() -> bool:
-    """Add NVIDIA CUDA DLL directories to the system PATH.
 
-    On Windows, the nvidia-* pip packages install DLLs to site-packages/nvidia/*/bin/.
-    This function finds those directories and adds them to PATH so ctranslate2 and
-    onnxruntime can find the CUDA libraries.
+def setup() -> bool:
+    """Setup CUDA DLLs on Windows.
+
+    Finds CUDA DLLs installed via nvidia-* pip packages and:
+    1. Adds their directories to PATH
+    2. Registers them with os.add_dll_directory (Python 3.8+)
 
     Returns:
-        True if CUDA DLLs were found and added, False otherwise.
+        True if CUDA DLLs were found and registered, False otherwise.
     """
-    if sys.platform != "win32":
-        return False
+    global _cuda_available
 
     # Find site-packages directory
     site_packages = None
@@ -59,4 +61,14 @@ def setup_cuda_dlls() -> bool:
         except (OSError, AttributeError):
             pass  # add_dll_directory may not exist or may fail
 
+    _cuda_available = True
     return True
+
+
+def is_available() -> bool:
+    """Check if CUDA GPU acceleration is available.
+
+    Returns:
+        True if CUDA DLLs were successfully registered.
+    """
+    return _cuda_available

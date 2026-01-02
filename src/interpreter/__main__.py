@@ -5,14 +5,19 @@ This module is executed when running:
 - interpreter (via pyproject.toml entry point)
 """
 
+import faulthandler
 import os
+import signal
 import sys
 
-# Setup CUDA DLLs early (before any CUDA-dependent imports)
+# Enable faulthandler to dump thread stacks on SIGUSR1
+# Usage: kill -USR1 <pid>  (find pid with: pgrep -f interpreter)
+faulthandler.register(signal.SIGUSR1, all_threads=True)
+
+# Setup GPU libraries early (before any CUDA-dependent imports)
 # This must happen before importing ctranslate2 or onnxruntime
-if sys.platform == "win32":
-    from .gpu import setup_cuda_dlls
-    setup_cuda_dlls()
+from .gpu import setup as setup_gpu
+setup_gpu()
 
 # Suppress harmless onnxruntime semaphore warning on exit
 # Must be set before multiprocessing is imported
@@ -25,11 +30,15 @@ import argparse
 import time
 from typing import Optional
 
+from . import log
 from .capture import WindowCapture
 from .config import Config
 from .ocr import OCR
 from .overlay import Overlay
 from .translate import Translator, text_similarity
+
+# Logger instance (configured in main())
+logger = log.get_logger()
 
 # Main loop timing constants
 TEXT_SIMILARITY_THRESHOLD = 0.9  # Skip OCR if 90%+ similar to previous
@@ -48,7 +57,7 @@ def list_windows():
         print(f"  {title}")
 
     print("-" * 60)
-    print(f"Total: {len(windows)} windows")
+    logger.info("windows listed", total=len(windows))
 
 
 def _parse_arguments() -> argparse.Namespace:
@@ -90,6 +99,16 @@ def _parse_arguments() -> argparse.Namespace:
         default=None,
         help="Overlay mode: banner (subtitle at bottom) or inplace (over game text)"
     )
+    parser.add_argument(
+        "--capture-only",
+        action="store_true",
+        help="Only capture frames, skip OCR and translation (for testing)"
+    )
+    parser.add_argument(
+        "--no-capture",
+        action="store_true",
+        help="Disable capture thread entirely (for testing if capture causes stuttering)"
+    )
 
     return parser.parse_args()
 
@@ -106,46 +125,63 @@ def _initialize_components(
     Returns:
         Tuple of (capture, ocr, translator, overlay).
     """
-    print("Initializing components...")
+    logger.info("initializing components")
 
     # Initialize screen capture
-    capture = WindowCapture(config.window_title)
+    # Use 30 FPS capture interval (matches old streaming mode that didn't stutter)
+    capture_interval = 0.033  # ~30 FPS
+    capture = WindowCapture(config.window_title, capture_interval=capture_interval)
     if not capture.find_window():
-        print(f"Error: Window '{config.window_title}' not found.")
-        print("Use --list-windows to see available windows.")
+        logger.error("window not found", title=config.window_title)
+        logger.info("use --list-windows to see available windows")
         sys.exit(1)
-    print(f"  Window found: {config.window_title}")
-    print(f"  Window bounds: {capture.bounds}")
+    logger.info("window found", title=config.window_title)
+    logger.debug("window bounds", **capture.bounds)
 
-    # Start capture stream
-    if not capture.start_stream():
-        print("Error: Could not start capture stream.")
-        sys.exit(1)
-    print("  Capture stream started")
+    # Start capture stream (unless --no-capture)
+    if args.no_capture:
+        logger.info("capture disabled (--no-capture)")
+        # Use window bounds for overlay sizing
+        initial_image = None
+        image_size = (capture.bounds["width"], capture.bounds["height"])
+    else:
+        if not capture.start_stream():
+            logger.error("could not start capture stream")
+            sys.exit(1)
+        logger.info("capture stream started")
 
-    # Wait for first frame for Retina scale detection
-    initial_image = None
-    for _ in range(50):  # Wait up to ~2.5 seconds
-        initial_image = capture.get_frame()
-        if initial_image is not None:
-            break
-        time.sleep(0.05)
+        # Wait for first frame for Retina scale detection
+        # Large windows (especially 4K/5K fullscreen) can take 3-4 seconds for first capture
+        initial_image = None
+        for _ in range(100):  # Wait up to ~5 seconds
+            initial_image = capture.get_frame()
+            if initial_image is not None:
+                break
+            time.sleep(0.05)
 
-    if initial_image is None:
-        print("Error: Could not capture initial image for overlay setup.")
-        capture.stop_stream()
-        sys.exit(1)
-    image_size = (initial_image.width, initial_image.height)
+        if initial_image is None:
+            logger.error("could not capture initial image for overlay setup")
+            capture.stop_stream()
+            sys.exit(1)
+        image_size = (initial_image.width, initial_image.height)
 
     # Debug: save initial capture to verify what we're capturing
-    if args.debug:
+    if args.debug and initial_image is not None:
         debug_path = "debug_capture.png"
         initial_image.save(debug_path)
-        print(f"  Debug: saved capture to {debug_path}")
+        logger.debug("saved capture", path=debug_path)
 
     # Create unified overlay
     display_bounds = capture.get_display_bounds()
-    print(f"  Display bounds: {display_bounds}")
+    logger.debug("display bounds", **display_bounds)
+
+    # Get content offset (where captured content starts within window)
+    content_offset = capture.get_content_offset()
+    logger.debug("content offset", x=content_offset[0], y=content_offset[1])
+
+    # Enable overlay debug if --debug flag is set
+    if args.debug:
+        Overlay.set_debug(True)
 
     overlay = Overlay(
         font_size=config.font_size,
@@ -157,8 +193,14 @@ def _initialize_components(
         window_bounds=capture.bounds,
         image_size=image_size,
         mode=config.overlay_mode,
+        content_offset=content_offset,
     )
-    print(f"  Overlay mode: {config.overlay_mode}")
+    logger.info("overlay created", mode=config.overlay_mode)
+
+    # Skip OCR/translator in capture-only mode
+    if args.capture_only:
+        logger.info("capture-only mode, skipping OCR and translator")
+        return capture, None, None, overlay
 
     # Initialize and load OCR
     ocr = OCR(confidence_threshold=config.ocr_confidence, debug=args.debug)
@@ -170,7 +212,7 @@ def _initialize_components(
         translator = Translator()
         translator.load()
     else:
-        print("  Translator: DISABLED (--no-translate)")
+        logger.info("translator disabled")
 
     return capture, ocr, translator, overlay
 
@@ -182,10 +224,9 @@ def _create_hotkey_handler() -> tuple[dict, callable, object]:
         Tuple of (state_dict, handler_function, keyboard_listener).
         state_dict contains flags that are set when hotkeys are pressed.
     """
-    # Import pynput lazily to avoid slow Quartz loading at startup
-    print("  Loading keyboard listener...", end=" ", flush=True)
-    from pynput import keyboard
-    print("done.")
+    # Import input module lazily to avoid slow loading at startup
+    logger.info("loading keyboard listener")
+    from .input import KeyboardListener
 
     state = {
         "cycle_mode": False,
@@ -194,21 +235,18 @@ def _create_hotkey_handler() -> tuple[dict, callable, object]:
         "quit": False,
     }
 
-    def on_key_press(key):
-        try:
-            if hasattr(key, 'char'):
-                if key.char == 'm':
-                    state["cycle_mode"] = True
-                elif key.char == '=':
-                    state["increase_font"] = True
-                elif key.char == '-':
-                    state["decrease_font"] = True
-                elif key.char == 'q':
-                    state["quit"] = True
-        except AttributeError:
-            pass
+    def on_key_press(char: str):
+        """Handle key press - receives character directly."""
+        if char == 'm':
+            state["cycle_mode"] = True
+        elif char == '=':
+            state["increase_font"] = True
+        elif char == '-':
+            state["decrease_font"] = True
+        elif char == 'q':
+            state["quit"] = True
 
-    listener = keyboard.Listener(on_press=on_key_press)
+    listener = KeyboardListener(on_press=on_key_press)
     return state, on_key_press, listener
 
 
@@ -220,6 +258,8 @@ def _run_main_loop(
     config: Config,
     hotkey_state: dict,
     debug_mode: bool,
+    capture_only: bool = False,
+    no_capture: bool = False,
 ) -> None:
     """Run the main translation loop.
 
@@ -231,6 +271,8 @@ def _run_main_loop(
         config: Application configuration.
         hotkey_state: Dict with hotkey flags.
         debug_mode: Whether to print debug info.
+        capture_only: If True, skip OCR and translation (for testing capture performance).
+        no_capture: If True, capture is disabled entirely.
     """
     # Track previous text to avoid re-translating
     previous_text = ""
@@ -247,26 +289,26 @@ def _run_main_loop(
             if overlay.paused:
                 overlay.set_mode("banner")
                 overlay.resume()
-                print("[MODE] Banner")
+                logger.info("mode changed", mode="banner")
             elif overlay.mode == "banner":
                 overlay.set_mode("inplace")
-                print("[MODE] Inplace")
+                logger.info("mode changed", mode="inplace")
             else:
                 overlay.pause()
-                print("[MODE] Off")
+                logger.info("mode changed", mode="off")
 
         if hotkey_state["increase_font"]:
             hotkey_state["increase_font"] = False
             overlay.adjust_font_size(2)
-            print(f"[FONT] Size: {overlay.font_size}")
+            logger.info("font size changed", size=overlay.font_size)
 
         if hotkey_state["decrease_font"]:
             hotkey_state["decrease_font"] = False
             overlay.adjust_font_size(-2)
-            print(f"[FONT] Size: {overlay.font_size}")
+            logger.info("font size changed", size=overlay.font_size)
 
         if hotkey_state["quit"]:
-            print("\n[QUIT] Exiting...")
+            logger.info("quit requested")
             break
 
         # Skip processing if overlay is paused
@@ -283,12 +325,26 @@ def _run_main_loop(
         last_capture_time = current_time
         loop_start = time.perf_counter()
 
+        # Skip capture in no-capture mode (just keep overlay alive)
+        if no_capture:
+            if debug_mode:
+                logger.debug("no capture mode")
+            continue
+
         # Get latest frame from stream
         capture_start = time.perf_counter()
         image = capture.get_frame()
         capture_time = time.perf_counter() - capture_start
 
         if image is None:
+            # Still update overlay position if window moved (e.g., fullscreen transition)
+            if capture.bounds:
+                overlay.update_position(
+                    capture.bounds,
+                    display_bounds=capture.get_display_bounds(),
+                    image_size=None,
+                    content_offset=capture.get_content_offset()
+                )
             if overlay.mode == "inplace":
                 overlay.update_regions([])
             else:
@@ -299,8 +355,15 @@ def _run_main_loop(
         overlay.update_position(
             capture.bounds,
             display_bounds=capture.get_display_bounds(),
-            image_size=(image.width, image.height)
+            image_size=(image.width, image.height),
+            content_offset=capture.get_content_offset()
         )
+
+        # Skip OCR/translation in capture-only mode
+        if capture_only:
+            if debug_mode:
+                logger.debug("capture only", capture_ms=int(capture_time*1000))
+            continue
 
         # Extract text
         ocr_start = time.perf_counter()
@@ -312,7 +375,7 @@ def _run_main_loop(
                 text = ocr.extract_text(image)
                 regions = []
         except Exception as e:
-            print(f"OCR error: {e}")
+            logger.error("ocr failed", err=str(e))
             continue
         ocr_time = time.perf_counter() - ocr_start
 
@@ -322,9 +385,15 @@ def _run_main_loop(
             if similarity >= TEXT_SIMILARITY_THRESHOLD:
                 if debug_mode:
                     total_time = time.perf_counter() - loop_start
-                    print(f"[TIMING] capture: {capture_time*1000:.0f}ms | ocr: {ocr_time*1000:.0f}ms | (similar: {similarity:.0%}) | total: {total_time*1000:.0f}ms")
+                    logger.debug("skipped similar text",
+                                 capture_ms=int(capture_time*1000),
+                                 ocr_ms=int(ocr_time*1000),
+                                 similarity=f"{similarity:.0%}",
+                                 total_ms=int(total_time*1000))
                 continue
             previous_text = text
+            if debug_mode:
+                logger.debug("text changed", similarity=f"{similarity:.0%}", preview=text[:50])
 
         if not text:
             if overlay.mode == "inplace":
@@ -333,11 +402,11 @@ def _run_main_loop(
                 overlay.update_text("")
             if debug_mode:
                 total_time = time.perf_counter() - loop_start
-                print(f"[TIMING] capture: {capture_time*1000:.0f}ms | ocr: {ocr_time*1000:.0f}ms | (no text) | total: {total_time*1000:.0f}ms")
+                logger.debug("no text detected",
+                             capture_ms=int(capture_time*1000),
+                             ocr_ms=int(ocr_time*1000),
+                             total_ms=int(total_time*1000))
             continue
-
-        if overlay.mode == "inplace" and debug_mode:
-            print(f"[DBG] Found {len(regions)} regions")
 
         # Translate
         translate_time = 0.0
@@ -352,7 +421,7 @@ def _run_main_loop(
                         translated, cached = translator.translate(region.text)
                         was_cached = was_cached or cached
                     except Exception as e:
-                        print(f"Translation error: {e}")
+                        logger.error("translation failed", err=str(e))
                         translated = region.text
                 else:
                     translated = region.text
@@ -362,11 +431,9 @@ def _run_main_loop(
             # Update overlay with all regions
             overlay.update_regions(translated_regions)
 
-            # Print each region
-            for region, (translated, _) in zip(regions, translated_regions):
-                print(f"[OCR] {region.text}")
-                if translator:
-                    print(f"[EN]  {translated}")
+            # Log summary only (individual regions are too verbose)
+            if debug_mode:
+                logger.debug("regions translated", count=len(translated_regions))
         else:
             # Banner mode: single text block
             if translator:
@@ -375,32 +442,43 @@ def _run_main_loop(
                     translated, was_cached = translator.translate(text)
                     display_text = translated
                 except Exception as e:
-                    print(f"Translation error: {e}")
+                    logger.error("translation failed", err=str(e))
                     display_text = f"[{text}]"
                 translate_time = time.perf_counter() - translate_start
             else:
                 display_text = text
 
             overlay.update_text(display_text)
-            print(f"[OCR] {text}")
+            logger.info("ocr", text=text)
             if translator:
-                cache_indicator = " (cached)" if was_cached else ""
-                print(f"[EN]  {display_text}{cache_indicator}")
+                logger.info("translated", text=display_text, cached=was_cached)
 
-        # Print timing in debug mode
+        # Log timing in debug mode
         if debug_mode:
             total_time = time.perf_counter() - loop_start
-            cache_str = " CACHE" if was_cached else ""
             if translator:
-                print(f"[TIMING] capture: {capture_time*1000:.0f}ms | ocr: {ocr_time*1000:.0f}ms | translate: {translate_time*1000:.0f}ms{cache_str} | total: {total_time*1000:.0f}ms")
+                logger.debug("timing",
+                             capture_ms=int(capture_time*1000),
+                             ocr_ms=int(ocr_time*1000),
+                             translate_ms=int(translate_time*1000),
+                             cached=was_cached,
+                             total_ms=int(total_time*1000))
             else:
-                print(f"[TIMING] capture: {capture_time*1000:.0f}ms | ocr: {ocr_time*1000:.0f}ms | total: {total_time*1000:.0f}ms")
-        print()
+                logger.debug("timing",
+                             capture_ms=int(capture_time*1000),
+                             ocr_ms=int(ocr_time*1000),
+                             total_ms=int(total_time*1000))
+
+    if debug_mode:
+        logger.debug("main loop exited", is_running=overlay.is_running)
 
 
 def main():
     """Main entry point."""
     args = _parse_arguments()
+
+    # Configure logging (must happen before any log calls)
+    log.configure(debug=args.debug)
 
     # List windows mode
     if args.list_windows:
@@ -423,14 +501,13 @@ def main():
     except Exception:
         pkg_version = "dev"
 
-    print(f"Interpreter v{pkg_version} - Offline Screen Translator")
-    print("=" * 50)
+    logger.info("interpreter starting",
+                version=pkg_version,
+                window=config.window_title,
+                refresh_rate=config.refresh_rate,
+                overlay_mode=config.overlay_mode)
     if config.config_path:
-        print(f"Config: {config.config_path}")
-    print(f"Target window: {config.window_title}")
-    print(f"Refresh rate: {config.refresh_rate}s")
-    print(f"Overlay mode: {config.overlay_mode}")
-    print()
+        logger.info("config loaded", path=config.config_path)
 
     # Initialize components
     capture, ocr, translator, overlay = _initialize_components(config, args)
@@ -438,24 +515,25 @@ def main():
     # Setup hotkeys (this also loads pynput lazily)
     hotkey_state, _, keyboard_listener = _create_hotkey_handler()
     keyboard_listener.start()
+    logger.info("keyboard listener started")
 
-    print()
-    print("Starting translation loop...")
-    print("Press 'm' to cycle mode (off → banner → inplace), '-/=' to adjust font, 'q' to quit")
-    print("-" * 50)
+    logger.info("starting translation loop")
+    logger.info("hotkeys: m=cycle mode, -/+=font size, q=quit")
 
     try:
         _run_main_loop(
             overlay, capture, ocr, translator,
-            config, hotkey_state, args.debug
+            config, hotkey_state, args.debug,
+            capture_only=args.capture_only,
+            no_capture=args.no_capture
         )
     except KeyboardInterrupt:
-        print("\nInterrupted by user")
+        logger.info("interrupted by user")
     finally:
         keyboard_listener.stop()
         capture.stop_stream()
         overlay.quit()
-        print("Goodbye!")
+        logger.info("shutdown complete")
 
 
 if __name__ == "__main__":

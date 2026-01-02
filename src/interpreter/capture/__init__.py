@@ -1,22 +1,36 @@
 """Platform-agnostic screen capture interface."""
 
 import platform
+import time
 from typing import Optional
 
 from PIL import Image
+
+from .. import log
+
+logger = log.get_logger()
+
+# Track when window became invalid for timing measurement
+_invalid_time: float = 0
 
 # Import platform-specific implementation
 _system = platform.system()
 
 if _system == "Darwin":
-    from .capture_macos import find_window_by_title, capture_window, get_window_list, get_display_bounds_for_window, _get_window_bounds, MacOSCaptureStream
+    from .macos import find_window_by_title, capture_window, get_window_list, get_display_bounds_for_window, _get_window_bounds, MacOSCaptureStream
     CaptureStream = MacOSCaptureStream
+    def get_content_offset(window_id: int) -> tuple[int, int]:
+        return (0, 0)  # macOS handles this differently
 elif _system == "Windows":
-    from .capture_windows import find_window_by_title, capture_window, get_window_list, _get_window_bounds, WindowsCaptureStream
+    from .windows import find_window_by_title, capture_window, get_window_list, _get_window_bounds, WindowsCaptureStream
     CaptureStream = WindowsCaptureStream
-    # Windows doesn't have display bounds detection yet
     def get_display_bounds_for_window(window_id: int) -> Optional[dict]:
         return None
+    def get_content_offset(window_id: int) -> tuple[int, int]:
+        return (0, 0)
+elif _system == "Linux":
+    from .linux import find_window_by_title, capture_window, get_window_list, _get_window_bounds, LinuxCaptureStream, get_display_bounds_for_window, get_content_offset
+    CaptureStream = LinuxCaptureStream
 else:
     raise RuntimeError(f"Unsupported platform: {_system}")
 
@@ -24,16 +38,18 @@ else:
 class WindowCapture:
     """Captures screenshots of a specific window by title."""
 
-    def __init__(self, window_title: str):
+    def __init__(self, window_title: str, capture_interval: float = 0.25):
         """Initialize the window capture.
 
         Args:
             window_title: Partial title of the window to capture.
+            capture_interval: Seconds between background captures (Linux only).
         """
         self.window_title = window_title
         self._window_id: Optional[int] = None
         self._last_bounds: Optional[dict] = None
         self._stream: Optional[CaptureStream] = None
+        self._capture_interval = capture_interval
 
     def find_window(self) -> bool:
         """Find and cache the window ID.
@@ -100,6 +116,19 @@ class WindowCapture:
             return None
         return get_display_bounds_for_window(self._window_id)
 
+    def get_content_offset(self) -> tuple[int, int]:
+        """Get the offset of the content area within the window.
+
+        On Linux, windows may have toolbars/decorations that are not captured.
+        This returns the offset from window origin to where the actual content starts.
+
+        Returns:
+            Tuple of (x_offset, y_offset) in pixels.
+        """
+        if self._window_id is None:
+            return (0, 0)
+        return get_content_offset(self._window_id)
+
     @staticmethod
     def list_windows() -> list[dict]:
         """List all available windows.
@@ -124,6 +153,9 @@ class WindowCapture:
         if _system == "Windows":
             # Windows uses window title for capture
             self._stream = CaptureStream(self.window_title)
+        elif _system == "Linux":
+            # Linux uses background thread with configurable interval
+            self._stream = CaptureStream(self._window_id, self._capture_interval)
         else:
             # macOS uses window ID for capture
             self._stream = CaptureStream(self._window_id)
@@ -137,10 +169,50 @@ class WindowCapture:
         Returns:
             PIL Image of the window, or None if no frame available.
         """
+        global _invalid_time
+
+        # No stream - try to find window and start one
         if self._stream is None:
+            if self.find_window():
+                logger.debug("window found, starting stream", window_id=self._window_id)
+                self.start_stream()
             return None
 
+        # Check if window became invalid (e.g., fullscreen transition)
+        if hasattr(self._stream, 'window_invalid') and self._stream.window_invalid:
+            _invalid_time = time.time()
+            old_id = self._window_id
+            logger.debug("window invalid, stopping stream", old_id=old_id)
+            # Stop the broken stream immediately
+            self._stream.stop()
+            self._stream = None
+            # Try to find new window and start stream
+            if self.find_window():
+                logger.debug("window found", old_id=old_id, new_id=self._window_id, changed=old_id != self._window_id)
+                self.start_stream()
+                logger.debug("stream restarted", window_id=self._window_id)
+            else:
+                logger.debug("window not found during recovery")
+            return None  # No frame this iteration
+
         frame = self._stream.get_frame()
+
+        # Double-check: window might have become invalid between our initial check and now
+        if hasattr(self._stream, 'window_invalid') and self._stream.window_invalid:
+            old_id = self._window_id
+            logger.debug("window invalid after frame fetch, discarding", old_id=old_id)
+            self._stream.stop()
+            self._stream = None
+            if self.find_window():
+                logger.debug("window found", old_id=old_id, new_id=self._window_id)
+                self.start_stream()
+            return None  # Discard stale frame
+
+        # Log recovery timing when we get first frame after window change
+        if frame is not None and _invalid_time > 0:
+            elapsed = time.time() - _invalid_time
+            logger.debug("recovery complete", elapsed_ms=int(elapsed * 1000))
+            _invalid_time = 0
 
         # Update bounds if we got a frame
         if frame is not None and self._window_id is not None:
