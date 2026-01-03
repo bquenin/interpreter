@@ -219,6 +219,20 @@ def _get_window_bounds(window_id: int) -> Optional[dict]:
     return None
 
 
+def is_window_foreground(window_id: int) -> bool:
+    """Check if the specified window is the foreground window.
+
+    Args:
+        window_id: The window handle (HWND).
+
+    Returns:
+        True if the window is in foreground, False otherwise.
+    """
+    user32 = ctypes.windll.user32
+    foreground_hwnd = user32.GetForegroundWindow()
+    return foreground_hwnd == window_id
+
+
 def _get_client_bounds(window_id: int) -> Optional[dict]:
     """Get the client area bounds (content without title bar/borders).
 

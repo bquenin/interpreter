@@ -25,8 +25,11 @@ if _system == "Darwin":
         if _is_fullscreen(window_id):
             return (0, 0)
         return (0, _get_title_bar_height_pixels())
+    def is_window_foreground(window_id: int) -> bool:
+        # TODO: Implement for macOS if needed
+        return True
 elif _system == "Windows":
-    from .windows import find_window_by_title, capture_window, get_window_list, _get_window_bounds, _get_client_bounds, _get_screen_size, get_title_bar_height, WindowsCaptureStream
+    from .windows import find_window_by_title, capture_window, get_window_list, _get_window_bounds, _get_client_bounds, _get_screen_size, get_title_bar_height, WindowsCaptureStream, is_window_foreground
     CaptureStream = WindowsCaptureStream
     def get_display_bounds_for_window(window_id: int) -> Optional[dict]:
         return None
@@ -38,6 +41,9 @@ elif _system == "Windows":
 elif _system == "Linux":
     from .linux import find_window_by_title, capture_window, get_window_list, _get_window_bounds, LinuxCaptureStream, get_display_bounds_for_window, get_content_offset
     CaptureStream = LinuxCaptureStream
+    def is_window_foreground(window_id: int) -> bool:
+        # TODO: Implement for Linux if needed
+        return True
 else:
     raise RuntimeError(f"Unsupported platform: {_system}")
 
@@ -159,6 +165,17 @@ class WindowCapture:
         if self._window_id is None:
             return (0, 0)
         return get_content_offset(self._window_id)
+
+    def is_foreground(self) -> bool:
+        """Check if the target window is currently in the foreground.
+
+        Returns:
+            True if the window is the foreground window, False otherwise.
+            Returns True if window_id is not set (fail-open for safety).
+        """
+        if self._window_id is None:
+            return True
+        return is_window_foreground(self._window_id)
 
     @staticmethod
     def list_windows() -> list[dict]:
