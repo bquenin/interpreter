@@ -5,7 +5,7 @@ MeikiOCR, translates using Sugoi V4, and displays subtitles in a
 transparent overlay.
 """
 
-__version__ = "2.1.4"
+__version__ = "2.2.0"
 
 
 def main():
