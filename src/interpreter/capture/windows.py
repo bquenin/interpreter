@@ -366,6 +366,44 @@ def _get_screen_size() -> tuple[int, int]:
     return width, height
 
 
+class MONITORINFO(ctypes.Structure):
+    """Windows MONITORINFO structure."""
+    _fields_ = [
+        ("cbSize", wintypes.DWORD),
+        ("rcMonitor", RECT),
+        ("rcWork", RECT),
+        ("dwFlags", wintypes.DWORD),
+    ]
+
+
+def _get_monitor_size_for_window(window_id: int) -> tuple[int, int]:
+    """Get the monitor size for the monitor containing the specified window.
+
+    Args:
+        window_id: The window handle (HWND).
+
+    Returns:
+        Tuple of (width, height) of the monitor, or primary screen size as fallback.
+    """
+    user32 = ctypes.windll.user32
+
+    # Get the monitor that contains the window
+    MONITOR_DEFAULTTONEAREST = 2
+    hmonitor = user32.MonitorFromWindow(window_id, MONITOR_DEFAULTTONEAREST)
+
+    if hmonitor:
+        # Get monitor info
+        mi = MONITORINFO()
+        mi.cbSize = ctypes.sizeof(MONITORINFO)
+        if user32.GetMonitorInfoW(hmonitor, ctypes.byref(mi)):
+            width = mi.rcMonitor.right - mi.rcMonitor.left
+            height = mi.rcMonitor.bottom - mi.rcMonitor.top
+            return width, height
+
+    # Fallback to primary screen
+    return _get_screen_size()
+
+
 class WindowsCaptureStream:
     """Continuous window capture using Windows Graphics Capture API.
 
@@ -390,6 +428,11 @@ class WindowsCaptureStream:
         self._frame_count: int = 0
         self._fps: float = 0.0
         self._fps_update_time: float = 0.0
+        # Store window ID for monitor detection
+        self._window_id: Optional[int] = None
+        window = find_window_by_title(window_title)
+        if window:
+            self._window_id = window["id"]
 
     def start(self):
         """Start the capture stream in background.
@@ -440,8 +483,12 @@ class WindowsCaptureStream:
                 return
 
             try:
-                # Detect fullscreen: if frame fills the screen, don't crop title bar
-                screen_w, screen_h = _get_screen_size()
+                # Detect fullscreen: if frame fills the monitor, don't crop title bar
+                # Use the monitor the window is on, not just the primary screen
+                if stream._window_id:
+                    screen_w, screen_h = _get_monitor_size_for_window(stream._window_id)
+                else:
+                    screen_w, screen_h = _get_screen_size()
                 is_fullscreen = (frame.width >= screen_w and frame.height >= screen_h)
 
                 # Crop out title bar only if not fullscreen
