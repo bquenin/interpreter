@@ -46,12 +46,12 @@ fi
 echo -e "${YELLOW}[2/${TOTAL_STEPS}] Installing interpreter-v2 from GitHub...${NC}"
 echo -e "${GRAY}     (this may take a minute on first install)${NC}"
 BRANCH="${INTERPRETER_BRANCH:-main}"
-# Use Python 3.13 explicitly - onnxruntime doesn't have wheels for 3.14 yet
-if ! uv tool install --upgrade --python 3.13 "git+https://github.com/bquenin/interpreter@${BRANCH}" 2>&1; then
+# Use Python 3.12 - uv-managed Python includes tkinter, system Python 3.13+ often doesn't
+if ! uv tool install --upgrade --python 3.12 "git+https://github.com/bquenin/interpreter@${BRANCH}" 2>&1; then
     echo ""
     echo -e "${RED}Installation failed!${NC}"
     echo -e "${YELLOW}This may be due to missing dependencies. Try:${NC}"
-    echo -e "  uv python install 3.13"
+    echo -e "  uv python install 3.12"
     echo -e "  Then run this installer again."
     exit 1
 fi
