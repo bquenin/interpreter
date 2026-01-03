@@ -30,16 +30,26 @@ class InterpreterApp:
             Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
         )
 
+        # Set desktop filename before creating QApplication (required for Wayland app_id)
+        if platform.system() == "Linux":
+            QApplication.setDesktopFileName("interpreter-v2")
+
         self._app = QApplication(sys.argv)
         self._app.setApplicationName("Interpreter")
 
         # Set application icon
         icon_path = self._get_icon_path()
+        icon = None
         if icon_path.exists():
-            self._app.setWindowIcon(QIcon(str(icon_path)))
+            icon = QIcon(str(icon_path))
+            self._app.setWindowIcon(icon)
 
         # Create main window
         self._window = MainWindow(self._config)
+
+        # Also set icon on main window (needed for Linux taskbar)
+        if icon:
+            self._window.setWindowIcon(icon)
 
         # Handle app quit
         self._app.aboutToQuit.connect(self._on_quit)

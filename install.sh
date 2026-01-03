@@ -12,6 +12,13 @@ GRAY='\033[0;90m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
+# Determine total steps (Linux has extra desktop entry step)
+if [[ "$(uname)" == "Linux" ]]; then
+    TOTAL_STEPS=4
+else
+    TOTAL_STEPS=3
+fi
+
 echo ""
 echo -e "${CYAN}=== interpreter-v2 Installer ===${NC}"
 echo "Offline screen translator for Japanese retro games"
@@ -19,7 +26,7 @@ echo ""
 
 # Check if uv is installed
 if ! command -v uv &> /dev/null; then
-    echo -e "${YELLOW}[1/3] Installing uv package manager...${NC}"
+    echo -e "${YELLOW}[1/${TOTAL_STEPS}] Installing uv package manager...${NC}"
     curl -LsSf https://astral.sh/uv/install.sh | sh
 
     # Add uv to PATH for this session
@@ -32,11 +39,11 @@ if ! command -v uv &> /dev/null; then
     fi
     echo -e "${GREEN}uv installed successfully!${NC}"
 else
-    echo -e "${GREEN}[1/3] uv is already installed${NC}"
+    echo -e "${GREEN}[1/${TOTAL_STEPS}] uv is already installed${NC}"
 fi
 
 # Install or upgrade interpreter-v2
-echo -e "${YELLOW}[2/3] Installing interpreter-v2 from GitHub...${NC}"
+echo -e "${YELLOW}[2/${TOTAL_STEPS}] Installing interpreter-v2 from GitHub...${NC}"
 echo -e "${GRAY}     (this may take a minute on first install)${NC}"
 BRANCH="${INTERPRETER_BRANCH:-main}"
 # Use Python 3.13 explicitly - onnxruntime doesn't have wheels for 3.14 yet
@@ -51,13 +58,48 @@ fi
 uv tool update-shell > /dev/null 2>&1 || true
 
 # Pre-compile bytecode and warm up OS caches
-echo -e "${YELLOW}[3/3] Optimizing for fast startup...${NC}"
+echo -e "${YELLOW}[3/${TOTAL_STEPS}] Optimizing for fast startup...${NC}"
 TOOL_DIR="$HOME/.local/share/uv/tools/interpreter-v2"
 if [ -d "$TOOL_DIR" ]; then
     # Compile bytecode
     "$TOOL_DIR/bin/python" -m compileall -q "$TOOL_DIR/lib" 2>/dev/null || true
     # Warm up OS caches by running once
     interpreter-v2 --list-windows > /dev/null 2>&1 || true
+fi
+
+# Install desktop entry and icon (Linux only)
+if [[ "$(uname)" == "Linux" ]]; then
+    echo -e "${YELLOW}[4/${TOTAL_STEPS}] Installing desktop entry...${NC}"
+
+    # Find the installed icon
+    ICON_SRC=$(find "$TOOL_DIR/lib" -name "icon.png" -path "*/resources/icons/*" 2>/dev/null | head -1)
+
+    if [ -n "$ICON_SRC" ]; then
+        # Install icon
+        mkdir -p "$HOME/.local/share/icons/hicolor/256x256/apps"
+        cp "$ICON_SRC" "$HOME/.local/share/icons/hicolor/256x256/apps/interpreter-v2.png"
+
+        # Install desktop entry
+        mkdir -p "$HOME/.local/share/applications"
+        cat > "$HOME/.local/share/applications/interpreter-v2.desktop" << 'EOF'
+[Desktop Entry]
+Name=Interpreter
+Comment=Offline screen translator for Japanese games
+Exec=interpreter-v2
+Icon=interpreter-v2
+Type=Application
+Categories=Utility;Translation;
+StartupWMClass=interpreter-v2
+EOF
+
+        # Update caches
+        gtk-update-icon-cache -f "$HOME/.local/share/icons/hicolor" 2>/dev/null || true
+        update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
+
+        echo -e "${GREEN}Desktop entry installed${NC}"
+    else
+        echo -e "${GRAY}Skipping desktop entry (icon not found)${NC}"
+    fi
 fi
 
 echo ""
@@ -69,5 +111,10 @@ echo "To start, run:"
 echo ""
 echo -e "  ${CYAN}interpreter-v2${NC}"
 echo ""
+if [[ "$(uname)" == "Linux" ]]; then
+    echo "Note: You may need to log out and back in for the"
+    echo "taskbar icon to appear."
+    echo ""
+fi
 echo "You may need to restart your terminal first."
 echo ""

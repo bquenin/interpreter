@@ -45,7 +45,7 @@ from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
 from .. import log
-from .overlay import BANNER_HEIGHT, BANNER_BOTTOM_MARGIN
+from .overlay_base import BANNER_HEIGHT, BANNER_BOTTOM_MARGIN
 
 logger = log.get_logger()
 
