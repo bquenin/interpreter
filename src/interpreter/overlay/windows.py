@@ -7,8 +7,8 @@ On Windows:
 - Click-through requires Win32 API (WS_EX_TRANSPARENT, WS_EX_LAYERED)
 """
 
-from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import QPoint
+from PySide6.QtWidgets import QApplication
 
 from .base import BannerOverlayBase, InplaceOverlayBase
 
@@ -18,6 +18,7 @@ class BannerOverlay(BannerOverlayBase):
 
     No platform-specific overrides needed - base class handles everything.
     """
+
     pass
 
 
@@ -63,6 +64,7 @@ class InplaceOverlay(InplaceOverlayBase):
         """
         try:
             import ctypes
+
             hwnd = int(self.winId())
             GWL_EXSTYLE = -20
             WS_EX_TRANSPARENT = 0x00000020

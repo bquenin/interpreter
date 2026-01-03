@@ -6,7 +6,8 @@ This avoids the evdev dependency that pynput requires on Linux.
 
 import platform
 import threading
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
 from .. import log
 
@@ -64,7 +65,7 @@ class KeyCode:
 
 if _system == "Linux":
     # Linux: Use X11 RECORD extension (no evdev dependency)
-    from Xlib import X, XK, display
+    from Xlib import XK, X, display
     from Xlib.ext import record
     from Xlib.protocol import rq
 
@@ -74,10 +75,10 @@ if _system == "Linux":
         def __init__(self, on_press: Callable[[Any], None]):
             self._on_press = on_press
             self._running = False
-            self._thread: Optional[threading.Thread] = None
-            self._record_display: Optional[display.Display] = None
-            self._local_display: Optional[display.Display] = None
-            self._context: Optional[int] = None
+            self._thread: threading.Thread | None = None
+            self._record_display: display.Display | None = None
+            self._local_display: display.Display | None = None
+            self._context: int | None = None
 
         def start(self) -> None:
             """Start listening for keyboard events in a background thread."""
@@ -113,24 +114,23 @@ if _system == "Linux":
                 self._context = self._record_display.record_create_context(
                     0,  # datum_flags
                     [record.AllClients],  # clients
-                    [{
-                        'core_requests': (0, 0),
-                        'core_replies': (0, 0),
-                        'ext_requests': (0, 0, 0, 0),
-                        'ext_replies': (0, 0, 0, 0),
-                        'delivered_events': (0, 0),
-                        'device_events': (X.KeyPress, X.KeyRelease),
-                        'errors': (0, 0),
-                        'client_started': False,
-                        'client_died': False,
-                    }]
+                    [
+                        {
+                            "core_requests": (0, 0),
+                            "core_replies": (0, 0),
+                            "ext_requests": (0, 0, 0, 0),
+                            "ext_replies": (0, 0, 0, 0),
+                            "delivered_events": (0, 0),
+                            "device_events": (X.KeyPress, X.KeyRelease),
+                            "errors": (0, 0),
+                            "client_started": False,
+                            "client_died": False,
+                        }
+                    ],
                 )
 
                 # Enable context and process events
-                self._record_display.record_enable_context(
-                    self._context,
-                    self._handle_event
-                )
+                self._record_display.record_enable_context(self._context, self._handle_event)
 
                 # This blocks until record_disable_context is called
                 self._record_display.record_free_context(self._context)
@@ -152,18 +152,13 @@ if _system == "Linux":
 
             data = reply.data
             while len(data):
-                event, data = rq.EventField(None).parse_binary_value(
-                    data,
-                    self._record_display.display,
-                    None,
-                    None
-                )
+                event, data = rq.EventField(None).parse_binary_value(data, self._record_display.display, None, None)
 
                 if event.type == X.KeyPress:
                     # Get the keysym for this keycode
                     keysym = self._local_display.keycode_to_keysym(
                         event.detail,
-                        0  # No modifiers
+                        0,  # No modifiers
                     )
 
                     # Convert keysym to key object
@@ -177,14 +172,14 @@ if _system == "Linux":
                         except Exception as e:
                             logger.error("on_press callback error", err=str(e))
 
-        def _keysym_to_key(self, keysym: int) -> Optional[Any]:
+        def _keysym_to_key(self, keysym: int) -> Any | None:
             """Convert X11 keysym to Key or KeyCode object."""
             # Handle space specially (keysym 32 = 0x20)
             if keysym == 0x20:
                 return Key.space
 
             # Handle common ASCII characters (excluding space)
-            if 0x21 <= keysym <= 0x7e:
+            if 0x21 <= keysym <= 0x7E:
                 return KeyCode(chr(keysym))
 
             # Handle special keys via XK mapping
@@ -198,26 +193,35 @@ if _system == "Linux":
 
                 # Character keys with multi-char X11 names
                 char_keys = {
-                    'minus': '-',
-                    'equal': '=',
-                    'plus': '+',
-                    'grave': '`',
-                    'quoteleft': '`',
+                    "minus": "-",
+                    "equal": "=",
+                    "plus": "+",
+                    "grave": "`",
+                    "quoteleft": "`",
                 }
                 if name_lower in char_keys:
                     return KeyCode(char_keys[name_lower])
 
                 # Special keys - return Key constant strings
                 special_keys = {
-                    'escape': Key.esc,
-                    'return': Key.enter,
-                    'space': Key.space,
-                    'tab': Key.tab,
-                    'backspace': Key.backspace,
-                    'delete': Key.delete,
-                    'f1': Key.f1, 'f2': Key.f2, 'f3': Key.f3, 'f4': Key.f4,
-                    'f5': Key.f5, 'f6': Key.f6, 'f7': Key.f7, 'f8': Key.f8,
-                    'f9': Key.f9, 'f10': Key.f10, 'f11': Key.f11, 'f12': Key.f12,
+                    "escape": Key.esc,
+                    "return": Key.enter,
+                    "space": Key.space,
+                    "tab": Key.tab,
+                    "backspace": Key.backspace,
+                    "delete": Key.delete,
+                    "f1": Key.f1,
+                    "f2": Key.f2,
+                    "f3": Key.f3,
+                    "f4": Key.f4,
+                    "f5": Key.f5,
+                    "f6": Key.f6,
+                    "f7": Key.f7,
+                    "f8": Key.f8,
+                    "f9": Key.f9,
+                    "f10": Key.f10,
+                    "f11": Key.f11,
+                    "f12": Key.f12,
                 }
                 if name_lower in special_keys:
                     return special_keys[name_lower]

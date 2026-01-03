@@ -10,11 +10,10 @@ Most retro game emulators run under XWayland, so this covers the primary use cas
 import struct
 import threading
 import time
-from typing import Optional
 
 from PIL import Image
-from Xlib import X, display, Xatom
-from Xlib.error import BadWindow, BadDrawable
+from Xlib import X, Xatom, display
+from Xlib.error import BadDrawable, BadWindow
 from Xlib.ext import randr
 
 from .. import log
@@ -24,7 +23,7 @@ logger = log.get_logger()
 
 
 # Module-level display connection (reused for efficiency)
-_display: Optional[display.Display] = None
+_display: display.Display | None = None
 
 
 def _get_display() -> display.Display:
@@ -58,7 +57,7 @@ def _get_window_title(disp: display.Display, window) -> str:
     return ""
 
 
-def _get_window_geometry(window) -> Optional[dict]:
+def _get_window_geometry(window) -> dict | None:
     """Get window geometry in absolute screen coordinates."""
     try:
         disp = _get_display()
@@ -127,11 +126,13 @@ def _enumerate_windows(disp: display.Display) -> list[dict]:
 
             # Only include windows with a title and reasonable size
             if title and geom and geom["width"] > 1 and geom["height"] > 1:
-                windows.append({
-                    "id": child.id,
-                    "title": title,
-                    "bounds": geom,
-                })
+                windows.append(
+                    {
+                        "id": child.id,
+                        "title": title,
+                        "bounds": geom,
+                    }
+                )
 
         except BadWindow:
             continue
@@ -152,7 +153,7 @@ def get_window_list() -> list[dict]:
     return windows
 
 
-def find_window_by_title(title_substring: str) -> Optional[dict]:
+def find_window_by_title(title_substring: str) -> dict | None:
     """Find a window by partial title match.
 
     Args:
@@ -171,7 +172,7 @@ def find_window_by_title(title_substring: str) -> Optional[dict]:
     return None
 
 
-def _get_window_bounds(window_id: int) -> Optional[dict]:
+def _get_window_bounds(window_id: int) -> dict | None:
     """Get the current bounds of a window by its ID in absolute screen coordinates.
 
     Args:
@@ -222,13 +223,18 @@ def _get_title_bar_height(window_id: int) -> int:
         # This property is only set by GTK apps that draw their own title bar
         # For SSD apps (like RetroArch), the WM draws the title bar separately
         # and X11 get_image() doesn't include it
-        gtk_frame_extents = disp.intern_atom('_GTK_FRAME_EXTENTS')
+        gtk_frame_extents = disp.intern_atom("_GTK_FRAME_EXTENTS")
         prop = window.get_full_property(gtk_frame_extents, Xatom.CARDINAL)
         if prop and len(prop.value) >= 4:
             # Format: left, right, top, bottom
             top = prop.value[2]
-            logger.debug("gtk frame extents (CSD)", left=prop.value[0], right=prop.value[1],
-                        top=prop.value[2], bottom=prop.value[3])
+            logger.debug(
+                "gtk frame extents (CSD)",
+                left=prop.value[0],
+                right=prop.value[1],
+                top=prop.value[2],
+                bottom=prop.value[3],
+            )
             if top > 0:
                 return top
 
@@ -297,10 +303,10 @@ def _is_fullscreen(window_id: int) -> bool:
     # Check if window fills the screen (with small tolerance)
     tolerance = 50
     is_fullscreen = (
-        bounds["x"] <= tolerance and
-        bounds["y"] <= tolerance and
-        bounds["width"] >= screen_width - tolerance and
-        bounds["height"] >= screen_height - tolerance
+        bounds["x"] <= tolerance
+        and bounds["y"] <= tolerance
+        and bounds["width"] >= screen_width - tolerance
+        and bounds["height"] >= screen_height - tolerance
     )
 
     return is_fullscreen
@@ -344,7 +350,7 @@ def _get_monitors() -> list[dict]:
     return _monitors_cache
 
 
-def _find_content_window(window) -> Optional[tuple]:
+def _find_content_window(window) -> tuple | None:
     """Find the largest child window (likely the content area).
 
     For CSD (client-side decoration) windows, the actual content is often
@@ -384,7 +390,7 @@ def _find_content_window(window) -> Optional[tuple]:
         return None
 
 
-def capture_window(window_id: int) -> Optional[Image.Image]:
+def capture_window(window_id: int) -> Image.Image | None:
     """Capture a screenshot of a specific window.
 
     For CSD windows (with client-side decorations), this will attempt to
@@ -429,10 +435,12 @@ def capture_window(window_id: int) -> Optional[Image.Image]:
         # Capture the window contents
         # ZPixmap format gives us packed pixel data
         raw = target_window.get_image(
-            0, 0,           # x, y offset
-            width, height,  # dimensions
-            X.ZPixmap,      # format (packed pixels)
-            0xFFFFFFFF      # plane mask (all planes)
+            0,
+            0,  # x, y offset
+            width,
+            height,  # dimensions
+            X.ZPixmap,  # format (packed pixels)
+            0xFFFFFFFF,  # plane mask (all planes)
         )
 
         # Get the raw data
@@ -445,11 +453,7 @@ def capture_window(window_id: int) -> Optional[Image.Image]:
                 return None
 
             # Load as BGRA, then convert to RGB
-            image = Image.frombytes(
-                "RGBA", (width, height),
-                bytes(data[:expected_size]),
-                "raw", "BGRA"
-            )
+            image = Image.frombytes("RGBA", (width, height), bytes(data[:expected_size]), "raw", "BGRA")
             image = image.convert("RGB")
 
         elif depth == 16:
@@ -461,7 +465,7 @@ def capture_window(window_id: int) -> Optional[Image.Image]:
             # Convert 5-6-5 to RGB24
             pixels = []
             for i in range(0, expected_size, 2):
-                pixel = struct.unpack("<H", data[i:i+2])[0]
+                pixel = struct.unpack("<H", data[i : i + 2])[0]
                 r = ((pixel >> 11) & 0x1F) << 3
                 g = ((pixel >> 5) & 0x3F) << 2
                 b = (pixel & 0x1F) << 3
@@ -512,11 +516,11 @@ class LinuxCaptureStream(FPSTrackerMixin):
         """
         self._window_id = window_id
         self._capture_interval = capture_interval
-        self._latest_frame: Optional[Image.Image] = None
+        self._latest_frame: Image.Image | None = None
         self._frame_lock = threading.Lock()
         self._running = False
-        self._thread: Optional[threading.Thread] = None
-        self._capture_display: Optional[display.Display] = None
+        self._thread: threading.Thread | None = None
+        self._capture_display: display.Display | None = None
         self._window_invalid = False
         self._capture_times: list[float] = []  # Recent capture times in ms
         self._warning_shown = False
@@ -530,8 +534,9 @@ class LinuxCaptureStream(FPSTrackerMixin):
         self._reset_fps_tracking()
         self._thread = threading.Thread(target=self._capture_loop, daemon=True)
         self._thread.start()
-        logger.debug("capture started (continuous)", window_id=self._window_id,
-                    interval_ms=int(self._capture_interval * 1000))
+        logger.debug(
+            "capture started (continuous)", window_id=self._window_id, interval_ms=int(self._capture_interval * 1000)
+        )
 
     @property
     def window_invalid(self) -> bool:
@@ -599,11 +604,11 @@ class LinuxCaptureStream(FPSTrackerMixin):
                     resolution=f"{width}x{height}",
                     megapixels=f"{megapixels:.1f}MP",
                     hint="High resolution capture causes game stuttering. "
-                         "Consider: (1) Run game in windowed mode at lower resolution, "
-                         "(2) Lower display resolution, or (3) Increase capture interval in config."
+                    "Consider: (1) Run game in windowed mode at lower resolution, "
+                    "(2) Lower display resolution, or (3) Increase capture interval in config.",
                 )
 
-    def _capture_frame(self) -> Optional[Image.Image]:
+    def _capture_frame(self) -> Image.Image | None:
         """Capture a single frame using the thread's display connection."""
         if self._capture_display is None:
             return None
@@ -641,8 +646,7 @@ class LinuxCaptureStream(FPSTrackerMixin):
                 expected_size = width * height * 4
                 if len(data) < expected_size:
                     return None
-                image = Image.frombytes("RGBA", (width, height),
-                                       bytes(data[:expected_size]), "raw", "BGRA")
+                image = Image.frombytes("RGBA", (width, height), bytes(data[:expected_size]), "raw", "BGRA")
                 image = image.convert("RGB")
             elif depth == 16:
                 expected_size = width * height * 2
@@ -650,7 +654,7 @@ class LinuxCaptureStream(FPSTrackerMixin):
                     return None
                 pixels = []
                 for i in range(0, expected_size, 2):
-                    pixel = struct.unpack("<H", data[i:i+2])[0]
+                    pixel = struct.unpack("<H", data[i : i + 2])[0]
                     r = ((pixel >> 11) & 0x1F) << 3
                     g = ((pixel >> 5) & 0x3F) << 2
                     b = (pixel & 0x1F) << 3
@@ -675,7 +679,7 @@ class LinuxCaptureStream(FPSTrackerMixin):
         except Exception:
             return None
 
-    def get_frame(self) -> Optional[Image.Image]:
+    def get_frame(self) -> Image.Image | None:
         """Get the latest captured frame (non-blocking).
 
         Returns:

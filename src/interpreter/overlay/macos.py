@@ -24,6 +24,7 @@ class _MacOSOverlayMixin:
 
 class BannerOverlay(_MacOSOverlayMixin, BannerOverlayBase):
     """macOS banner overlay."""
+
     pass
 
 

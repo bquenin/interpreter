@@ -13,7 +13,6 @@ from datetime import datetime
 
 import structlog
 
-
 # 3-letter level names for alignment (like zerolog)
 LEVEL_NAMES = {
     "debug": "DBG",
@@ -84,16 +83,14 @@ def configure(level: str = "INFO", debug: bool = False) -> None:
 
     structlog.configure(
         processors=processors,
-        wrapper_class=structlog.make_filtering_bound_logger(
-            getattr(logging, level.upper(), logging.INFO)
-        ),
+        wrapper_class=structlog.make_filtering_bound_logger(getattr(logging, level.upper(), logging.INFO)),
         context_class=dict,
         logger_factory=structlog.PrintLoggerFactory(file=sys.stdout),
         cache_logger_on_first_use=True,
     )
 
 
-def get_logger(name: str = None) -> structlog.BoundLogger:
+def get_logger(name: str | None = None) -> structlog.BoundLogger:
     """Get a logger instance.
 
     Args:

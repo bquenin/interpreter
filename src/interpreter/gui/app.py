@@ -6,9 +6,9 @@ import platform
 import sys
 from pathlib import Path
 
-from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
+from PySide6.QtWidgets import QApplication
 
 from .. import __version__, log
 from ..config import Config
@@ -20,15 +20,13 @@ class InterpreterApp:
 
     def __init__(self, config: Config):
         self._config = config
-        self._app: QApplication = None
-        self._window: MainWindow = None
+        self._app: QApplication | None = None
+        self._window: MainWindow | None = None
 
     def setup(self):
         """Set up the application."""
         # Enable high DPI scaling
-        QApplication.setHighDpiScaleFactorRoundingPolicy(
-            Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
-        )
+        QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
 
         # Set desktop filename before creating QApplication (required for Wayland app_id)
         if platform.system() == "Linux":
@@ -93,6 +91,7 @@ def run():
 
     # Setup GPU libraries early (before any CUDA-dependent imports)
     from ..gpu import setup as setup_gpu
+
     setup_gpu()
 
     # Configure logging
