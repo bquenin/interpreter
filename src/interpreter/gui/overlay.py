@@ -12,6 +12,10 @@ from PySide6.QtGui import QFont
 
 _system = platform.system()
 
+# Banner overlay dimensions
+BANNER_HEIGHT = 100
+BANNER_BOTTOM_MARGIN = 50
+
 
 class BannerOverlay(QWidget):
     """Banner-style overlay at bottom of screen.
@@ -54,7 +58,7 @@ class BannerOverlay(QWidget):
 
         # Use full screen width
         screen = QApplication.primaryScreen().geometry()
-        self.resize(screen.width(), 100)
+        self.resize(screen.width(), BANNER_HEIGHT)
         self._move_to_bottom()
 
     def _setup_ui(self):
@@ -77,7 +81,7 @@ class BannerOverlay(QWidget):
         """Position at bottom of screen."""
         screen = QApplication.primaryScreen().geometry()
         x = 0  # Full width, start at left edge
-        y = screen.height() - self.height() - 50
+        y = screen.height() - self.height() - BANNER_BOTTOM_MARGIN
         self.move(x, y)
 
     def set_text(self, text: str):

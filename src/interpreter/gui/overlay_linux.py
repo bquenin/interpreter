@@ -15,6 +15,7 @@ from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
 from .. import log
+from .overlay import BANNER_HEIGHT, BANNER_BOTTOM_MARGIN
 
 logger = log.get_logger()
 
@@ -156,9 +157,6 @@ def _update_shape_mask(window_handle: Any, labels: list[tk.Label]) -> None:
 # Overlay Constants
 # =============================================================================
 
-DEFAULT_RETINA_SCALE = 2.0
-BANNER_HEIGHT = 100
-BANNER_BOTTOM_MARGIN = 50
 MIN_FONT_SIZE = 8
 MAX_FONT_SIZE = 72
 
@@ -205,7 +203,7 @@ class Overlay:
         self._display_bounds: Optional[dict] = None
         self._window_bounds: Optional[dict] = None
         self._image_size: tuple[int, int] = (0, 0)
-        self._retina_scale: float = DEFAULT_RETINA_SCALE
+        self._retina_scale: float = 1.0
         self._content_offset: tuple[int, int] = (0, 0)
         self._last_regions: list[tuple[str, dict]] = []
 
