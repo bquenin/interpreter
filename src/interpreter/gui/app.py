@@ -1,5 +1,6 @@
 """PySide6 application entry point."""
 
+import argparse
 import os
 import platform
 import sys
@@ -103,13 +104,17 @@ class InterpreterApp:
 
 def run():
     """Main entry point for GUI application."""
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(description="Interpreter - Screen translator for Japanese games")
+    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
+    args = parser.parse_args()
+
     # Setup GPU libraries early (before any CUDA-dependent imports)
     from ..gpu import setup as setup_gpu
     setup_gpu()
 
-    # Configure logging (set INTERPRETER_DEBUG=1 for debug output)
-    debug = os.environ.get("INTERPRETER_DEBUG", "").lower() in ("1", "true", "yes")
-    log.configure(level="DEBUG" if debug else "INFO")
+    # Configure logging
+    log.configure(level="DEBUG" if args.debug else "INFO")
 
     # Suppress harmless warnings
     os.environ["PYTHONWARNINGS"] = "ignore::UserWarning:multiprocessing.resource_tracker"
