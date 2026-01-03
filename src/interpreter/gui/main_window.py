@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QPixmap, QImage, QKeySequence
 
-from pynput import keyboard
+from . import keyboard
 
 from ..capture import WindowCapture
 from ..config import Config
@@ -170,7 +170,7 @@ class MainWindow(QMainWindow):
         self._pause_hotkey.keySequenceChanged.connect(self._on_pause_hotkey_changed)
         overlay_layout.addWidget(self._pause_hotkey)
 
-        # Global hotkey using pynput
+        # Global hotkey listener
         self._current_hotkey = keyboard.Key.space
         self._keyboard_listener = keyboard.Listener(on_press=self._on_key_press)
         self._keyboard_listener.start()
@@ -381,7 +381,7 @@ class MainWindow(QMainWindow):
             self._show_overlay()
 
     def _on_key_press(self, key):
-        """Handle global key press (called from pynput thread)."""
+        """Handle global key press (called from keyboard listener thread)."""
         # Compare the pressed key with our hotkey
         if key == self._current_hotkey:
             self.hotkey_pressed.emit()
@@ -390,14 +390,14 @@ class MainWindow(QMainWindow):
         """Update pause hotkey when changed in UI."""
         if key_sequence.isEmpty():
             return
-        # Convert Qt key sequence to pynput key
+        # Convert Qt key sequence to keyboard key
         key_str = key_sequence.toString().lower()
-        self._current_hotkey = self._qt_key_to_pynput(key_str)
+        self._current_hotkey = self._qt_key_to_key(key_str)
         # Clear focus so it stops capturing keys
         self._pause_hotkey.clearFocus()
 
-    def _qt_key_to_pynput(self, key_str: str):
-        """Convert Qt key string to pynput key."""
+    def _qt_key_to_key(self, key_str: str):
+        """Convert Qt key string to keyboard module key."""
         # Map common keys
         key_map = {
             "space": keyboard.Key.space,
