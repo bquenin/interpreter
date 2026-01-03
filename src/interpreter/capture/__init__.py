@@ -26,7 +26,7 @@ if _system == "Darwin":
             return (0, 0)
         return (0, _get_title_bar_height_pixels())
 elif _system == "Windows":
-    from .windows import find_window_by_title, capture_window, get_window_list, _get_window_bounds, _get_screen_size, get_title_bar_height, WindowsCaptureStream
+    from .windows import find_window_by_title, capture_window, get_window_list, _get_window_bounds, _get_client_bounds, _get_screen_size, get_title_bar_height, WindowsCaptureStream
     CaptureStream = WindowsCaptureStream
     def get_display_bounds_for_window(window_id: int) -> Optional[dict]:
         return None
@@ -86,7 +86,8 @@ class WindowCapture:
         if self._window_id is not None:
             bounds = _get_window_bounds(self._window_id)
             if bounds:
-                self._last_bounds = bounds
+                # Refresh with proper bounds (client bounds on Windows)
+                self._refresh_bounds()
                 return True
             # Window ID no longer valid, fall through to search by title
 
@@ -94,7 +95,8 @@ class WindowCapture:
         if window:
             self._window_id = window["id"]
             self._actual_title = window["title"]  # Store actual title for Windows capture
-            self._last_bounds = window["bounds"]
+            # Get proper bounds (client bounds on Windows)
+            self._refresh_bounds()
             return True
         return False
 
@@ -126,11 +128,21 @@ class WindowCapture:
         return image
 
     def _refresh_bounds(self) -> None:
-        """Refresh the cached window bounds."""
+        """Refresh the cached window bounds.
+
+        On Windows, uses client bounds (content area without title bar) since
+        the capture stream crops out the title bar. On macOS/Linux, uses full
+        window bounds.
+        """
         if self._window_id is None:
             return
-        # Get updated bounds directly by window ID (more efficient)
-        bounds = _get_window_bounds(self._window_id)
+
+        # On Windows, use client bounds since capture crops title bar
+        if _system == "Windows":
+            bounds = _get_client_bounds(self._window_id)
+        else:
+            bounds = _get_window_bounds(self._window_id)
+
         if bounds:
             self._last_bounds = bounds
 

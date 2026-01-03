@@ -6,6 +6,7 @@ Uses PrintWindow API to capture window content even when obscured by other windo
 import ctypes
 import sys
 import threading
+import time
 from ctypes import wintypes
 from typing import Optional
 
@@ -371,6 +372,10 @@ class WindowsCaptureStream:
         self._frame_lock = threading.Lock()
         self._capture = None
         self._running = False
+        # FPS tracking (same approach as macOS)
+        self._frame_count: int = 0
+        self._fps: float = 0.0
+        self._fps_update_time: float = 0.0
 
     def start(self):
         """Start the capture stream in background.
@@ -399,6 +404,9 @@ class WindowsCaptureStream:
             draw_border = None  # Skip border config (yellow border will appear)
 
         self._running = True
+        self._frame_count = 0
+        self._fps = 0.0
+        self._fps_update_time = time.time()
 
         # Create capture instance
         self._capture = WindowsCapture(
@@ -444,6 +452,15 @@ class WindowsCaptureStream:
 
                 with stream._frame_lock:
                     stream._latest_frame = img
+                    stream._frame_count += 1
+
+                    # Update FPS every second (same approach as macOS)
+                    now = time.time()
+                    elapsed = now - stream._fps_update_time
+                    if elapsed >= 1.0:
+                        stream._fps = stream._frame_count / elapsed
+                        stream._frame_count = 0
+                        stream._fps_update_time = now
             except Exception:
                 pass  # Silently ignore frame errors
 
@@ -455,7 +472,6 @@ class WindowsCaptureStream:
         self._capture.start_free_threaded()
 
         # Wait for first frame to arrive (up to 5 seconds)
-        import time
         for _ in range(100):
             with self._frame_lock:
                 if self._latest_frame is not None:
@@ -475,3 +491,12 @@ class WindowsCaptureStream:
         """Stop the capture stream."""
         self._running = False
         # The capture will stop on next frame via capture_control.stop()
+
+    @property
+    def fps(self) -> float:
+        """Get the current capture frame rate.
+
+        Returns:
+            Frames per second being captured.
+        """
+        return self._fps

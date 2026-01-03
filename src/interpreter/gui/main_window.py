@@ -473,15 +473,23 @@ class MainWindow(QMainWindow):
     def _on_regions_ready(self, regions: list):
         """Handle translated regions (inplace mode)."""
         if not self._paused:
-            # Get content offset from capture (accounts for title bar cropping)
-            # The offset is in pixels, but overlay uses points, so we need to convert
-            content_offset = (0, 0)
-            if self._capture:
-                content_offset = self._capture.get_content_offset()
-            # Convert from pixels to points using scale factor
-            from PySide6.QtWidgets import QApplication
-            scale = QApplication.primaryScreen().devicePixelRatio()
-            title_bar_offset = int(content_offset[1] / scale)
+            # On Windows, the overlay is positioned at client area (matching capture)
+            # so no title bar offset is needed. On macOS, the overlay covers full window
+            # but capture excludes title bar, so offset is still needed.
+            import platform
+            if platform.system() == "Windows":
+                # Overlay matches capture area - no offset needed
+                title_bar_offset = 0
+            else:
+                # Get content offset from capture (accounts for title bar cropping)
+                content_offset = (0, 0)
+                if self._capture:
+                    content_offset = self._capture.get_content_offset()
+                # Convert from pixels to points using scale factor
+                from PySide6.QtWidgets import QApplication
+                scale = QApplication.primaryScreen().devicePixelRatio()
+                title_bar_offset = int(content_offset[1] / scale)
+
             self._inplace_overlay.set_regions(regions, title_bar_offset)
 
     # Settings handlers

@@ -185,9 +185,9 @@ class InplaceOverlay(QWidget):
             )
             label.adjustSize()
             # Position at bbox location, converting from pixels to points
-            # OCR returns coordinates in captured image pixels (Retina 2x)
-            # Qt uses screen points, so divide by scale factor
-            # Add title_bar_offset because overlay includes title bar but capture doesn't
+            # OCR returns coordinates in captured image pixels (physical pixels)
+            # Qt uses logical pixels, so divide by scale factor
+            # Labels are positioned relative to the overlay widget
             x = int(bbox.get("x", 0) / scale)
             y = int(bbox.get("y", 0) / scale) + title_bar_offset
             label.move(x, y)
@@ -198,14 +198,16 @@ class InplaceOverlay(QWidget):
         """Position overlay to cover a window.
 
         Args:
-            bounds: Dict with x, y, width, height
+            bounds: Dict with x, y, width, height (in physical/screen pixels)
         """
-        self.setGeometry(
-            bounds["x"],
-            bounds["y"],
-            bounds["width"],
-            bounds["height"]
-        )
+        # On Windows with DPI scaling, bounds from Win32 API are in physical pixels
+        # but Qt uses logical pixels. We need to convert.
+        scale = QApplication.primaryScreen().devicePixelRatio()
+        x = int(bounds["x"] / scale)
+        y = int(bounds["y"] / scale)
+        width = int(bounds["width"] / scale)
+        height = int(bounds["height"] / scale)
+        self.setGeometry(x, y, width, height)
 
     def set_font_size(self, size: int):
         """Update the font size."""
