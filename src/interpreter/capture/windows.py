@@ -10,6 +10,7 @@ import time
 from ctypes import wintypes
 from typing import Optional
 
+import numpy as np
 from PIL import Image
 
 from .base import FPSTrackerMixin
@@ -517,7 +518,6 @@ class WindowsCaptureStream(FPSTrackerMixin):
                             # Get frame buffer and save as PNG
                             debug_arr = frame.frame_buffer
                             debug_rgb = debug_arr[:, :, [2, 1, 0]]
-                            import numpy as np
                             debug_rgb = np.ascontiguousarray(debug_rgb)
                             debug_img = Image.fromarray(debug_rgb, mode="RGB")
                             debug_path = "debug_capture.png"
