@@ -1,4 +1,7 @@
-"""PySide6 overlay windows for banner and inplace modes."""
+"""PySide6 overlay windows for banner and inplace modes.
+
+Used on macOS and Windows. Linux uses overlay_linux.py instead.
+"""
 
 import platform
 from typing import Optional
@@ -35,15 +38,9 @@ class BannerOverlay(QWidget):
         flags = (
             Qt.WindowType.FramelessWindowHint |
             Qt.WindowType.WindowStaysOnTopHint |
+            Qt.WindowType.WindowDoesNotAcceptFocus |
             Qt.WindowType.Tool  # Hides from taskbar
         )
-
-        # Linux/X11: Use BypassWindowManagerHint for proper positioning
-        # Wayland doesn't support arbitrary positioning, so this helps on X11
-        if _system == "Linux":
-            flags |= Qt.WindowType.X11BypassWindowManagerHint
-        else:
-            flags |= Qt.WindowType.WindowDoesNotAcceptFocus
 
         self.setWindowFlags(flags)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
@@ -103,22 +100,10 @@ class BannerOverlay(QWidget):
     def font_size(self) -> int:
         return self._font_size
 
-    def showEvent(self, event):
-        """Handle show event - reposition on Linux/Wayland."""
-        super().showEvent(event)
-        # On Wayland, repositioning after show may help
-        if _system == "Linux":
-            self._move_to_bottom()
-
     # Dragging support
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
-            # On Wayland, use system move (compositor handles it)
-            # On X11/macOS/Windows, use manual tracking
-            if _system == "Linux":
-                self.windowHandle().startSystemMove()
-            else:
-                self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
             event.accept()
 
     def mouseMoveEvent(self, event):
@@ -148,9 +133,6 @@ class InplaceOverlay(QWidget):
         self._font_size = font_size
         self._font_color = font_color
         self._background_color = background_color
-        # For Linux: stores target window position and monitor offset
-        self._window_bounds: dict = {}
-        self._monitor_offset: tuple[int, int] = (0, 0)
         self._setup_window()
 
     def _setup_window(self):
@@ -158,11 +140,9 @@ class InplaceOverlay(QWidget):
         flags = (
             Qt.WindowType.FramelessWindowHint |
             Qt.WindowType.WindowStaysOnTopHint |
+            Qt.WindowType.WindowTransparentForInput |
             Qt.WindowType.Tool
         )
-
-        # Click-through on all platforms
-        flags |= Qt.WindowType.WindowTransparentForInput
 
         self.setWindowFlags(flags)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
@@ -198,15 +178,6 @@ class InplaceOverlay(QWidget):
             label.deleteLater()
         self._labels.clear()
 
-        # On Linux, calculate window offset relative to monitor
-        # (overlay covers full monitor, labels need absolute positioning)
-        if _system == "Linux" and self._window_bounds:
-            window_offset_x = self._window_bounds.get("x", 0) - self._monitor_offset[0]
-            window_offset_y = self._window_bounds.get("y", 0) - self._monitor_offset[1]
-        else:
-            window_offset_x = 0
-            window_offset_y = 0
-
         # Create new labels
         for text, bbox in regions:
             if not bbox:
@@ -226,9 +197,8 @@ class InplaceOverlay(QWidget):
             # Position at bbox location, converting from pixels to points
             # OCR returns coordinates in captured image pixels (physical pixels)
             # Qt uses logical pixels, so divide by scale factor
-            # Labels are positioned relative to the overlay widget
-            x = int(bbox.get("x", 0) / scale) + window_offset_x + content_offset_x
-            y = int(bbox.get("y", 0) / scale) + window_offset_y + content_offset_y
+            x = int(bbox.get("x", 0) / scale) + content_offset_x
+            y = int(bbox.get("y", 0) / scale) + content_offset_y
             label.move(x, y)
             label.show()
             self._labels.append(label)
@@ -250,23 +220,7 @@ class InplaceOverlay(QWidget):
 
         scale = screen.devicePixelRatio()
 
-        # On Linux/Wayland, we can't move windows programmatically.
-        # Instead, keep the overlay fullscreen on the game's monitor and store
-        # the window offset so labels can be positioned at absolute coordinates.
-        if _system == "Linux":
-            # Store bounds for label positioning (will be used in set_regions)
-            self._window_bounds = bounds
-
-            # Get the monitor geometry and store its offset
-            screen_geom = screen.geometry()
-            self._monitor_offset = (screen_geom.x(), screen_geom.y())
-
-            # Position overlay to cover the entire monitor
-            if self.geometry() != screen_geom:
-                self.setGeometry(screen_geom)
-            return
-
-        # On Windows/macOS, position overlay directly over the window
+        # Position overlay directly over the window
         x = int(bounds["x"] / scale)
         y = int(bounds["y"] / scale)
         width = int(bounds["width"] / scale)
@@ -302,4 +256,4 @@ class InplaceOverlay(QWidget):
                 style = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
                 user32.SetWindowLongW(hwnd, GWL_EXSTYLE, style | WS_EX_TRANSPARENT | WS_EX_LAYERED)
             except Exception:
-                pass  # Ignore on non-Windows
+                pass
