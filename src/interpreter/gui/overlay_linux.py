@@ -67,19 +67,14 @@ except ImportError:
 class LinuxWindowHandle:
     """Wrapper for Linux window state needed for shape masking."""
 
-    def __init__(self, root: tk.Tk, toplevel_window: Any, xdisplay: Any):
-        self.root = root
+    def __init__(self, toplevel_window: Any, xdisplay: Any):
         self.toplevel = toplevel_window
         self.display = xdisplay
         self.shape_applied = False
 
 
-def _setup_transparency(root: tk.Tk) -> tuple[str, str]:
-    """Configure transparency for Linux/X11.
-
-    Returns:
-        Tuple of (transparent_color, label_transparent_bg).
-    """
+def _setup_transparency(root: tk.Tk) -> None:
+    """Configure transparency for Linux/X11."""
     transparent_color = "#010101"
     root.config(bg=transparent_color)
 
@@ -87,8 +82,6 @@ def _setup_transparency(root: tk.Tk) -> tuple[str, str]:
         root.attributes('-transparentcolor', transparent_color)
     except Exception:
         pass
-
-    return transparent_color, transparent_color
 
 
 def _setup_window(root: tk.Tk, mode: str) -> Optional[LinuxWindowHandle]:
@@ -131,7 +124,7 @@ def _setup_window(root: tk.Tk, mode: str) -> Optional[LinuxWindowHandle]:
         except Exception as e:
             logger.debug("setup_window: shape extension check failed", error=str(e))
 
-        return LinuxWindowHandle(root, toplevel, _display)
+        return LinuxWindowHandle(toplevel, _display)
 
     except Exception as e:
         logger.debug("setup_window: failed", error=str(e))
@@ -219,6 +212,10 @@ class Overlay:
         self._retina_scale: float = 1.0
         self._content_offset: tuple[int, int] = (0, 0)
         self._last_regions: list[tuple[str, dict]] = []
+
+        # Drag state
+        self._drag_start_x: int = 0
+        self._drag_start_y: int = 0
 
     def create(self, display_bounds: dict, window_bounds: dict, image_size: tuple[int, int], mode: str = "banner", content_offset: tuple[int, int] = (0, 0)):
         """Create and configure both overlay windows."""
@@ -346,6 +343,21 @@ class Overlay:
             self._banner_font.configure(size=self.font_size)
         if self._inplace_font:
             self._inplace_font.configure(size=self.font_size)
+
+    def set_colors(self, font_color: str, background_color: str):
+        """Update font and background colors."""
+        self.font_color = font_color
+        self.background_color = background_color
+
+        # Update banner
+        if self._banner_frame:
+            self._banner_frame.config(bg=background_color)
+        if self._banner_label:
+            self._banner_label.config(fg=font_color, bg=background_color)
+
+        # Update inplace labels
+        for label in self._inplace_labels:
+            label.config(fg=font_color, bg=background_color)
 
     def update_position(self, window_bounds: dict, display_bounds: dict = None, image_size: tuple[int, int] = None, content_offset: tuple[int, int] = None):
         """Update overlay position to follow the game window."""
@@ -494,7 +506,7 @@ class Overlay:
                 text="",
                 font=self._inplace_font,
                 fg=self.font_color,
-                bg="#404040",
+                bg=self.background_color,
                 padx=4,
                 pady=2,
                 justify=tk.LEFT,
@@ -618,19 +630,33 @@ def _pump_tk_events():
             pass
 
 
-class BannerOverlay:
-    """Banner-style overlay at bottom of screen.
+def _close_overlay():
+    """Close the shared overlay instance."""
+    global _tk_overlay, _tk_timer, _initialized
+    if _tk_overlay:
+        _tk_overlay.quit()
+        _tk_overlay = None
+    if _tk_timer:
+        _tk_timer.stop()
+        _tk_timer = None
+    _initialized = False
 
-    A draggable subtitle bar that displays translated text.
-    This is a wrapper around the Tkinter-based overlay for Linux.
+
+class _OverlayWrapper:
+    """Base class for Qt-compatible overlay wrappers.
+
+    Provides common functionality for font size, colors, and lifecycle management.
+    Subclasses must set _mode in __init__ before calling super().__init__().
     """
+
+    _mode: str  # Must be set by subclass
 
     def __init__(
         self,
-        font_family: str = "Helvetica",
-        font_size: int = 24,
-        font_color: str = "#FFFFFF",
-        background_color: str = "#404040",
+        font_family: str,
+        font_size: int,
+        font_color: str,
+        background_color: str,
     ):
         self._font_family = font_family
         self._font_size = font_size
@@ -639,11 +665,6 @@ class BannerOverlay:
         self._visible = False
 
         _get_or_create_overlay(font_family, font_size, font_color, background_color)
-
-    def set_text(self, text: str):
-        """Update the displayed text."""
-        if _tk_overlay:
-            _tk_overlay.update_text(text)
 
     def set_font_size(self, size: int):
         """Update the font size."""
@@ -657,43 +678,64 @@ class BannerOverlay:
         """Update the colors."""
         self._font_color = font_color
         self._background_color = background_color
+        if _tk_overlay:
+            _tk_overlay.set_colors(font_color, background_color)
 
     @property
     def font_size(self) -> int:
         return self._font_size
 
     def show(self):
-        """Show the banner overlay."""
+        """Show the overlay."""
         if _tk_overlay and not self._visible:
-            _tk_overlay.set_mode("banner")
+            _tk_overlay.set_mode(self._mode)
             _tk_overlay.resume()
             self._visible = True
 
     def hide(self):
-        """Hide the banner overlay."""
+        """Hide the overlay."""
         if _tk_overlay and self._visible:
             _tk_overlay.pause()
             self._visible = False
 
     def close(self):
         """Close the overlay."""
-        global _tk_overlay, _tk_timer, _initialized
+        _close_overlay()
+
+
+class BannerOverlay(_OverlayWrapper):
+    """Banner-style overlay at bottom of screen.
+
+    A draggable subtitle bar that displays translated text.
+    This is a wrapper around the Tkinter-based overlay for Linux.
+    """
+
+    _mode = "banner"
+
+    def __init__(
+        self,
+        font_family: str = "Helvetica",
+        font_size: int = 24,
+        font_color: str = "#FFFFFF",
+        background_color: str = "#404040",
+    ):
+        super().__init__(font_family, font_size, font_color, background_color)
+
+    def set_text(self, text: str):
+        """Update the displayed text."""
         if _tk_overlay:
-            _tk_overlay.quit()
-            _tk_overlay = None
-        if _tk_timer:
-            _tk_timer.stop()
-            _tk_timer = None
-        _initialized = False
+            _tk_overlay.update_text(text)
 
 
-class InplaceOverlay:
+class InplaceOverlay(_OverlayWrapper):
     """Transparent overlay for inplace text display.
 
     A click-through overlay that positions translated text
     directly over the original game text.
     This is a wrapper around the Tkinter-based overlay for Linux.
     """
+
+    _mode = "inplace"
 
     def __init__(
         self,
@@ -702,15 +744,9 @@ class InplaceOverlay:
         font_color: str = "#FFFFFF",
         background_color: str = "#000000",
     ):
-        self._font_family = font_family
-        self._font_size = font_size
-        self._font_color = font_color
-        self._background_color = background_color
-        self._visible = False
+        super().__init__(font_family, font_size, font_color, background_color)
         self._last_bounds: dict = {}
         self._content_offset: tuple[int, int] = (0, 0)
-
-        _get_or_create_overlay(font_family, font_size, font_color, background_color)
 
     def set_regions(self, regions: list[tuple[str, dict]], content_offset: tuple[int, int] = (0, 0)):
         """Update text regions."""
@@ -741,44 +777,3 @@ class InplaceOverlay:
         if _tk_overlay:
             self._last_bounds = bounds.copy()
             self._update_position_with_offset(bounds)
-
-    def set_font_size(self, size: int):
-        """Update the font size."""
-        self._font_size = size
-        if _tk_overlay:
-            delta = size - _tk_overlay.font_size
-            if delta != 0:
-                _tk_overlay.adjust_font_size(delta)
-
-    def set_colors(self, font_color: str, background_color: str):
-        """Update the colors."""
-        self._font_color = font_color
-        self._background_color = background_color
-
-    @property
-    def font_size(self) -> int:
-        return self._font_size
-
-    def show(self):
-        """Show the inplace overlay."""
-        if _tk_overlay and not self._visible:
-            _tk_overlay.set_mode("inplace")
-            _tk_overlay.resume()
-            self._visible = True
-
-    def hide(self):
-        """Hide the inplace overlay."""
-        if _tk_overlay and self._visible:
-            _tk_overlay.pause()
-            self._visible = False
-
-    def close(self):
-        """Close the overlay."""
-        global _tk_overlay, _tk_timer, _initialized
-        if _tk_overlay:
-            _tk_overlay.quit()
-            _tk_overlay = None
-        if _tk_timer:
-            _tk_timer.stop()
-            _tk_timer = None
-        _initialized = False
