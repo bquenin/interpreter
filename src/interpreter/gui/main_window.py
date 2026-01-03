@@ -11,8 +11,11 @@ from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QPixmap, QImage, QKeySequence
 
 from . import keyboard
+from .. import log
 
 from ..capture import WindowCapture
+
+logger = log.get_logger()
 from ..config import Config
 from ..ocr import OCR
 from ..translate import Translator
@@ -383,6 +386,7 @@ class MainWindow(QMainWindow):
     def _on_key_press(self, key):
         """Handle global key press (called from keyboard listener thread)."""
         # Compare the pressed key with our hotkey
+        logger.debug("hotkey check", pressed=key, hotkey=self._current_hotkey, match=(key == self._current_hotkey))
         if key == self._current_hotkey:
             self.hotkey_pressed.emit()
 

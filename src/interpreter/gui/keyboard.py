@@ -58,6 +58,9 @@ class KeyCode:
     def __hash__(self):
         return hash(self.char)
 
+    def __repr__(self):
+        return f"KeyCode({self.char!r})"
+
 
 if _system == "Linux":
     # Linux: Use X11 RECORD extension (no evdev dependency)
@@ -82,10 +85,12 @@ if _system == "Linux":
                 return
 
             self._running = True
+            logger.debug("keyboard listener starting")
 
             try:
                 self._thread = threading.Thread(target=self._listen_loop, daemon=True)
                 self._thread.start()
+                logger.debug("keyboard listener thread started")
             except Exception as e:
                 logger.warning("keyboard shortcuts unavailable", err=str(e))
 
@@ -95,11 +100,14 @@ if _system == "Linux":
                 # Need two display connections for RECORD extension
                 self._record_display = display.Display()
                 self._local_display = display.Display()
+                logger.debug("keyboard listener X11 displays opened")
 
                 # Check if RECORD extension is available
                 if not self._record_display.has_extension("RECORD"):
                     logger.warning("x11 record extension not available")
                     return
+
+                logger.debug("keyboard listener RECORD extension available")
 
                 # Create recording context for key events
                 self._context = self._record_display.record_create_context(
@@ -160,16 +168,23 @@ if _system == "Linux":
 
                     # Convert keysym to key object
                     key = self._keysym_to_key(keysym)
+                    logger.debug("key press detected", keysym=keysym, key=key)
                     if key and self._on_press:
                         try:
+                            logger.debug("calling on_press callback")
                             self._on_press(key)
-                        except Exception:
-                            pass  # Don't crash on callback errors
+                            logger.debug("on_press callback completed")
+                        except Exception as e:
+                            logger.error("on_press callback error", err=str(e))
 
         def _keysym_to_key(self, keysym: int) -> Optional[Any]:
             """Convert X11 keysym to Key or KeyCode object."""
-            # Handle common ASCII characters
-            if 0x20 <= keysym <= 0x7e:
+            # Handle space specially (keysym 32 = 0x20)
+            if keysym == 0x20:
+                return Key.space
+
+            # Handle common ASCII characters (excluding space)
+            if 0x21 <= keysym <= 0x7e:
                 return KeyCode(chr(keysym))
 
             # Handle special keys via XK mapping
