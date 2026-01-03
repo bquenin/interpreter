@@ -436,11 +436,9 @@ class MainWindow(QMainWindow):
             self._banner_overlay.show()
         else:
             self._banner_overlay.hide()
-            # Only show inplace overlay if target window is in foreground
-            if self._capture and self._capture.is_foreground():
-                if self._last_bounds:
-                    self._inplace_overlay.position_over_window(self._last_bounds)
-                self._inplace_overlay.show()
+            if self._last_bounds:
+                self._inplace_overlay.position_over_window(self._last_bounds)
+            self._inplace_overlay.show()
 
     def _on_frame(self, frame, fps: float, bounds: dict):
         """Handle new frame from capture worker."""
@@ -456,17 +454,9 @@ class MainWindow(QMainWindow):
         pixmap = QPixmap.fromImage(qimg)
         self._preview_label.setPixmap(pixmap)
 
-        # Update inplace overlay position and visibility
+        # Update inplace overlay position if window moved
         if self._mode == "inplace" and bounds and not self._paused:
-            # Only show overlay when target window is in foreground
-            if self._capture and self._capture.is_foreground():
-                self._inplace_overlay.position_over_window(bounds)
-                if not self._inplace_overlay.isVisible():
-                    self._inplace_overlay.show()
-            else:
-                # Hide overlay when target window is not in foreground
-                if self._inplace_overlay.isVisible():
-                    self._inplace_overlay.hide()
+            self._inplace_overlay.position_over_window(bounds)
 
     def _process_frame(self):
         """Process the latest frame through OCR and translation."""
@@ -482,8 +472,7 @@ class MainWindow(QMainWindow):
 
     def _on_regions_ready(self, regions: list):
         """Handle translated regions (inplace mode)."""
-        # Only update regions if not paused and target window is in foreground
-        if not self._paused and self._capture and self._capture.is_foreground():
+        if not self._paused:
             # Get content offset from capture (accounts for title bar cropping differences)
             # Each platform's capture module returns the appropriate offset
             content_offset = (0, 0)
