@@ -486,11 +486,9 @@ class MainWindow(QMainWindow):
         """Handle translated regions (inplace mode)."""
         if not self._paused:
             # Get content offset from capture (accounts for window decorations)
-            # Each platform's capture module returns the appropriate offset (x, y)
             content_offset = (0, 0)
             if self._capture:
                 content_offset = self._capture.get_content_offset()
-
             self._inplace_overlay.set_regions(regions, content_offset)
 
     # Settings handlers

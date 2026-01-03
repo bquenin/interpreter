@@ -93,6 +93,7 @@ SM_CYFRAME = 33       # Window frame height
 SM_CXPADDEDBORDER = 92  # Padded border width (Vista+)
 
 
+
 def get_title_bar_height() -> int:
     """Get the system title bar height in screen pixels.
 
@@ -495,12 +496,37 @@ class WindowsCaptureStream(FPSTrackerMixin):
                 if not is_fullscreen:
                     # Get title bar height in screen pixels
                     title_bar_screen = get_title_bar_height()
-                    # Compute actual scale from frame size vs screen size
-                    scale = frame.width / screen_w if screen_w > 0 else 1.0
-                    # Convert to capture pixels and add safety padding
-                    title_bar_px = int(title_bar_screen * scale) + 10
+                    # Get window bounds to calculate the actual scale
+                    # (frame size vs window size, not screen size)
+                    window_bounds = _get_window_bounds(stream._window_id) if stream._window_id else None
+                    if window_bounds and window_bounds["width"] > 0:
+                        scale = frame.width / window_bounds["width"]
+                    else:
+                        scale = 1.0
+                    # Convert to capture pixels
+                    title_bar_px = int(title_bar_screen * scale)
                     if frame.height > title_bar_px:
                         frame = frame.crop(0, title_bar_px, frame.width, frame.height)
+
+                # Save first frame for debugging (only once, only in debug mode)
+                if not hasattr(stream, '_debug_frame_saved'):
+                    stream._debug_frame_saved = True
+                    from .. import log
+                    if log.is_debug_enabled():
+                        try:
+                            # Get frame buffer and save as PNG
+                            debug_arr = frame.frame_buffer
+                            debug_rgb = debug_arr[:, :, [2, 1, 0]]
+                            import numpy as np
+                            debug_rgb = np.ascontiguousarray(debug_rgb)
+                            debug_img = Image.fromarray(debug_rgb, mode="RGB")
+                            debug_path = "debug_capture.png"
+                            debug_img.save(debug_path)
+                            from .. import log
+                            log.get_logger().info("saved debug frame", path=debug_path)
+                        except Exception as e:
+                            from .. import log
+                            log.get_logger().warning("failed to save debug frame", error=str(e))
 
                 # Get frame buffer (numpy array, shape: height x width x 4, BGRA format)
                 arr = frame.frame_buffer

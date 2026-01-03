@@ -141,6 +141,8 @@ class InplaceOverlay(QWidget):
         self._font_size = font_size
         self._font_color = font_color
         self._background_color = background_color
+        self._last_regions: list[tuple[str, dict]] = []
+        self._last_content_offset: tuple[int, int] = (0, 0)
         self._setup_window()
 
     def _setup_window(self):
@@ -211,6 +213,10 @@ class InplaceOverlay(QWidget):
             label.show()
             self._labels.append(label)
 
+        # Cache for immediate re-render on style changes
+        self._last_regions = regions
+        self._last_content_offset = content_offset
+
     def position_over_window(self, bounds: dict):
         """Position overlay to cover a window.
 
@@ -236,13 +242,17 @@ class InplaceOverlay(QWidget):
         self.setGeometry(x, y, width, height)
 
     def set_font_size(self, size: int):
-        """Update the font size."""
+        """Update the font size and re-render immediately."""
         self._font_size = size
+        if self._last_regions:
+            self.set_regions(self._last_regions, self._last_content_offset)
 
     def set_colors(self, font_color: str, background_color: str):
-        """Update the colors."""
+        """Update the colors and re-render immediately."""
         self._font_color = font_color
         self._background_color = background_color
+        if self._last_regions:
+            self.set_regions(self._last_regions, self._last_content_offset)
 
     @property
     def font_size(self) -> int:
