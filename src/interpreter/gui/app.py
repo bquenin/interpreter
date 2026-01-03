@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
 
-from .. import log
+from .. import __version__, log
 from ..config import Config
 from .main_window import MainWindow
 
@@ -97,6 +97,8 @@ def run():
 
     # Configure logging
     log.configure(level="DEBUG" if args.debug else "INFO")
+    logger = log.get_logger()
+    logger.info(f"interpreter v{__version__}")
 
     # Suppress harmless warnings
     os.environ["PYTHONWARNINGS"] = "ignore::UserWarning:multiprocessing.resource_tracker"
