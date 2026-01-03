@@ -354,7 +354,7 @@ class MainWindow(QMainWindow):
         self._paused = False
         self._start_btn.setText("Start Capture")
         self._pause_btn.setEnabled(False)
-        self.statusBar().showMessage("Idle")
+        self.statusBar().showMessage("Ready")
         self._fps_label.setText("FPS: --")
 
         # Clear preview
