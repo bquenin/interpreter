@@ -3,7 +3,7 @@
 Imports the correct platform-specific overlay implementation.
 - macOS: Uses overlay_macos.py (CGWindowBounds returns points)
 - Windows: Uses overlay_windows.py (bounds in physical pixels, Win32 click-through)
-- Linux: Uses overlay_linux.py (Tkinter-based, separate implementation)
+- Linux: Uses overlay_linux.py (Tkinter-based) or overlay_linux_qt.py (Qt fallback)
 """
 
 import platform
@@ -15,8 +15,13 @@ if _system == "Darwin":
 elif _system == "Windows":
     from .overlay_windows import BannerOverlay, InplaceOverlay
 else:
-    # Linux uses Tkinter-based implementation (imported directly in main_window.py)
-    # This fallback is here for completeness but shouldn't be reached
-    from .overlay_linux import BannerOverlay, InplaceOverlay
+    # Linux: try Tkinter first (better overlay behavior), fall back to Qt
+    try:
+        import tkinter  # noqa: F401 - just checking availability
+        from .overlay_linux import BannerOverlay, InplaceOverlay
+    except ImportError:
+        # Tkinter not available (common in uv-managed Python)
+        # Fall back to Qt-based overlay
+        from .overlay_linux_qt import BannerOverlay, InplaceOverlay
 
 __all__ = ["BannerOverlay", "InplaceOverlay"]
