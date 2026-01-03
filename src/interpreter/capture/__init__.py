@@ -31,25 +31,10 @@ elif _system == "Windows":
     def get_display_bounds_for_window(window_id: int) -> Optional[dict]:
         return None
     def get_content_offset(window_id: int) -> tuple[int, int]:
-        # Windows capture crops the title bar when NOT in fullscreen mode
-        # In fullscreen, no cropping happens, so offset should be (0, 0)
-        bounds = _get_window_bounds(window_id)
-        if bounds is None:
-            # Default to windowed mode offset using actual system title bar height
-            return (0, get_title_bar_height())
-
-        screen_w, screen_h = _get_screen_size()
-        # Check if window fills the screen (fullscreen)
-        is_fullscreen = (
-            bounds["x"] <= 0 and bounds["y"] <= 0 and
-            bounds["width"] >= screen_w and bounds["height"] >= screen_h
-        )
-
-        if is_fullscreen:
-            return (0, 0)  # No title bar cropping in fullscreen
-        else:
-            # Use actual system title bar height (in screen pixels)
-            return (0, get_title_bar_height())
+        # On Windows, the overlay is positioned at the client area (using _get_client_bounds)
+        # and the capture also covers the client area (after cropping title bar).
+        # So overlay and capture are aligned - no offset needed.
+        return (0, 0)
 elif _system == "Linux":
     from .linux import find_window_by_title, capture_window, get_window_list, _get_window_bounds, LinuxCaptureStream, get_display_bounds_for_window, get_content_offset
     CaptureStream = LinuxCaptureStream

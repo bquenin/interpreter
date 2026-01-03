@@ -4,7 +4,7 @@ import time
 from typing import Optional
 
 from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QLabel, QComboBox, QPushButton, QGroupBox, QSlider,
     QFrame, QColorDialog, QButtonGroup, QKeySequenceEdit,
 )
@@ -473,22 +473,14 @@ class MainWindow(QMainWindow):
     def _on_regions_ready(self, regions: list):
         """Handle translated regions (inplace mode)."""
         if not self._paused:
-            # On Windows, the overlay is positioned at client area (matching capture)
-            # so no title bar offset is needed. On macOS, the overlay covers full window
-            # but capture excludes title bar, so offset is still needed.
-            import platform
-            if platform.system() == "Windows":
-                # Overlay matches capture area - no offset needed
-                title_bar_offset = 0
-            else:
-                # Get content offset from capture (accounts for title bar cropping)
-                content_offset = (0, 0)
-                if self._capture:
-                    content_offset = self._capture.get_content_offset()
-                # Convert from pixels to points using scale factor
-                from PySide6.QtWidgets import QApplication
-                scale = QApplication.primaryScreen().devicePixelRatio()
-                title_bar_offset = int(content_offset[1] / scale)
+            # Get content offset from capture (accounts for title bar cropping differences)
+            # Each platform's capture module returns the appropriate offset
+            content_offset = (0, 0)
+            if self._capture:
+                content_offset = self._capture.get_content_offset()
+            # Convert from pixels to points using scale factor
+            scale = QApplication.primaryScreen().devicePixelRatio()
+            title_bar_offset = int(content_offset[1] / scale)
 
             self._inplace_overlay.set_regions(regions, title_bar_offset)
 
