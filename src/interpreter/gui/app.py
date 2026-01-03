@@ -2,10 +2,13 @@
 
 import argparse
 import os
+import platform
 import sys
+from pathlib import Path
 
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QIcon
 
 from .. import log
 from ..config import Config
@@ -30,11 +33,27 @@ class InterpreterApp:
         self._app = QApplication(sys.argv)
         self._app.setApplicationName("Interpreter")
 
+        # Set application icon
+        icon_path = self._get_icon_path()
+        if icon_path.exists():
+            self._app.setWindowIcon(QIcon(str(icon_path)))
+
         # Create main window
         self._window = MainWindow(self._config)
 
         # Handle app quit
         self._app.aboutToQuit.connect(self._on_quit)
+
+    def _get_icon_path(self) -> Path:
+        """Get platform-appropriate icon path."""
+        resources = Path(__file__).parent.parent / "resources" / "icons"
+        system = platform.system()
+        if system == "Darwin":
+            return resources / "icon.icns"
+        elif system == "Windows":
+            return resources / "icon.ico"
+        else:
+            return resources / "icon.png"
 
     def _on_quit(self):
         """Handle application quit."""
