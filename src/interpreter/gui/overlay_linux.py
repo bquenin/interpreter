@@ -318,20 +318,23 @@ class Overlay:
         if self._inplace_root:
             self._inplace_root.withdraw()
         if self._banner_root:
-            self._banner_root.deiconify()
+            # Set text and resize BEFORE showing to avoid flicker
             self._position_banner()
-            self._banner_root.lift()
             if self._current_text and self._banner_label:
                 self._banner_label.config(text=self._current_text)
+                self._resize_banner_to_fit()
+            # Now show the window at correct size
+            self._banner_root.deiconify()
+            self._banner_root.lift()
 
     def _show_inplace(self):
         """Show inplace window, hide banner window."""
         if self._banner_root:
             self._banner_root.withdraw()
         if self._inplace_root:
-            self._inplace_root.deiconify()
-            self._inplace_root.lift()
+            # Render regions BEFORE showing to avoid flicker
             self._render_inplace_regions()
+            self._inplace_root.lift()
 
     def adjust_font_size(self, delta: int):
         """Adjust the font size by delta pixels."""
@@ -384,6 +387,23 @@ class Overlay:
         elif self._mode == "banner" and display_changed:
             self._position_banner()
 
+    def _resize_banner_to_fit(self):
+        """Resize banner window to fit current text content."""
+        if not self._banner_root or not self._banner_label:
+            return
+
+        self._banner_root.update_idletasks()
+        required_height = self._banner_label.winfo_reqheight() + 30
+        current_width = self._banner_root.winfo_width()
+        current_x = self._banner_root.winfo_x()
+        current_height = self._banner_root.winfo_height()
+        current_y = self._banner_root.winfo_y()
+
+        current_bottom = current_y + current_height
+        new_y = current_bottom - required_height
+
+        self._banner_root.geometry(f"{current_width}x{required_height}+{current_x}+{new_y}")
+
     def update_text(self, text: str):
         """Update the displayed text (banner mode)."""
         if self._banner_label is None or self._paused:
@@ -393,17 +413,7 @@ class Overlay:
         self._banner_label.config(text=text)
 
         if self._mode == "banner":
-            self._banner_root.update_idletasks()
-            required_height = self._banner_label.winfo_reqheight() + 30
-            current_width = self._banner_root.winfo_width()
-            current_x = self._banner_root.winfo_x()
-            current_height = self._banner_root.winfo_height()
-            current_y = self._banner_root.winfo_y()
-
-            current_bottom = current_y + current_height
-            new_y = current_bottom - required_height
-
-            self._banner_root.geometry(f"{current_width}x{required_height}+{current_x}+{new_y}")
+            self._resize_banner_to_fit()
 
     def _start_drag(self, event):
         """Start dragging the banner window."""
@@ -430,9 +440,6 @@ class Overlay:
         """Render all text regions using fitted window approach."""
         if self._inplace_root is None:
             return
-
-        for label in self._inplace_labels:
-            label.place_forget()
 
         if not self._last_regions:
             self._inplace_root.withdraw()
@@ -488,6 +495,11 @@ class Overlay:
             label.config(text=text, font=self._inplace_font, wraplength=int(width))
             label.place(x=int(rel_x), y=int(rel_y))
             visible_labels.append(label)
+
+        # Hide unused labels (without hiding active ones to avoid flicker)
+        for label in self._inplace_labels:
+            if label not in visible_labels:
+                label.place_forget()
 
         self._inplace_root.deiconify()
         self._inplace_root.wm_minsize(1, 1)
