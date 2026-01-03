@@ -9,6 +9,8 @@ from AppKit import NSWindow, NSScreen, NSTitledWindowMask, NSClosableWindowMask,
 from PIL import Image
 from Quartz import CoreGraphics as CG
 
+from .base import FPSTrackerMixin
+
 
 def _get_title_bar_height_pixels() -> int:
     """Get the standard macOS title bar height in pixels.
@@ -283,7 +285,7 @@ def capture_window(window_id: int) -> Optional[Image.Image]:
     return image
 
 
-class MacOSCaptureStream:
+class MacOSCaptureStream(FPSTrackerMixin):
     """Continuous window capture wrapping existing Quartz capture.
 
     Provides the same streaming interface as WindowsCaptureStream for
@@ -302,17 +304,13 @@ class MacOSCaptureStream:
         self._running = False
         self._thread: Optional[threading.Thread] = None
 
-        # FPS tracking in the capture thread
-        self._frame_count = 0
-        self._fps = 0.0
-        self._fps_update_time = time.time()
+        # FPS tracking (from mixin)
+        self._init_fps_tracking()
 
     def start(self):
         """Start the capture stream in background."""
         self._running = True
-        self._frame_count = 0
-        self._fps = 0.0
-        self._fps_update_time = time.time()
+        self._reset_fps_tracking()
         self._thread = threading.Thread(target=self._capture_loop, daemon=True)
         self._thread.start()
 
@@ -328,15 +326,7 @@ class MacOSCaptureStream:
             if frame:
                 with self._frame_lock:
                     self._latest_frame = frame
-                    self._frame_count += 1
-
-                    # Update FPS every second
-                    now = time.time()
-                    elapsed = now - self._fps_update_time
-                    if elapsed >= 1.0:
-                        self._fps = self._frame_count / elapsed
-                        self._frame_count = 0
-                        self._fps_update_time = now
+                    self._update_fps()
 
     def get_frame(self) -> Optional[Image.Image]:
         """Get the latest captured frame.
@@ -347,15 +337,7 @@ class MacOSCaptureStream:
         with self._frame_lock:
             return self._latest_frame
 
-    @property
-    def fps(self) -> float:
-        """Get the current capture frame rate.
-
-        Returns:
-            Frames per second being captured by the background thread.
-        """
-        with self._frame_lock:
-            return self._fps
+    # fps property is inherited from FPSTrackerMixin
 
     def stop(self):
         """Stop the capture stream."""

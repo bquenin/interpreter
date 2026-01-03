@@ -12,6 +12,8 @@ from typing import Optional
 
 from PIL import Image
 
+from .base import FPSTrackerMixin
+
 # Windows build number requirements for Graphics Capture API features
 # - Build 18362 (Win10 1903): Basic Windows Graphics Capture API
 # - Build 22000 (Win11): IsBorderRequired property to disable yellow border
@@ -404,7 +406,7 @@ def _get_monitor_size_for_window(window_id: int) -> tuple[int, int]:
     return _get_screen_size()
 
 
-class WindowsCaptureStream:
+class WindowsCaptureStream(FPSTrackerMixin):
     """Continuous window capture using Windows Graphics Capture API.
 
     Uses the windows-capture library which wraps the Windows Graphics Capture API.
@@ -424,10 +426,10 @@ class WindowsCaptureStream:
         self._frame_lock = threading.Lock()
         self._capture = None
         self._running = False
-        # FPS tracking (same approach as macOS)
-        self._frame_count: int = 0
-        self._fps: float = 0.0
-        self._fps_update_time: float = 0.0
+
+        # FPS tracking (from mixin)
+        self._init_fps_tracking()
+
         # Store window ID for monitor detection
         self._window_id: Optional[int] = None
         window = find_window_by_title(window_title)
@@ -461,9 +463,7 @@ class WindowsCaptureStream:
             draw_border = None  # Skip border config (yellow border will appear)
 
         self._running = True
-        self._frame_count = 0
-        self._fps = 0.0
-        self._fps_update_time = time.time()
+        self._reset_fps_tracking()
 
         # Create capture instance
         self._capture = WindowsCapture(
@@ -513,15 +513,7 @@ class WindowsCaptureStream:
 
                 with stream._frame_lock:
                     stream._latest_frame = img
-                    stream._frame_count += 1
-
-                    # Update FPS every second (same approach as macOS)
-                    now = time.time()
-                    elapsed = now - stream._fps_update_time
-                    if elapsed >= 1.0:
-                        stream._fps = stream._frame_count / elapsed
-                        stream._frame_count = 0
-                        stream._fps_update_time = now
+                    stream._update_fps()
             except Exception:
                 pass  # Silently ignore frame errors
 
@@ -553,11 +545,4 @@ class WindowsCaptureStream:
         self._running = False
         # The capture will stop on next frame via capture_control.stop()
 
-    @property
-    def fps(self) -> float:
-        """Get the current capture frame rate.
-
-        Returns:
-            Frames per second being captured.
-        """
-        return self._fps
+    # fps property is inherited from FPSTrackerMixin

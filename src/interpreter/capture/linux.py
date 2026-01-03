@@ -18,6 +18,7 @@ from Xlib.error import BadWindow, BadDrawable
 from Xlib.ext import randr
 
 from .. import log
+from .base import FPSTrackerMixin
 
 logger = log.get_logger()
 
@@ -75,15 +76,38 @@ def _get_window_geometry(window) -> Optional[dict]:
         return None
 
 
-def _enumerate_windows(disp: display.Display, parent=None) -> list[dict]:
-    """Recursively enumerate all visible windows with titles."""
-    if parent is None:
-        parent = disp.screen().root
+def _is_normal_window(disp: display.Display, window) -> bool:
+    """Check if a window is a normal application window.
 
+    Uses _NET_WM_WINDOW_TYPE to filter out dialogs, tooltips, etc.
+    Windows without this property are assumed to be normal windows.
+    """
+    try:
+        window_type_atom = disp.intern_atom("_NET_WM_WINDOW_TYPE")
+        normal_atom = disp.intern_atom("_NET_WM_WINDOW_TYPE_NORMAL")
+
+        prop = window.get_full_property(window_type_atom, Xatom.ATOM)
+        if prop and prop.value:
+            # Window has explicit type - check if it's NORMAL
+            return normal_atom in prop.value
+
+        # No window type property - assume it's a normal window
+        return True
+    except (BadWindow, BadDrawable):
+        return False
+
+
+def _enumerate_windows(disp: display.Display) -> list[dict]:
+    """Enumerate top-level application windows.
+
+    Only returns direct children of the root window that are normal
+    application windows (not dialogs, tooltips, etc.).
+    """
+    root = disp.screen().root
     windows = []
 
     try:
-        children = parent.query_tree().children
+        children = root.query_tree().children
     except BadWindow:
         return windows
 
@@ -92,6 +116,10 @@ def _enumerate_windows(disp: display.Display, parent=None) -> list[dict]:
             # Get window attributes
             attrs = child.get_attributes()
             if attrs.map_state != X.IsViewable:
+                continue
+
+            # Only include normal application windows
+            if not _is_normal_window(disp, child):
                 continue
 
             title = _get_window_title(disp, child)
@@ -104,9 +132,6 @@ def _enumerate_windows(disp: display.Display, parent=None) -> list[dict]:
                     "title": title,
                     "bounds": geom,
                 })
-
-            # Recurse into children
-            windows.extend(_enumerate_windows(disp, child))
 
         except BadWindow:
             continue
@@ -523,7 +548,7 @@ def capture_window(window_id: int, title_bar_height: int = None) -> Optional[Ima
         return None
 
 
-class LinuxCaptureStream:
+class LinuxCaptureStream(FPSTrackerMixin):
     """Continuous background window capture using X11.
 
     Captures frames in a background thread at a fixed interval.
@@ -555,9 +580,13 @@ class LinuxCaptureStream:
         self._capture_times: list[float] = []  # Recent capture times in ms
         self._warning_shown = False
 
+        # FPS tracking (from mixin)
+        self._init_fps_tracking()
+
     def start(self):
         """Start the capture stream in background."""
         self._running = True
+        self._reset_fps_tracking()
         self._thread = threading.Thread(target=self._capture_loop, daemon=True)
         self._thread.start()
         logger.debug("capture started (continuous)", window_id=self._window_id,
@@ -582,6 +611,7 @@ class LinuxCaptureStream:
             if frame:
                 with self._frame_lock:
                     self._latest_frame = frame
+                    self._update_fps()
 
                 # Track capture times and check for slow capture
                 self._check_capture_performance(capture_time_ms, frame.size)
@@ -712,6 +742,8 @@ class LinuxCaptureStream:
         """
         with self._frame_lock:
             return self._latest_frame
+
+    # fps property is inherited from FPSTrackerMixin
 
     def stop(self):
         """Stop the capture stream."""
