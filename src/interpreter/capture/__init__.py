@@ -17,7 +17,7 @@ _invalid_time: float = 0
 _system = platform.system()
 
 if _system == "Darwin":
-    from .macos import find_window_by_title, capture_window, get_window_list, get_display_bounds_for_window, _get_window_bounds, MacOSCaptureStream, _get_title_bar_height_pixels, _is_fullscreen
+    from .macos import find_window_by_title, capture_window, get_window_list, _get_window_bounds, MacOSCaptureStream, _get_title_bar_height_pixels, _is_fullscreen
     CaptureStream = MacOSCaptureStream
     def get_content_offset(window_id: int) -> tuple[int, int]:
         # macOS capture crops the title bar, so we need to report that offset
@@ -31,15 +31,13 @@ if _system == "Darwin":
 elif _system == "Windows":
     from .windows import find_window_by_title, capture_window, get_window_list, _get_window_bounds, _get_client_bounds, _get_screen_size, get_title_bar_height, WindowsCaptureStream, is_window_foreground
     CaptureStream = WindowsCaptureStream
-    def get_display_bounds_for_window(window_id: int) -> Optional[dict]:
-        return None
     def get_content_offset(window_id: int) -> tuple[int, int]:
         # On Windows, the overlay is positioned at the client area (using _get_client_bounds)
         # and the capture also covers the client area (after cropping title bar).
         # So overlay and capture are aligned - no offset needed.
         return (0, 0)
 elif _system == "Linux":
-    from .linux import find_window_by_title, capture_window, get_window_list, _get_window_bounds, LinuxCaptureStream, get_display_bounds_for_window, get_content_offset
+    from .linux import find_window_by_title, capture_window, get_window_list, _get_window_bounds, LinuxCaptureStream, get_content_offset
     CaptureStream = LinuxCaptureStream
     def is_window_foreground(window_id: int) -> bool:
         # TODO: Implement for Linux if needed
@@ -146,12 +144,6 @@ class WindowCapture:
     def bounds(self) -> Optional[dict]:
         """Get the bounds of the target window."""
         return self._last_bounds
-
-    def get_display_bounds(self) -> Optional[dict]:
-        """Get the bounds of the display containing the target window."""
-        if self._window_id is None:
-            return None
-        return get_display_bounds_for_window(self._window_id)
 
     def get_content_offset(self) -> tuple[int, int]:
         """Get the offset of the content area within the window.

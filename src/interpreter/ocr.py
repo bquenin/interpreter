@@ -47,6 +47,16 @@ class OCR:
         self._confidence_threshold = confidence_threshold
         self._debug = debug
 
+    @property
+    def confidence_threshold(self) -> float:
+        """Get the confidence threshold."""
+        return self._confidence_threshold
+
+    @confidence_threshold.setter
+    def confidence_threshold(self, value: float) -> None:
+        """Set the confidence threshold."""
+        self._confidence_threshold = value
+
     def load(self) -> None:
         """Load the MeikiOCR model."""
         if self._model is not None:
@@ -130,44 +140,6 @@ class OCR:
 
         # Concatenate all text (no spatial clustering for banner mode)
         return self._clean_text(''.join(line['text'] for line in lines))
-
-    def extract_text_with_bbox(self, image: Image.Image) -> OCRResult:
-        """Extract Japanese text from an image with bounding box.
-
-        Args:
-            image: PIL Image to extract text from.
-
-        Returns:
-            OCRResult with extracted text and combined bounding box.
-        """
-        # Use extract_text_regions and combine into single result
-        regions = self.extract_text_regions(image)
-        if not regions:
-            return OCRResult(text="", bbox=None)
-
-        # Combine all regions into one
-        text = " ".join(r.text for r in regions if r.text)
-
-        # Compute combined bbox
-        min_x, min_y = float('inf'), float('inf')
-        max_x, max_y = 0, 0
-        for r in regions:
-            if r.bbox:
-                min_x = min(min_x, r.bbox["x"])
-                min_y = min(min_y, r.bbox["y"])
-                max_x = max(max_x, r.bbox["x"] + r.bbox["width"])
-                max_y = max(max_y, r.bbox["y"] + r.bbox["height"])
-
-        bbox = None
-        if min_x < float('inf'):
-            bbox = {
-                "x": int(min_x),
-                "y": int(min_y),
-                "width": int(max_x - min_x),
-                "height": int(max_y - min_y),
-            }
-
-        return OCRResult(text=text, bbox=bbox)
 
     def extract_text_regions(self, image: Image.Image) -> list[OCRResult]:
         """Extract Japanese text regions from an image with spatial clustering.
@@ -314,119 +286,6 @@ class OCR:
                 clusters.append([line])
 
         return clusters
-
-    def _cluster_characters(self, chars: list[dict]) -> list[list[dict]]:
-        """Cluster characters based on spatial proximity.
-
-        Characters are grouped if they are close horizontally and vertically.
-
-        Args:
-            chars: List of character dicts with 'char' and 'bbox' keys.
-
-        Returns:
-            List of clusters, where each cluster is a list of character dicts.
-        """
-        if not chars:
-            return []
-
-        # Sort by position (top-to-bottom, left-to-right)
-        chars = sorted(chars, key=lambda c: (c['bbox'][1], c['bbox'][0]))
-
-        clusters = []
-
-        for char in chars:
-            x1, y1, x2, y2 = char['bbox']
-            char_width = x2 - x1
-            char_height = y2 - y1
-
-            h_threshold = char_width * SPATIAL_PROXIMITY_MULTIPLIER
-
-            # Find a cluster this character belongs to
-            merged = False
-            for cluster in clusters:
-                for existing in cluster:
-                    ex1, ey1, ex2, ey2 = existing['bbox']
-
-                    # Check vertical overlap - must actually overlap, not just be close
-                    # Characters are on same line if their y-ranges overlap
-                    y_overlap = not (y2 <= ey1 or y1 >= ey2)
-
-                    # Check horizontal proximity
-                    h_gap = min(abs(x1 - ex2), abs(x2 - ex1))
-                    h_close = h_gap < h_threshold
-
-                    if y_overlap and h_close:
-                        cluster.append(char)
-                        merged = True
-                        break
-
-                if merged:
-                    break
-
-            if not merged:
-                # Start a new cluster
-                clusters.append([char])
-
-        # Merge clusters that should be connected
-        # (a character might bridge two previously separate clusters)
-        merged_clusters = self._merge_overlapping_clusters(clusters)
-
-        return merged_clusters
-
-    def _merge_overlapping_clusters(self, clusters: list[list[dict]]) -> list[list[dict]]:
-        """Merge clusters that are spatially connected.
-
-        Args:
-            clusters: List of character clusters.
-
-        Returns:
-            Merged list of clusters.
-        """
-        if len(clusters) <= 1:
-            return clusters
-
-        # Keep merging until no more merges possible
-        changed = True
-        while changed:
-            changed = False
-            new_clusters = []
-
-            for cluster in clusters:
-                merged = False
-
-                for existing in new_clusters:
-                    if self._clusters_should_merge(cluster, existing):
-                        existing.extend(cluster)
-                        merged = True
-                        changed = True
-                        break
-
-                if not merged:
-                    new_clusters.append(cluster)
-
-            clusters = new_clusters
-
-        return clusters
-
-    def _clusters_should_merge(self, c1: list[dict], c2: list[dict]) -> bool:
-        """Check if two clusters should be merged based on proximity."""
-        for char1 in c1:
-            x1, y1, x2, y2 = char1['bbox']
-            char_width = x2 - x1
-            h_threshold = char_width * SPATIAL_PROXIMITY_MULTIPLIER
-
-            for char2 in c2:
-                ex1, ey1, ex2, ey2 = char2['bbox']
-
-                # Must actually overlap vertically
-                y_overlap = not (y2 <= ey1 or y1 >= ey2)
-                h_gap = min(abs(x1 - ex2), abs(x2 - ex1))
-                h_close = h_gap < h_threshold
-
-                if y_overlap and h_close:
-                    return True
-
-        return False
 
     def _clean_text(self, text: str) -> str:
         """Clean extracted text.

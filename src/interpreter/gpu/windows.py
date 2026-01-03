@@ -4,9 +4,6 @@ import os
 import sys
 from pathlib import Path
 
-# Module-level state
-_cuda_available = False
-
 
 def setup() -> bool:
     """Setup CUDA DLLs on Windows.
@@ -18,7 +15,6 @@ def setup() -> bool:
     Returns:
         True if CUDA DLLs were found and registered, False otherwise.
     """
-    global _cuda_available
 
     # Find site-packages directory
     site_packages = None
@@ -61,14 +57,4 @@ def setup() -> bool:
         except (OSError, AttributeError):
             pass  # add_dll_directory may not exist or may fail
 
-    _cuda_available = True
     return True
-
-
-def is_available() -> bool:
-    """Check if CUDA GPU acceleration is available.
-
-    Returns:
-        True if CUDA DLLs were successfully registered.
-    """
-    return _cuda_available
