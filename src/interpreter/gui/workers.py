@@ -99,6 +99,9 @@ class ProcessWorker(QObject):
         if self._ocr is None:
             return
 
+        # Update OCR threshold from GUI setting
+        self._ocr.confidence_threshold = confidence_threshold
+
         # OCR
         try:
             if self._mode == "inplace":
