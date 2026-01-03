@@ -298,16 +298,12 @@ class Overlay:
             return
         self.font_size = new_size
 
-        # Update both fonts
+        # Update both fonts - no need to call update_idletasks() since
+        # the Qt timer pumps Tkinter events at 60fps
         if self._banner_font:
             self._banner_font.configure(size=self.font_size)
         if self._inplace_font:
             self._inplace_font.configure(size=self.font_size)
-
-        if self._banner_root:
-            self._banner_root.update_idletasks()
-        if self._inplace_root:
-            self._inplace_root.update_idletasks()
 
     def update_position(self, window_bounds: dict, display_bounds: dict = None, image_size: tuple[int, int] = None, content_offset: tuple[int, int] = None):
         """Update overlay position to follow the game window.

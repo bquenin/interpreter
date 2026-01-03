@@ -1,6 +1,6 @@
 background_color: '#404040'
 font_color: '#FFFFFF'
-font_size: 40
+font_size: 42
 hotkeys:
   decrease_font: '-'
   increase_font: '='
@@ -10,4 +10,4 @@ hotkeys:
 ocr_confidence: 0.6
 overlay_mode: banner
 refresh_rate: 0.5
-window_title: Tales of Phantasia
+window_title: RetroArch Snes9x 1.63 5a40cd5
