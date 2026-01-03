@@ -32,12 +32,20 @@ class BannerOverlay(QWidget):
 
     def _setup_window(self):
         """Configure window flags for overlay behavior."""
-        self.setWindowFlags(
+        flags = (
             Qt.WindowType.FramelessWindowHint |
             Qt.WindowType.WindowStaysOnTopHint |
-            Qt.WindowType.Tool |  # Hides from taskbar
-            Qt.WindowType.WindowDoesNotAcceptFocus
+            Qt.WindowType.Tool  # Hides from taskbar
         )
+
+        # Linux/X11: Use BypassWindowManagerHint for proper positioning
+        # Wayland doesn't support arbitrary positioning, so this helps on X11
+        if _system == "Linux":
+            flags |= Qt.WindowType.X11BypassWindowManagerHint
+        else:
+            flags |= Qt.WindowType.WindowDoesNotAcceptFocus
+
+        self.setWindowFlags(flags)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
 
@@ -95,10 +103,22 @@ class BannerOverlay(QWidget):
     def font_size(self) -> int:
         return self._font_size
 
+    def showEvent(self, event):
+        """Handle show event - reposition on Linux/Wayland."""
+        super().showEvent(event)
+        # On Wayland, repositioning after show may help
+        if _system == "Linux":
+            self._move_to_bottom()
+
     # Dragging support
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
-            self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            # On Wayland, use system move (compositor handles it)
+            # On X11/macOS/Windows, use manual tracking
+            if _system == "Linux":
+                self.windowHandle().startSystemMove()
+            else:
+                self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
             event.accept()
 
     def mouseMoveEvent(self, event):
