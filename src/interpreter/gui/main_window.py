@@ -361,8 +361,9 @@ class MainWindow(QMainWindow):
         self._preview_label.clear()
         self._preview_label.setText("No preview")
 
-        # Hide overlays
+        # Hide overlays and clear inplace labels
         self._banner_overlay.hide()
+        self._inplace_overlay.clear_regions()
         self._inplace_overlay.hide()
 
     def _toggle_pause(self):
@@ -373,6 +374,7 @@ class MainWindow(QMainWindow):
         if self._paused:
             self._pause_btn.setText("Resume")
             self._banner_overlay.hide()
+            self._inplace_overlay.clear_regions()
             self._inplace_overlay.hide()
         else:
             self._pause_btn.setText("Pause")

@@ -188,8 +188,10 @@ class InplaceOverlayBase(QWidget):
         content_offset_x = int(content_offset[0] / scale)
         content_offset_y = int(content_offset[1] / scale)
 
-        # Remove old labels
+        # Remove old labels immediately (hide + unparent before deleteLater)
         for label in self._labels:
+            label.hide()
+            label.setParent(None)
             label.deleteLater()
         self._labels.clear()
 
@@ -234,6 +236,15 @@ class InplaceOverlayBase(QWidget):
             bounds: Dict with x, y, width, height from platform capture.
         """
         raise NotImplementedError("Subclasses must implement position_over_window()")
+
+    def clear_regions(self):
+        """Clear all displayed text regions."""
+        for label in self._labels:
+            label.hide()
+            label.setParent(None)
+            label.deleteLater()
+        self._labels.clear()
+        self._last_regions = []
 
     def set_font_size(self, size: int):
         """Update the font size and re-render immediately."""

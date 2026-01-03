@@ -777,3 +777,8 @@ class InplaceOverlay(_OverlayWrapper):
         if _tk_overlay:
             self._last_bounds = bounds.copy()
             self._update_position_with_offset(bounds)
+
+    def clear_regions(self):
+        """Clear all displayed text regions."""
+        if _tk_overlay:
+            _tk_overlay.update_regions([])
