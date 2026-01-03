@@ -148,6 +148,9 @@ class InplaceOverlay(QWidget):
         self._font_size = font_size
         self._font_color = font_color
         self._background_color = background_color
+        # For Linux: stores target window position and monitor offset
+        self._window_bounds: dict = {}
+        self._monitor_offset: tuple[int, int] = (0, 0)
         self._setup_window()
 
     def _setup_window(self):
@@ -173,12 +176,12 @@ class InplaceOverlay(QWidget):
         screen = QApplication.primaryScreen().geometry()
         self.setGeometry(screen)
 
-    def set_regions(self, regions: list[tuple[str, dict]], title_bar_offset: int = 0):
+    def set_regions(self, regions: list[tuple[str, dict]], content_offset: tuple[int, int] = (0, 0)):
         """Update text regions.
 
         Args:
             regions: List of (text, bbox) tuples where bbox is a dict with x, y, width, height
-            title_bar_offset: Offset in points to account for title bar (overlay includes it, capture doesn't)
+            content_offset: Tuple of (x, y) offset in pixels for content area within window
         """
         # Get scale factor from the screen this overlay is on (for multi-monitor support)
         screen = self.screen()
@@ -186,10 +189,23 @@ class InplaceOverlay(QWidget):
             screen = QApplication.primaryScreen()
         scale = screen.devicePixelRatio()
 
+        # Convert content offset from pixels to points
+        content_offset_x = int(content_offset[0] / scale)
+        content_offset_y = int(content_offset[1] / scale)
+
         # Remove old labels
         for label in self._labels:
             label.deleteLater()
         self._labels.clear()
+
+        # On Linux, calculate window offset relative to monitor
+        # (overlay covers full monitor, labels need absolute positioning)
+        if _system == "Linux" and self._window_bounds:
+            window_offset_x = self._window_bounds.get("x", 0) - self._monitor_offset[0]
+            window_offset_y = self._window_bounds.get("y", 0) - self._monitor_offset[1]
+        else:
+            window_offset_x = 0
+            window_offset_y = 0
 
         # Create new labels
         for text, bbox in regions:
@@ -211,8 +227,8 @@ class InplaceOverlay(QWidget):
             # OCR returns coordinates in captured image pixels (physical pixels)
             # Qt uses logical pixels, so divide by scale factor
             # Labels are positioned relative to the overlay widget
-            x = int(bbox.get("x", 0) / scale)
-            y = int(bbox.get("y", 0) / scale) + title_bar_offset
+            x = int(bbox.get("x", 0) / scale) + window_offset_x + content_offset_x
+            y = int(bbox.get("y", 0) / scale) + window_offset_y + content_offset_y
             label.move(x, y)
             label.show()
             self._labels.append(label)
@@ -223,19 +239,34 @@ class InplaceOverlay(QWidget):
         Args:
             bounds: Dict with x, y, width, height (in physical/screen pixels)
         """
-        # On Windows with DPI scaling, bounds from Win32 API are in physical pixels
-        # but Qt uses logical pixels. We need to convert using the correct screen's DPI.
-        # Find which screen the window is on based on its center point
         from PySide6.QtCore import QPoint
+
+        # Find which screen the window is on based on its center point
         center_x = bounds["x"] + bounds["width"] // 2
         center_y = bounds["y"] + bounds["height"] // 2
-
-        # Get the screen at this position (use primary as fallback)
         screen = QApplication.screenAt(QPoint(center_x, center_y))
         if screen is None:
             screen = QApplication.primaryScreen()
 
         scale = screen.devicePixelRatio()
+
+        # On Linux/Wayland, we can't move windows programmatically.
+        # Instead, keep the overlay fullscreen on the game's monitor and store
+        # the window offset so labels can be positioned at absolute coordinates.
+        if _system == "Linux":
+            # Store bounds for label positioning (will be used in set_regions)
+            self._window_bounds = bounds
+
+            # Get the monitor geometry and store its offset
+            screen_geom = screen.geometry()
+            self._monitor_offset = (screen_geom.x(), screen_geom.y())
+
+            # Position overlay to cover the entire monitor
+            if self.geometry() != screen_geom:
+                self.setGeometry(screen_geom)
+            return
+
+        # On Windows/macOS, position overlay directly over the window
         x = int(bounds["x"] / scale)
         y = int(bounds["y"] / scale)
         width = int(bounds["width"] / scale)

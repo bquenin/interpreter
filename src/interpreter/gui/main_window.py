@@ -13,12 +13,19 @@ from PySide6.QtGui import QPixmap, QImage, QKeySequence
 
 from pynput import keyboard
 
+import platform
+
 from ..capture import WindowCapture
 from ..config import Config
 from ..ocr import OCR
 from ..translate import Translator
-from .overlay import BannerOverlay, InplaceOverlay
 from .workers import CaptureWorker, ProcessWorker
+
+# Platform-specific overlay imports
+if platform.system() == "Linux":
+    from .overlay_linux import BannerOverlay, InplaceOverlay
+else:
+    from .overlay import BannerOverlay, InplaceOverlay
 
 
 class MainWindow(QMainWindow):
@@ -473,16 +480,13 @@ class MainWindow(QMainWindow):
     def _on_regions_ready(self, regions: list):
         """Handle translated regions (inplace mode)."""
         if not self._paused:
-            # Get content offset from capture (accounts for title bar cropping differences)
-            # Each platform's capture module returns the appropriate offset
+            # Get content offset from capture (accounts for window decorations)
+            # Each platform's capture module returns the appropriate offset (x, y)
             content_offset = (0, 0)
             if self._capture:
                 content_offset = self._capture.get_content_offset()
-            # Convert from pixels to points using scale factor
-            scale = QApplication.primaryScreen().devicePixelRatio()
-            title_bar_offset = int(content_offset[1] / scale)
 
-            self._inplace_overlay.set_regions(regions, title_bar_offset)
+            self._inplace_overlay.set_regions(regions, content_offset)
 
     # Settings handlers
     def _on_refresh_rate_changed(self, value: int):
