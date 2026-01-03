@@ -160,8 +160,11 @@ class InplaceOverlay(QWidget):
             regions: List of (text, bbox) tuples where bbox is a dict with x, y, width, height
             title_bar_offset: Offset in points to account for title bar (overlay includes it, capture doesn't)
         """
-        # Get scale factor for coordinate conversion (Retina displays use 2x)
-        scale = QApplication.primaryScreen().devicePixelRatio()
+        # Get scale factor from the screen this overlay is on (for multi-monitor support)
+        screen = self.screen()
+        if screen is None:
+            screen = QApplication.primaryScreen()
+        scale = screen.devicePixelRatio()
 
         # Remove old labels
         for label in self._labels:
@@ -201,8 +204,18 @@ class InplaceOverlay(QWidget):
             bounds: Dict with x, y, width, height (in physical/screen pixels)
         """
         # On Windows with DPI scaling, bounds from Win32 API are in physical pixels
-        # but Qt uses logical pixels. We need to convert.
-        scale = QApplication.primaryScreen().devicePixelRatio()
+        # but Qt uses logical pixels. We need to convert using the correct screen's DPI.
+        # Find which screen the window is on based on its center point
+        from PySide6.QtCore import QPoint
+        center_x = bounds["x"] + bounds["width"] // 2
+        center_y = bounds["y"] + bounds["height"] // 2
+
+        # Get the screen at this position (use primary as fallback)
+        screen = QApplication.screenAt(QPoint(center_x, center_y))
+        if screen is None:
+            screen = QApplication.primaryScreen()
+
+        scale = screen.devicePixelRatio()
         x = int(bounds["x"] / scale)
         y = int(bounds["y"] / scale)
         width = int(bounds["width"] / scale)
