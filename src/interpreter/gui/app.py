@@ -1,11 +1,13 @@
 """PySide6 application entry point."""
 
+import os
 import platform
 import sys
 
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt
 
+from .. import log
 from ..config import Config
 from .main_window import MainWindow
 
@@ -105,8 +107,11 @@ def run():
     from ..gpu import setup as setup_gpu
     setup_gpu()
 
+    # Configure logging (set INTERPRETER_DEBUG=1 for debug output)
+    debug = os.environ.get("INTERPRETER_DEBUG", "").lower() in ("1", "true", "yes")
+    log.configure(level="DEBUG" if debug else "INFO")
+
     # Suppress harmless warnings
-    import os
     os.environ["PYTHONWARNINGS"] = "ignore::UserWarning:multiprocessing.resource_tracker"
     os.environ["HF_HUB_DISABLE_IMPLICIT_TOKEN"] = "1"
 
