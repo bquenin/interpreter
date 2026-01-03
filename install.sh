@@ -43,11 +43,10 @@ else
 fi
 
 # Install or upgrade interpreter-v2
-echo -e "${YELLOW}[2/${TOTAL_STEPS}] Installing interpreter-v2 from GitHub...${NC}"
+echo -e "${YELLOW}[2/${TOTAL_STEPS}] Installing interpreter-v2 from PyPI...${NC}"
 echo -e "${GRAY}     (this may take a minute on first install)${NC}"
-BRANCH="${INTERPRETER_BRANCH:-main}"
 # Use Python 3.12 - uv-managed Python includes tkinter, system Python 3.13+ often doesn't
-if ! uv tool install --upgrade --python 3.12 "git+https://github.com/bquenin/interpreter@${BRANCH}" 2>&1; then
+if ! uv tool install --upgrade --python 3.12 interpreter-v2 2>&1; then
     echo ""
     echo -e "${RED}Installation failed!${NC}"
     echo -e "${YELLOW}This may be due to missing dependencies. Try:${NC}"

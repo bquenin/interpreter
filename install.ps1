@@ -29,19 +29,19 @@ if (-not $uvPath) {
 }
 
 # Install or upgrade interpreter-v2
-Write-Host "[2/3] Installing interpreter-v2 from GitHub..." -ForegroundColor Yellow
+Write-Host "[2/3] Installing interpreter-v2 from PyPI..." -ForegroundColor Yellow
 Write-Host "     (this may take a minute on first install)" -ForegroundColor Gray
-# Use Python 3.13 explicitly - onnxruntime doesn't have wheels for 3.14 yet
+# Use Python 3.12 explicitly - onnxruntime doesn't have wheels for 3.14 yet
 # Temporarily allow errors so uv's progress output (on stderr) doesn't stop the script
 $ErrorActionPreference = 'Continue'
-uv tool install --upgrade --python 3.13 "git+https://github.com/bquenin/interpreter@main"
+uv tool install --upgrade --python 3.12 interpreter-v2
 $installExitCode = $LASTEXITCODE
 $ErrorActionPreference = 'Stop'
 if ($installExitCode -ne 0) {
     Write-Host ""
     Write-Host "Installation failed!" -ForegroundColor Red
     Write-Host "This may be due to missing dependencies. Try:" -ForegroundColor Yellow
-    Write-Host "  uv python install 3.13"
+    Write-Host "  uv python install 3.12"
     Write-Host "  Then run this installer again."
     exit 1
 }
