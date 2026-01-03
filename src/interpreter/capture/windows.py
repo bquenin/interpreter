@@ -548,7 +548,26 @@ class WindowsCaptureStream(FPSTrackerMixin):
             stream._running = False
 
         # Start capture in free-threaded mode (non-blocking)
-        self._capture.start_free_threaded()
+        try:
+            self._capture.start_free_threaded()
+        except Exception as e:
+            error_msg = str(e).strip()
+            if not error_msg:
+                # windows-capture sometimes throws empty exceptions
+                raise RuntimeError(
+                    f"Failed to start screen capture for '{self._window_title}'. "
+                    f"This can happen if the window uses exclusive fullscreen or a video driver "
+                    f"that bypasses Windows Desktop Window Manager (DWM).\n\n"
+                    f"Troubleshooting tips:\n"
+                    f"  - Try running the application in windowed or borderless windowed mode\n"
+                    f"  - For emulators: switch video driver to 'gl', 'glcore', or 'd3d11' (not 'vulkan' exclusive)\n"
+                    f"  - Make sure the window is visible and not minimized\n"
+                    f"  - Try running interpreter-v2 as Administrator"
+                ) from e
+            else:
+                raise RuntimeError(
+                    f"Failed to start screen capture for '{self._window_title}': {error_msg}"
+                ) from e
 
         # Wait for first frame to arrive (up to 5 seconds)
         for _ in range(100):
