@@ -6,10 +6,12 @@ from typing import Optional
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QLabel, QComboBox, QPushButton, QGroupBox, QSlider,
-    QFrame, QColorDialog,
+    QFrame, QColorDialog, QButtonGroup, QKeySequenceEdit,
 )
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QPixmap, QImage
+from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtGui import QPixmap, QImage, QKeySequence
+
+from pynput import keyboard
 
 from ..capture import WindowCapture
 from ..config import Config
@@ -21,6 +23,9 @@ from .workers import CaptureWorker, ProcessWorker
 
 class MainWindow(QMainWindow):
     """Main application window."""
+
+    # Signal for thread-safe hotkey handling
+    hotkey_pressed = Signal()
 
     def __init__(self, config: Config):
         super().__init__()
@@ -98,17 +103,72 @@ class MainWindow(QMainWindow):
         overlay_group = QGroupBox("Overlay Settings")
         overlay_layout = QHBoxLayout(overlay_group)
 
+        # Segmented mode selector
+        overlay_layout.addWidget(QLabel("Mode:"))
+
+        self._mode_group = QButtonGroup(self)
+        self._mode_group.setExclusive(True)
+
+        self._banner_btn = QPushButton("Banner")
+        self._banner_btn.setCheckable(True)
+        self._banner_btn.setChecked(self._mode == "banner")
+        self._mode_group.addButton(self._banner_btn, 0)
+
+        self._inplace_btn = QPushButton("Inplace")
+        self._inplace_btn.setCheckable(True)
+        self._inplace_btn.setChecked(self._mode == "inplace")
+        self._mode_group.addButton(self._inplace_btn, 1)
+
+        # Style as segmented control (dark mode friendly)
+        segment_style = """
+            QPushButton {
+                padding: 6px 16px;
+                border: 1px solid #555;
+                background-color: #3a3a3a;
+                color: #ccc;
+            }
+            QPushButton:checked {
+                background-color: #0078d4;
+                color: white;
+                border-color: #0078d4;
+            }
+            QPushButton:hover:!checked {
+                background-color: #4a4a4a;
+            }
+        """
+        self._banner_btn.setStyleSheet(segment_style + "QPushButton { border-radius: 4px 0 0 4px; border-right: none; }")
+        self._inplace_btn.setStyleSheet(segment_style + "QPushButton { border-radius: 0 4px 4px 0; }")
+
+        self._mode_group.idClicked.connect(self._on_mode_changed)
+
+        # Container to keep buttons connected (no spacing)
+        mode_container = QWidget()
+        mode_layout = QHBoxLayout(mode_container)
+        mode_layout.setContentsMargins(0, 0, 0, 0)
+        mode_layout.setSpacing(0)
+        mode_layout.addWidget(self._banner_btn)
+        mode_layout.addWidget(self._inplace_btn)
+        overlay_layout.addWidget(mode_container)
+
+        overlay_layout.addStretch()
+
         self._pause_btn = QPushButton("Pause")
         self._pause_btn.clicked.connect(self._toggle_pause)
         self._pause_btn.setEnabled(False)
         overlay_layout.addWidget(self._pause_btn)
 
-        next_mode = "Inplace" if self._mode == "banner" else "Banner"
-        self._mode_btn = QPushButton(f"Switch to {next_mode}")
-        self._mode_btn.clicked.connect(self._toggle_mode)
-        overlay_layout.addWidget(self._mode_btn)
+        # Hotkey picker for pause
+        self._pause_hotkey = QKeySequenceEdit(QKeySequence(Qt.Key.Key_Space))
+        self._pause_hotkey.setFixedWidth(80)
+        self._pause_hotkey.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
+        self._pause_hotkey.keySequenceChanged.connect(self._on_pause_hotkey_changed)
+        overlay_layout.addWidget(self._pause_hotkey)
 
-        overlay_layout.addStretch()
+        # Global hotkey using pynput
+        self._current_hotkey = keyboard.Key.space
+        self._keyboard_listener = keyboard.Listener(on_press=self._on_key_press)
+        self._keyboard_listener.start()
+        self.hotkey_pressed.connect(self._toggle_pause)
 
         layout.addWidget(overlay_group)
 
@@ -170,9 +230,6 @@ class MainWindow(QMainWindow):
 
         self._fps_label = QLabel("FPS: --")
         status_layout.addWidget(self._fps_label)
-
-        self._mode_label = QLabel(f"Mode: {self._mode.title()}")
-        status_layout.addWidget(self._mode_label)
 
         # Preview
         self._preview_label = QLabel()
@@ -305,6 +362,8 @@ class MainWindow(QMainWindow):
 
     def _toggle_pause(self):
         """Toggle pause state."""
+        if not self._capturing:
+            return
         self._paused = not self._paused
         if self._paused:
             self._pause_btn.setText("Resume")
@@ -314,17 +373,55 @@ class MainWindow(QMainWindow):
             self._pause_btn.setText("Pause")
             self._show_overlay()
 
-    def _toggle_mode(self):
-        """Toggle between banner and inplace mode."""
-        if self._mode == "banner":
-            self._mode = "inplace"
-        else:
-            self._mode = "banner"
+    def _on_key_press(self, key):
+        """Handle global key press (called from pynput thread)."""
+        # Compare the pressed key with our hotkey
+        if key == self._current_hotkey:
+            self.hotkey_pressed.emit()
 
-        # Update UI: button shows what we'll switch TO, label shows current mode
-        next_mode = "Inplace" if self._mode == "banner" else "Banner"
-        self._mode_btn.setText(f"Switch to {next_mode}")
-        self._mode_label.setText(f"Mode: {self._mode.title()}")
+    def _on_pause_hotkey_changed(self, key_sequence: QKeySequence):
+        """Update pause hotkey when changed in UI."""
+        if key_sequence.isEmpty():
+            return
+        # Convert Qt key sequence to pynput key
+        key_str = key_sequence.toString().lower()
+        self._current_hotkey = self._qt_key_to_pynput(key_str)
+        # Clear focus so it stops capturing keys
+        self._pause_hotkey.clearFocus()
+
+    def _qt_key_to_pynput(self, key_str: str):
+        """Convert Qt key string to pynput key."""
+        # Map common keys
+        key_map = {
+            "space": keyboard.Key.space,
+            "esc": keyboard.Key.esc,
+            "escape": keyboard.Key.esc,
+            "tab": keyboard.Key.tab,
+            "return": keyboard.Key.enter,
+            "enter": keyboard.Key.enter,
+            "f1": keyboard.Key.f1,
+            "f2": keyboard.Key.f2,
+            "f3": keyboard.Key.f3,
+            "f4": keyboard.Key.f4,
+            "f5": keyboard.Key.f5,
+            "f6": keyboard.Key.f6,
+            "f7": keyboard.Key.f7,
+            "f8": keyboard.Key.f8,
+            "f9": keyboard.Key.f9,
+            "f10": keyboard.Key.f10,
+            "f11": keyboard.Key.f11,
+            "f12": keyboard.Key.f12,
+        }
+        if key_str in key_map:
+            return key_map[key_str]
+        # For single characters, use KeyCode
+        if len(key_str) == 1:
+            return keyboard.KeyCode.from_char(key_str)
+        return keyboard.Key.space  # fallback
+
+    def _on_mode_changed(self, button_id: int):
+        """Handle mode selection change."""
+        self._mode = "banner" if button_id == 0 else "inplace"
 
         self._process_worker.set_mode(self._mode)
         self._config.overlay_mode = self._mode
@@ -433,5 +530,6 @@ class MainWindow(QMainWindow):
     def cleanup(self):
         """Clean up resources before closing."""
         self._stop_capture()
+        self._keyboard_listener.stop()
         self._banner_overlay.close()
         self._inplace_overlay.close()
