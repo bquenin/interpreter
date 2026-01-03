@@ -91,6 +91,7 @@ def run():
     # Suppress harmless warnings
     os.environ["PYTHONWARNINGS"] = "ignore::UserWarning:multiprocessing.resource_tracker"
     os.environ["HF_HUB_DISABLE_IMPLICIT_TOKEN"] = "1"
+    os.environ["HF_HUB_VERBOSITY"] = "error"  # Suppress unauthenticated request warnings
 
     # Load config
     config = Config.load()

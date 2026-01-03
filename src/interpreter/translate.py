@@ -1,6 +1,11 @@
 """Translation module using Sugoi V4 for offline Japanese to English."""
 
 import os
+
+# Suppress HuggingFace Hub warnings (must be set before import)
+os.environ["HF_HUB_DISABLE_IMPLICIT_TOKEN"] = "1"
+os.environ["HF_HUB_VERBOSITY"] = "error"
+
 from difflib import SequenceMatcher
 from pathlib import Path
 
@@ -10,9 +15,6 @@ from huggingface_hub.utils import LocalEntryNotFoundError
 from . import log
 
 logger = log.get_logger()
-
-# Suppress HuggingFace Hub warning about unauthenticated requests
-os.environ["HF_HUB_DISABLE_IMPLICIT_TOKEN"] = "1"
 
 # Official HuggingFace repository for Sugoi V4
 SUGOI_REPO_ID = "entai2965/sugoi-v4-ja-en-ctranslate2"
