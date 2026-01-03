@@ -61,8 +61,8 @@ uv tool update-shell > /dev/null 2>&1 || true
 echo -e "${YELLOW}[3/${TOTAL_STEPS}] Optimizing for fast startup...${NC}"
 TOOL_DIR="$HOME/.local/share/uv/tools/interpreter-v2"
 if [ -d "$TOOL_DIR" ]; then
-    # Compile bytecode
-    "$TOOL_DIR/bin/python" -m compileall -q "$TOOL_DIR/lib" 2>/dev/null || true
+    # Compile bytecode (exclude .tmpl.py template files that aren't valid Python)
+    "$TOOL_DIR/bin/python" -m compileall -q -x '\.tmpl\.py$' "$TOOL_DIR/lib" 2>/dev/null || true
     # Warm up OS caches by running once
     interpreter-v2 --list-windows > /dev/null 2>&1 || true
 fi
