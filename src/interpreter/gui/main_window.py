@@ -1,10 +1,9 @@
 """Main application window with settings and controls."""
 
-import time
 from typing import Optional
 
 from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
+    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QLabel, QComboBox, QPushButton, QGroupBox, QSlider,
     QFrame, QColorDialog, QButtonGroup, QKeySequenceEdit,
 )
@@ -228,33 +227,32 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(settings_group)
 
-        # Status
-        status_group = QGroupBox("Status")
-        status_layout = QVBoxLayout(status_group)
-
-        self._status_label = QLabel("Status: Idle")
-        status_layout.addWidget(self._status_label)
+        # Preview
+        preview_group = QGroupBox("Preview")
+        preview_layout = QVBoxLayout(preview_group)
 
         self._fps_label = QLabel("FPS: --")
-        status_layout.addWidget(self._fps_label)
+        preview_layout.addWidget(self._fps_label)
 
-        # Preview
         self._preview_label = QLabel()
         self._preview_label.setFixedSize(320, 240)
         self._preview_label.setFrameStyle(QFrame.Shape.Box)
         self._preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._preview_label.setText("No preview")
         self._preview_label.setStyleSheet("background-color: #2a2a2a; color: #888;")
-        status_layout.addWidget(self._preview_label)
+        preview_layout.addWidget(self._preview_label)
 
-        layout.addWidget(status_group)
+        layout.addWidget(preview_group)
 
         # Stretch at bottom
         layout.addStretch()
 
+        # Status bar
+        self.statusBar().showMessage("Idle")
+
     def _load_models(self):
         """Load OCR and translation models."""
-        self._status_label.setText("Status: Loading models...")
+        self.statusBar().showMessage("Loading models...")
         self.repaint()
 
         # Load OCR
@@ -269,7 +267,7 @@ class MainWindow(QMainWindow):
         self._process_worker.set_translator(self._translator)
         self._process_worker.set_mode(self._mode)  # Sync mode from config
 
-        self._status_label.setText("Status: Ready")
+        self.statusBar().showMessage("Ready")
 
     def _refresh_windows(self):
         """Refresh the window list."""
@@ -305,7 +303,7 @@ class MainWindow(QMainWindow):
         """Start capturing the selected window."""
         idx = self._window_combo.currentIndex()
         if idx < 0 or idx >= len(self._windows_list):
-            self._status_label.setText("Status: No window selected")
+            self.statusBar().showMessage("No window selected")
             return
 
         window = self._windows_list[idx]
@@ -315,11 +313,11 @@ class MainWindow(QMainWindow):
 
         self._capture = WindowCapture(title, window_id=window_id, bounds=bounds)
         if not self._capture.find_window():
-            self._status_label.setText("Status: Window not found")
+            self.statusBar().showMessage("Window not found")
             return
 
         if not self._capture.start_stream():
-            self._status_label.setText("Status: Failed to start stream")
+            self.statusBar().showMessage("Failed to start stream")
             return
 
         self._capture_worker.set_capture(self._capture)
@@ -335,7 +333,7 @@ class MainWindow(QMainWindow):
         self._start_btn.setText("Stop Capture")
         self._pause_btn.setEnabled(True)
         self._pause_btn.setText("Pause")
-        self._status_label.setText(f"Status: Capturing '{title[:40]}...'")
+        self.statusBar().showMessage(f"Capturing '{title[:40]}...'")
 
         # Update config with selected window
         self._config.window_title = title
@@ -356,7 +354,7 @@ class MainWindow(QMainWindow):
         self._paused = False
         self._start_btn.setText("Start Capture")
         self._pause_btn.setEnabled(False)
-        self._status_label.setText("Status: Idle")
+        self.statusBar().showMessage("Idle")
         self._fps_label.setText("FPS: --")
 
         # Clear preview
@@ -472,7 +470,7 @@ class MainWindow(QMainWindow):
 
         self._process_worker.process_frame(self._last_frame, self._config.ocr_confidence)
 
-    def _on_text_ready(self, original: str, translated: str, cached: bool):
+    def _on_text_ready(self, _original: str, translated: str, _cached: bool):
         """Handle translated text (banner mode)."""
         if not self._paused:
             self._banner_overlay.set_text(translated)

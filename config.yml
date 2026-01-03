@@ -1,6 +1,6 @@
 background_color: '#404040'
 font_color: '#FFFFFF'
-font_size: 42
+font_size: 38
 hotkeys:
   decrease_font: '-'
   increase_font: '='
