@@ -12,19 +12,12 @@ from PySide6.QtGui import QPixmap, QImage, QKeySequence
 
 from pynput import keyboard
 
-import platform
-
 from ..capture import WindowCapture
 from ..config import Config
 from ..ocr import OCR
 from ..translate import Translator
 from .workers import CaptureWorker, ProcessWorker
-
-# Platform-specific overlay imports
-if platform.system() == "Linux":
-    from .overlay_linux import BannerOverlay, InplaceOverlay
-else:
-    from .overlay import BannerOverlay, InplaceOverlay
+from .overlay import BannerOverlay, InplaceOverlay
 
 # Font settings
 FONT_FAMILY = "Helvetica"
