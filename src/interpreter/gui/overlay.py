@@ -25,12 +25,14 @@ class BannerOverlay(QWidget):
 
     def __init__(
         self,
+        font_family: str = "Helvetica",
         font_size: int = 24,
         font_color: str = "#FFFFFF",
         background_color: str = "#404040",
     ):
         super().__init__()
         self._drag_pos: Optional[QPoint] = None
+        self._font_family = font_family
         self._font_size = font_size
         self._font_color = font_color
         self._background_color = background_color
@@ -74,7 +76,7 @@ class BannerOverlay(QWidget):
 
     def _update_label_style(self):
         """Update label font and color."""
-        self._label.setFont(QFont("Arial", self._font_size, QFont.Weight.Bold))
+        self._label.setFont(QFont(self._font_family, self._font_size, QFont.Weight.Bold))
         self._label.setStyleSheet(f"color: {self._font_color}; background: transparent;")
 
     def _move_to_bottom(self):
@@ -128,12 +130,14 @@ class InplaceOverlay(QWidget):
 
     def __init__(
         self,
+        font_family: str = "Helvetica",
         font_size: int = 18,
         font_color: str = "#FFFFFF",
         background_color: str = "#000000",
     ):
         super().__init__()
         self._labels: list[QLabel] = []
+        self._font_family = font_family
         self._font_size = font_size
         self._font_color = font_color
         self._background_color = background_color
@@ -187,7 +191,7 @@ class InplaceOverlay(QWidget):
             if not bbox:
                 continue
             label = QLabel(text, self)
-            label.setFont(QFont("Arial", self._font_size, QFont.Weight.Bold))
+            label.setFont(QFont(self._font_family, self._font_size, QFont.Weight.Bold))
             # Convert hex background color to rgba with transparency
             bg_color = self._background_color.lstrip('#')
             r, g, b = int(bg_color[0:2], 16), int(bg_color[2:4], 16), int(bg_color[4:6], 16)

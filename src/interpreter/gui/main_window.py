@@ -26,7 +26,8 @@ if platform.system() == "Linux":
 else:
     from .overlay import BannerOverlay, InplaceOverlay
 
-# Font size range for slider
+# Font settings
+FONT_FAMILY = "Helvetica"
 MIN_FONT_SIZE = 8
 MAX_FONT_SIZE = 72
 
@@ -65,11 +66,13 @@ class MainWindow(QMainWindow):
 
         # Overlays
         self._banner_overlay = BannerOverlay(
+            font_family=FONT_FAMILY,
             font_size=config.font_size,
             font_color=config.font_color,
             background_color=config.background_color,
         )
         self._inplace_overlay = InplaceOverlay(
+            font_family=FONT_FAMILY,
             font_size=config.font_size,
             font_color=config.font_color,
             background_color=config.background_color,

@@ -23,10 +23,6 @@ logger = log.get_logger()
 # X11 Shape Extension Support (for click-through transparency)
 # =============================================================================
 
-# Platform constants
-FONT_FAMILY = "Helvetica"
-
-# X11 shape extension support
 _xlib_available = False
 _display = None
 
@@ -165,10 +161,12 @@ class Overlay:
 
     def __init__(
         self,
+        font_family: str = "Helvetica",
         font_size: int = 40,
         font_color: str = "#FFFFFF",
         background_color: str = "#404040",
     ):
+        self.font_family = font_family
         self.font_size = font_size
         self.font_color = font_color
         self.background_color = background_color
@@ -233,7 +231,7 @@ class Overlay:
         )
         self._banner_frame.pack(expand=True, fill=tk.BOTH)
 
-        self._banner_font = tkfont.Font(family=FONT_FAMILY, size=self.font_size, weight="bold")
+        self._banner_font = tkfont.Font(family=self.font_family, size=self.font_size, weight="bold")
 
         self._banner_label = tk.Label(
             self._banner_frame,
@@ -262,7 +260,7 @@ class Overlay:
         _setup_transparency(self._inplace_root)
         self._inplace_handle = _setup_window(self._inplace_root, "inplace")
 
-        self._inplace_font = tkfont.Font(family=FONT_FAMILY, size=self.font_size, weight="bold")
+        self._inplace_font = tkfont.Font(family=self.font_family, size=self.font_size, weight="bold")
 
         _set_click_through(self._inplace_handle, True)
 
@@ -547,12 +545,13 @@ _tk_timer: Optional[QTimer] = None
 _initialized = False
 
 
-def _get_or_create_overlay(font_size: int, font_color: str, background_color: str) -> Overlay:
+def _get_or_create_overlay(font_family: str, font_size: int, font_color: str, background_color: str) -> Overlay:
     """Get or create the shared Tkinter overlay instance."""
     global _tk_overlay, _tk_timer, _initialized
 
     if _tk_overlay is None:
         _tk_overlay = Overlay(
+            font_family=font_family,
             font_size=font_size,
             font_color=font_color,
             background_color=background_color,
@@ -605,16 +604,18 @@ class BannerOverlay:
 
     def __init__(
         self,
+        font_family: str = "Helvetica",
         font_size: int = 24,
         font_color: str = "#FFFFFF",
         background_color: str = "#404040",
     ):
+        self._font_family = font_family
         self._font_size = font_size
         self._font_color = font_color
         self._background_color = background_color
         self._visible = False
 
-        _get_or_create_overlay(font_size, font_color, background_color)
+        _get_or_create_overlay(font_family, font_size, font_color, background_color)
 
     def set_text(self, text: str):
         """Update the displayed text."""
@@ -673,10 +674,12 @@ class InplaceOverlay:
 
     def __init__(
         self,
+        font_family: str = "Helvetica",
         font_size: int = 18,
         font_color: str = "#FFFFFF",
         background_color: str = "#000000",
     ):
+        self._font_family = font_family
         self._font_size = font_size
         self._font_color = font_color
         self._background_color = background_color
@@ -684,7 +687,7 @@ class InplaceOverlay:
         self._last_bounds: dict = {}
         self._content_offset: tuple[int, int] = (0, 0)
 
-        _get_or_create_overlay(font_size, font_color, background_color)
+        _get_or_create_overlay(font_family, font_size, font_color, background_color)
 
     def set_regions(self, regions: list[tuple[str, dict]], content_offset: tuple[int, int] = (0, 0)):
         """Update text regions."""
