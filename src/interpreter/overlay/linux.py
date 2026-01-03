@@ -45,7 +45,7 @@ from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
 from .. import log
-from .overlay_base import BANNER_HEIGHT, BANNER_BOTTOM_MARGIN
+from .base import BANNER_HEIGHT, BANNER_BOTTOM_MARGIN
 
 logger = log.get_logger()
 
@@ -70,7 +70,6 @@ class LinuxWindowHandle:
     def __init__(self, toplevel_window: Any, xdisplay: Any):
         self.toplevel = toplevel_window
         self.display = xdisplay
-        self.shape_applied = False
 
 
 def _setup_transparency(root: tk.Tk) -> None:
@@ -160,7 +159,6 @@ def _update_shape_mask(window_handle: Any, labels: list[tk.Label]) -> None:
         )
 
         window_handle.display.flush()
-        window_handle.shape_applied = True
 
     except Exception as e:
         logger.debug("shape mask: failed", error=str(e))
@@ -658,10 +656,10 @@ class _OverlayWrapper:
     """Base class for Qt-compatible overlay wrappers.
 
     Provides common functionality for font size, colors, and lifecycle management.
-    Subclasses must set _mode in __init__ before calling super().__init__().
+    Subclasses must define _mode as a class attribute.
     """
 
-    _mode: str  # Must be set by subclass
+    _mode: str  # Must be defined as class attribute by subclass
 
     def __init__(
         self,

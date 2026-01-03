@@ -134,7 +134,7 @@ class InplaceOverlayBase(QWidget):
         font_family: str = "Helvetica",
         font_size: int = 18,
         font_color: str = "#FFFFFF",
-        background_color: str = "#000000",
+        background_color: str = "#404040",
     ):
         super().__init__()
         self._labels: list[QLabel] = []
@@ -163,6 +163,14 @@ class InplaceOverlayBase(QWidget):
         screen = QApplication.primaryScreen().geometry()
         self.setGeometry(screen)
 
+    def _clear_labels(self):
+        """Remove all labels from the overlay."""
+        for label in self._labels:
+            label.hide()
+            label.setParent(None)
+            label.deleteLater()
+        self._labels.clear()
+
     def _get_scale_factor(self) -> float:
         """Get the display scale factor for coordinate conversion.
 
@@ -188,12 +196,7 @@ class InplaceOverlayBase(QWidget):
         content_offset_x = int(content_offset[0] / scale)
         content_offset_y = int(content_offset[1] / scale)
 
-        # Remove old labels immediately (hide + unparent before deleteLater)
-        for label in self._labels:
-            label.hide()
-            label.setParent(None)
-            label.deleteLater()
-        self._labels.clear()
+        self._clear_labels()
 
         # Create new labels
         for text, bbox in regions:
@@ -239,11 +242,7 @@ class InplaceOverlayBase(QWidget):
 
     def clear_regions(self):
         """Clear all displayed text regions."""
-        for label in self._labels:
-            label.hide()
-            label.setParent(None)
-            label.deleteLater()
-        self._labels.clear()
+        self._clear_labels()
         self._last_regions = []
 
     def set_font_size(self, size: int):

@@ -17,7 +17,7 @@ from ..config import Config
 from ..ocr import OCR
 from ..translate import Translator
 from .workers import CaptureWorker, ProcessWorker
-from .overlay import BannerOverlay, InplaceOverlay
+from ..overlay import BannerOverlay, InplaceOverlay
 
 logger = log.get_logger()
 

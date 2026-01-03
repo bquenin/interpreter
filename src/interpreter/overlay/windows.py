@@ -10,7 +10,7 @@ On Windows:
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import QPoint
 
-from .overlay_base import BannerOverlayBase, InplaceOverlayBase
+from .base import BannerOverlayBase, InplaceOverlayBase
 
 
 class BannerOverlay(BannerOverlayBase):
