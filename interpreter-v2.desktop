@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Interpreter
+Comment=Offline screen translator for Japanese games
+Exec=interpreter-v2
+Icon=interpreter-v2
+Type=Application
+Categories=Utility;Translation;
+StartupWMClass=interpreter-v2

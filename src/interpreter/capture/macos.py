@@ -1,11 +1,39 @@
 """macOS-specific window capture using PyObjC/Quartz."""
 
+import os
 import threading
 import time
 from typing import Optional
 
+from AppKit import NSWindow, NSScreen, NSTitledWindowMask, NSClosableWindowMask, NSMiniaturizableWindowMask
 from PIL import Image
 from Quartz import CoreGraphics as CG
+
+from .base import FPSTrackerMixin
+
+
+def _get_title_bar_height_pixels() -> int:
+    """Get the standard macOS title bar height in pixels.
+
+    Uses NSWindow API to get the title bar height in points,
+    then multiplies by the display scale factor.
+
+    Returns:
+        Title bar height in pixels for the current display.
+    """
+    # Get scale factor from main screen
+    scale = NSScreen.mainScreen().backingScaleFactor()
+
+    # Calculate title bar height using NSWindow API
+    content_rect = ((0, 0), (100, 100))
+    style_mask = NSTitledWindowMask | NSClosableWindowMask | NSMiniaturizableWindowMask
+    frame_rect = NSWindow.frameRectForContentRect_styleMask_(content_rect, style_mask)
+
+    # Difference in height is the title bar (in points)
+    title_bar_points = frame_rect[1][1] - content_rect[1][1]
+
+    # Convert to pixels
+    return int(title_bar_points * scale)
 
 
 def get_window_list() -> list[dict]:
@@ -15,8 +43,11 @@ def get_window_list() -> list[dict]:
         List of window dictionaries with keys: id, title, bounds
     """
     windows = []
+    own_pid = os.getpid()
+
+    # Use kCGWindowListOptionAll to include windows on other Spaces (e.g., fullscreen apps)
     window_list = CG.CGWindowListCopyWindowInfo(
-        CG.kCGWindowListOptionOnScreenOnly | CG.kCGWindowListExcludeDesktopElements,
+        CG.kCGWindowListOptionAll | CG.kCGWindowListExcludeDesktopElements,
         CG.kCGNullWindowID
     )
 
@@ -24,22 +55,29 @@ def get_window_list() -> list[dict]:
         window_id = window.get(CG.kCGWindowNumber)
         title = window.get(CG.kCGWindowName, "")
         owner = window.get(CG.kCGWindowOwnerName, "")
+        owner_pid = window.get(CG.kCGWindowOwnerPID, 0)
         bounds = window.get(CG.kCGWindowBounds, {})
 
-        if title or owner:  # Skip windows without any identifiable name
-            windows.append({
-                "id": window_id,
-                "title": title or owner,
-                "owner": owner,
-                "bounds": {
-                    "x": int(bounds.get("X", 0)),
-                    "y": int(bounds.get("Y", 0)),
-                    "width": int(bounds.get("Width", 0)),
-                    "height": int(bounds.get("Height", 0)),
-                }
-            })
+        # Only include normal application windows (layer 0) with a title
+        # Exclude our own windows (by PID or by title)
+        layer = window.get(CG.kCGWindowLayer, -1)
+        if layer != 0 or not title or owner_pid == own_pid or title == "Interpreter":
+            continue
 
-    return windows
+        windows.append({
+            "id": window_id,
+            "title": title,
+            "owner": owner,
+            "bounds": {
+                "x": int(bounds.get("X", 0)),
+                "y": int(bounds.get("Y", 0)),
+                "width": int(bounds.get("Width", 0)),
+                "height": int(bounds.get("Height", 0)),
+            }
+        })
+
+    # Sort alphabetically by title
+    return sorted(windows, key=lambda w: w["title"].lower())
 
 
 def find_window_by_title(title_substring: str) -> Optional[dict]:
@@ -137,64 +175,25 @@ def _is_fullscreen(window_id: int) -> bool:
     return False
 
 
-def get_display_bounds_for_window(window_id: int) -> Optional[dict]:
-    """Get the display bounds for the display containing a window.
-
-    Args:
-        window_id: The CGWindowID of the window.
-
-    Returns:
-        Display bounds dict with x, y, width, height, or None if not found.
-    """
-    bounds = _get_window_bounds(window_id)
-    if bounds is None:
-        return None
-
-    # Get all active displays
-    max_displays = 16
-    (err, display_ids, display_count) = CG.CGGetActiveDisplayList(max_displays, None, None)
-    if err != 0 or display_count == 0:
-        return None
-
-    # Find which display contains this window's center
-    window_center_x = bounds["x"] + bounds["width"] // 2
-    window_center_y = bounds["y"] + bounds["height"] // 2
-
-    for display_id in display_ids[:display_count]:
-        display_bounds = CG.CGDisplayBounds(display_id)
-        dx = int(display_bounds.origin.x)
-        dy = int(display_bounds.origin.y)
-        dw = int(display_bounds.size.width)
-        dh = int(display_bounds.size.height)
-
-        if dx <= window_center_x < dx + dw and dy <= window_center_y < dy + dh:
-            return {
-                "x": dx,
-                "y": dy,
-                "width": dw,
-                "height": dh,
-            }
-
-    return None
-
-
-def capture_window(window_id: int, title_bar_height: int = 30) -> Optional[Image.Image]:
+def capture_window(window_id: int) -> Optional[Image.Image]:
     """Capture a screenshot of a specific window using CGWindowListCreateImage.
 
     This captures the actual window content, not the screen region,
     so overlapping windows (like the subtitle overlay) won't be included.
     Automatically detects fullscreen mode and skips title bar cropping.
+    Uses macOS API to determine correct title bar height for current display.
 
     Args:
         window_id: The CGWindowID of the window to capture.
-        title_bar_height: Height of window title bar to crop (default: 30).
-                         Ignored for fullscreen windows.
 
     Returns:
         PIL Image of the window content (excluding title bar), or None if capture failed.
     """
     # Check if fullscreen before capturing
     is_fullscreen = _is_fullscreen(window_id)
+
+    # Get title bar height from macOS API (accounts for display scale)
+    title_bar_height = _get_title_bar_height_pixels() if not is_fullscreen else 0
 
     # Capture the specific window only (not the screen region)
     # kCGWindowListOptionIncludingWindow captures only this window
@@ -238,14 +237,14 @@ def capture_window(window_id: int, title_bar_height: int = 30) -> Optional[Image
     # Convert to RGB (drop alpha channel)
     image = image.convert("RGB")
 
-    # Crop out the title bar if not fullscreen
-    if not is_fullscreen and title_bar_height > 0 and height > title_bar_height:
+    # Crop out the title bar if needed
+    if title_bar_height > 0 and height > title_bar_height:
         image = image.crop((0, title_bar_height, width, height))
 
     return image
 
 
-class MacOSCaptureStream:
+class MacOSCaptureStream(FPSTrackerMixin):
     """Continuous window capture wrapping existing Quartz capture.
 
     Provides the same streaming interface as WindowsCaptureStream for
@@ -264,20 +263,29 @@ class MacOSCaptureStream:
         self._running = False
         self._thread: Optional[threading.Thread] = None
 
+        # FPS tracking (from mixin)
+        self._init_fps_tracking()
+
     def start(self):
         """Start the capture stream in background."""
         self._running = True
+        self._reset_fps_tracking()
         self._thread = threading.Thread(target=self._capture_loop, daemon=True)
         self._thread.start()
 
     def _capture_loop(self):
-        """Background thread that continuously captures frames."""
+        """Background thread that continuously captures frames.
+
+        Captures as fast as possible without artificial delay. The actual
+        capture rate is limited by the system (CGWindowListCreateImage speed).
+        Cross-Space capture may be throttled by macOS to ~5-6 FPS.
+        """
         while self._running:
             frame = capture_window(self._window_id)
             if frame:
                 with self._frame_lock:
                     self._latest_frame = frame
-            time.sleep(0.033)  # ~30 FPS
+                    self._update_fps()
 
     def get_frame(self) -> Optional[Image.Image]:
         """Get the latest captured frame.
@@ -287,6 +295,8 @@ class MacOSCaptureStream:
         """
         with self._frame_lock:
             return self._latest_frame
+
+    # fps property is inherited from FPSTrackerMixin
 
     def stop(self):
         """Stop the capture stream."""

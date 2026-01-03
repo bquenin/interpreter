@@ -23,6 +23,9 @@ LEVEL_NAMES = {
     "critical": "CRT",
 }
 
+# Module-level debug flag (set by configure())
+_debug_enabled = False
+
 
 def _level_to_3letter(logger, method_name, event_dict):
     """Convert log level to 3-letter abbreviation."""
@@ -66,8 +69,10 @@ def configure(level: str = "INFO", debug: bool = False) -> None:
         level: Log level (DEBUG, INFO, WARNING, ERROR).
         debug: If True, sets level to DEBUG.
     """
+    global _debug_enabled
     if debug:
         level = "DEBUG"
+    _debug_enabled = level.upper() == "DEBUG"
 
     # Configure structlog processors
     processors = [
@@ -101,3 +106,8 @@ def get_logger(name: str = None) -> structlog.BoundLogger:
     if name:
         return logger.bind(logger=name)
     return logger
+
+
+def is_debug_enabled() -> bool:
+    """Check if debug logging is enabled."""
+    return _debug_enabled

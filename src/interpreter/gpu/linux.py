@@ -5,9 +5,6 @@ import os
 import sys
 from pathlib import Path
 
-# Module-level state
-_cuda_available = False
-
 
 def setup() -> bool:
     """Setup CUDA libraries on Linux.
@@ -20,7 +17,6 @@ def setup() -> bool:
     Returns:
         True if CUDA libraries were found and loaded, False otherwise.
     """
-    global _cuda_available
 
     # Find site-packages directory
     site_packages = None
@@ -74,14 +70,4 @@ def setup() -> bool:
                 except OSError:
                     pass  # Library might have unmet dependencies, that's ok
 
-    _cuda_available = loaded_any
     return loaded_any
-
-
-def is_available() -> bool:
-    """Check if CUDA GPU acceleration is available.
-
-    Returns:
-        True if CUDA libraries were successfully loaded.
-    """
-    return _cuda_available

@@ -149,3 +149,36 @@ hotkeys:
         """Convert hex color string to RGB tuple."""
         hex_color = hex_color.lstrip("#")
         return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+
+    def save(self, config_path: str | None = None) -> None:
+        """Save configuration to YAML file.
+
+        Args:
+            config_path: Path to save to. If None, uses the path the config was loaded from,
+                        or creates in ~/.interpreter/config.yml
+        """
+        if config_path is None:
+            config_path = self.config_path
+
+        if config_path is None:
+            config_dir = Path.home() / ".interpreter"
+            config_dir.mkdir(parents=True, exist_ok=True)
+            config_path = str(config_dir / "config.yml")
+
+        # Explicitly convert to basic types to avoid Python-specific YAML tags
+        data = {
+            "window_title": str(self.window_title) if self.window_title else "",
+            "refresh_rate": float(self.refresh_rate),
+            "ocr_confidence": float(self.ocr_confidence),
+            "overlay_mode": str(self.overlay_mode),
+            "font_size": int(self.font_size),
+            "font_color": str(self.font_color),
+            "background_color": str(self.background_color),
+            "hotkeys": {str(k): str(v) for k, v in self.hotkeys.items()},
+        }
+
+        with open(config_path, "w", encoding="utf-8") as f:
+            yaml.dump(data, f, default_flow_style=False, allow_unicode=True)
+
+        self.config_path = config_path
+        logger.info("config saved", path=config_path)

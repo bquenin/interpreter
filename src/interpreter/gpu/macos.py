@@ -16,12 +16,3 @@ def setup() -> bool:
         False (CUDA not available on macOS).
     """
     return False
-
-
-def is_available() -> bool:
-    """Check if GPU acceleration is available.
-
-    Returns:
-        False (CUDA not available on macOS).
-    """
-    return False

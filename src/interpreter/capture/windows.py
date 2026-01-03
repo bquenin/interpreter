@@ -6,10 +6,14 @@ Uses PrintWindow API to capture window content even when obscured by other windo
 import ctypes
 import sys
 import threading
+import time
 from ctypes import wintypes
 from typing import Optional
 
+import numpy as np
 from PIL import Image
+
+from .base import FPSTrackerMixin
 
 # Windows build number requirements for Graphics Capture API features
 # - Build 18362 (Win10 1903): Basic Windows Graphics Capture API
@@ -88,6 +92,7 @@ PW_RENDERFULLCONTENT = 2  # Capture even if window is layered/composited
 SM_CYCAPTION = 4      # Title bar height
 SM_CYFRAME = 33       # Window frame height
 SM_CXPADDEDBORDER = 92  # Padded border width (Vista+)
+
 
 
 def get_title_bar_height() -> int:
@@ -216,6 +221,20 @@ def _get_window_bounds(window_id: int) -> Optional[dict]:
             "height": rect.bottom - rect.top,
         }
     return None
+
+
+def is_window_foreground(window_id: int) -> bool:
+    """Check if the specified window is the foreground window.
+
+    Args:
+        window_id: The window handle (HWND).
+
+    Returns:
+        True if the window is in foreground, False otherwise.
+    """
+    user32 = ctypes.windll.user32
+    foreground_hwnd = user32.GetForegroundWindow()
+    return foreground_hwnd == window_id
 
 
 def _get_client_bounds(window_id: int) -> Optional[dict]:
@@ -351,7 +370,45 @@ def _get_screen_size() -> tuple[int, int]:
     return width, height
 
 
-class WindowsCaptureStream:
+class MONITORINFO(ctypes.Structure):
+    """Windows MONITORINFO structure."""
+    _fields_ = [
+        ("cbSize", wintypes.DWORD),
+        ("rcMonitor", RECT),
+        ("rcWork", RECT),
+        ("dwFlags", wintypes.DWORD),
+    ]
+
+
+def _get_monitor_size_for_window(window_id: int) -> tuple[int, int]:
+    """Get the monitor size for the monitor containing the specified window.
+
+    Args:
+        window_id: The window handle (HWND).
+
+    Returns:
+        Tuple of (width, height) of the monitor, or primary screen size as fallback.
+    """
+    user32 = ctypes.windll.user32
+
+    # Get the monitor that contains the window
+    MONITOR_DEFAULTTONEAREST = 2
+    hmonitor = user32.MonitorFromWindow(window_id, MONITOR_DEFAULTTONEAREST)
+
+    if hmonitor:
+        # Get monitor info
+        mi = MONITORINFO()
+        mi.cbSize = ctypes.sizeof(MONITORINFO)
+        if user32.GetMonitorInfoW(hmonitor, ctypes.byref(mi)):
+            width = mi.rcMonitor.right - mi.rcMonitor.left
+            height = mi.rcMonitor.bottom - mi.rcMonitor.top
+            return width, height
+
+    # Fallback to primary screen
+    return _get_screen_size()
+
+
+class WindowsCaptureStream(FPSTrackerMixin):
     """Continuous window capture using Windows Graphics Capture API.
 
     Uses the windows-capture library which wraps the Windows Graphics Capture API.
@@ -371,6 +428,15 @@ class WindowsCaptureStream:
         self._frame_lock = threading.Lock()
         self._capture = None
         self._running = False
+
+        # FPS tracking (from mixin)
+        self._init_fps_tracking()
+
+        # Store window ID for monitor detection
+        self._window_id: Optional[int] = None
+        window = find_window_by_title(window_title)
+        if window:
+            self._window_id = window["id"]
 
     def start(self):
         """Start the capture stream in background.
@@ -399,6 +465,7 @@ class WindowsCaptureStream:
             draw_border = None  # Skip border config (yellow border will appear)
 
         self._running = True
+        self._reset_fps_tracking()
 
         # Create capture instance
         self._capture = WindowsCapture(
@@ -418,20 +485,48 @@ class WindowsCaptureStream:
                 return
 
             try:
-                # Detect fullscreen: if frame fills the screen, don't crop title bar
-                screen_w, screen_h = _get_screen_size()
+                # Detect fullscreen: if frame fills the monitor, don't crop title bar
+                # Use the monitor the window is on, not just the primary screen
+                if stream._window_id:
+                    screen_w, screen_h = _get_monitor_size_for_window(stream._window_id)
+                else:
+                    screen_w, screen_h = _get_screen_size()
                 is_fullscreen = (frame.width >= screen_w and frame.height >= screen_h)
 
                 # Crop out title bar only if not fullscreen
                 if not is_fullscreen:
                     # Get title bar height in screen pixels
                     title_bar_screen = get_title_bar_height()
-                    # Compute actual scale from frame size vs screen size
-                    scale = frame.width / screen_w if screen_w > 0 else 1.0
-                    # Convert to capture pixels and add safety padding
-                    title_bar_px = int(title_bar_screen * scale) + 10
+                    # Get window bounds to calculate the actual scale
+                    # (frame size vs window size, not screen size)
+                    window_bounds = _get_window_bounds(stream._window_id) if stream._window_id else None
+                    if window_bounds and window_bounds["width"] > 0:
+                        scale = frame.width / window_bounds["width"]
+                    else:
+                        scale = 1.0
+                    # Convert to capture pixels
+                    title_bar_px = int(title_bar_screen * scale)
                     if frame.height > title_bar_px:
                         frame = frame.crop(0, title_bar_px, frame.width, frame.height)
+
+                # Save first frame for debugging (only once, only in debug mode)
+                if not hasattr(stream, '_debug_frame_saved'):
+                    stream._debug_frame_saved = True
+                    from .. import log
+                    if log.is_debug_enabled():
+                        try:
+                            # Get frame buffer and save as PNG
+                            debug_arr = frame.frame_buffer
+                            debug_rgb = debug_arr[:, :, [2, 1, 0]]
+                            debug_rgb = np.ascontiguousarray(debug_rgb)
+                            debug_img = Image.fromarray(debug_rgb, mode="RGB")
+                            debug_path = "debug_capture.png"
+                            debug_img.save(debug_path)
+                            from .. import log
+                            log.get_logger().info("saved debug frame", path=debug_path)
+                        except Exception as e:
+                            from .. import log
+                            log.get_logger().warning("failed to save debug frame", error=str(e))
 
                 # Get frame buffer (numpy array, shape: height x width x 4, BGRA format)
                 arr = frame.frame_buffer
@@ -444,6 +539,7 @@ class WindowsCaptureStream:
 
                 with stream._frame_lock:
                     stream._latest_frame = img
+                    stream._update_fps()
             except Exception:
                 pass  # Silently ignore frame errors
 
@@ -452,10 +548,28 @@ class WindowsCaptureStream:
             stream._running = False
 
         # Start capture in free-threaded mode (non-blocking)
-        self._capture.start_free_threaded()
+        try:
+            self._capture.start_free_threaded()
+        except Exception as e:
+            error_msg = str(e).strip()
+            if not error_msg:
+                # windows-capture sometimes throws empty exceptions
+                raise RuntimeError(
+                    f"Failed to start screen capture for '{self._window_title}'. "
+                    f"This can happen if the window uses exclusive fullscreen or a video driver "
+                    f"that bypasses Windows Desktop Window Manager (DWM).\n\n"
+                    f"Troubleshooting tips:\n"
+                    f"  - Try running the application in windowed or borderless windowed mode\n"
+                    f"  - For emulators: switch video driver to 'gl', 'glcore', or 'd3d11' (not 'vulkan' exclusive)\n"
+                    f"  - Make sure the window is visible and not minimized\n"
+                    f"  - Try running interpreter-v2 as Administrator"
+                ) from e
+            else:
+                raise RuntimeError(
+                    f"Failed to start screen capture for '{self._window_title}': {error_msg}"
+                ) from e
 
         # Wait for first frame to arrive (up to 5 seconds)
-        import time
         for _ in range(100):
             with self._frame_lock:
                 if self._latest_frame is not None:
@@ -475,3 +589,5 @@ class WindowsCaptureStream:
         """Stop the capture stream."""
         self._running = False
         # The capture will stop on next frame via capture_control.stop()
+
+    # fps property is inherited from FPSTrackerMixin

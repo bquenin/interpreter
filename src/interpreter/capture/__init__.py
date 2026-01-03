@@ -17,38 +17,31 @@ _invalid_time: float = 0
 _system = platform.system()
 
 if _system == "Darwin":
-    from .macos import find_window_by_title, capture_window, get_window_list, get_display_bounds_for_window, _get_window_bounds, MacOSCaptureStream
+    from .macos import find_window_by_title, capture_window, get_window_list, _get_window_bounds, MacOSCaptureStream, _get_title_bar_height_pixels, _is_fullscreen
     CaptureStream = MacOSCaptureStream
     def get_content_offset(window_id: int) -> tuple[int, int]:
-        return (0, 0)  # macOS handles this differently
+        # macOS capture crops the title bar, so we need to report that offset
+        # In fullscreen mode, no cropping happens
+        if _is_fullscreen(window_id):
+            return (0, 0)
+        return (0, _get_title_bar_height_pixels())
+    def is_window_foreground(window_id: int) -> bool:
+        # TODO: Implement for macOS if needed
+        return True
 elif _system == "Windows":
-    from .windows import find_window_by_title, capture_window, get_window_list, _get_window_bounds, _get_screen_size, get_title_bar_height, WindowsCaptureStream
+    from .windows import find_window_by_title, capture_window, get_window_list, _get_window_bounds, _get_client_bounds, _get_screen_size, get_title_bar_height, WindowsCaptureStream, is_window_foreground
     CaptureStream = WindowsCaptureStream
-    def get_display_bounds_for_window(window_id: int) -> Optional[dict]:
-        return None
     def get_content_offset(window_id: int) -> tuple[int, int]:
-        # Windows capture crops the title bar when NOT in fullscreen mode
-        # In fullscreen, no cropping happens, so offset should be (0, 0)
-        bounds = _get_window_bounds(window_id)
-        if bounds is None:
-            # Default to windowed mode offset using actual system title bar height
-            return (0, get_title_bar_height())
-
-        screen_w, screen_h = _get_screen_size()
-        # Check if window fills the screen (fullscreen)
-        is_fullscreen = (
-            bounds["x"] <= 0 and bounds["y"] <= 0 and
-            bounds["width"] >= screen_w and bounds["height"] >= screen_h
-        )
-
-        if is_fullscreen:
-            return (0, 0)  # No title bar cropping in fullscreen
-        else:
-            # Use actual system title bar height (in screen pixels)
-            return (0, get_title_bar_height())
+        # On Windows, the overlay is positioned at the client area (using _get_client_bounds)
+        # and the capture also covers the client area (after cropping title bar).
+        # So overlay and capture are aligned - no offset needed.
+        return (0, 0)
 elif _system == "Linux":
-    from .linux import find_window_by_title, capture_window, get_window_list, _get_window_bounds, LinuxCaptureStream, get_display_bounds_for_window, get_content_offset
+    from .linux import find_window_by_title, capture_window, get_window_list, _get_window_bounds, LinuxCaptureStream, get_content_offset
     CaptureStream = LinuxCaptureStream
+    def is_window_foreground(window_id: int) -> bool:
+        # TODO: Implement for Linux if needed
+        return True
 else:
     raise RuntimeError(f"Unsupported platform: {_system}")
 
@@ -56,17 +49,19 @@ else:
 class WindowCapture:
     """Captures screenshots of a specific window by title."""
 
-    def __init__(self, window_title: str, capture_interval: float = 0.25):
+    def __init__(self, window_title: str, capture_interval: float = 0.25, window_id: Optional[int] = None, bounds: Optional[dict] = None):
         """Initialize the window capture.
 
         Args:
             window_title: Partial title of the window to capture.
             capture_interval: Seconds between background captures (Linux only).
+            window_id: Optional window ID to use directly (skips title search).
+            bounds: Optional window bounds if window_id is provided.
         """
         self.window_title = window_title
-        self._window_id: Optional[int] = None
-        self._actual_title: Optional[str] = None  # Full window title (for Windows capture)
-        self._last_bounds: Optional[dict] = None
+        self._window_id: Optional[int] = window_id
+        self._actual_title: Optional[str] = window_title if window_id else None
+        self._last_bounds: Optional[dict] = bounds
         self._stream: Optional[CaptureStream] = None
         self._capture_interval = capture_interval
 
@@ -76,11 +71,21 @@ class WindowCapture:
         Returns:
             True if window was found, False otherwise.
         """
+        # If we already have a window ID, just verify it's still valid
+        if self._window_id is not None:
+            bounds = _get_window_bounds(self._window_id)
+            if bounds:
+                # Refresh with proper bounds (client bounds on Windows)
+                self._refresh_bounds()
+                return True
+            # Window ID no longer valid, fall through to search by title
+
         window = find_window_by_title(self.window_title)
         if window:
             self._window_id = window["id"]
             self._actual_title = window["title"]  # Store actual title for Windows capture
-            self._last_bounds = window["bounds"]
+            # Get proper bounds (client bounds on Windows)
+            self._refresh_bounds()
             return True
         return False
 
@@ -112,11 +117,21 @@ class WindowCapture:
         return image
 
     def _refresh_bounds(self) -> None:
-        """Refresh the cached window bounds."""
+        """Refresh the cached window bounds.
+
+        On Windows, uses client bounds (content area without title bar) since
+        the capture stream crops out the title bar. On macOS/Linux, uses full
+        window bounds.
+        """
         if self._window_id is None:
             return
-        # Get updated bounds directly by window ID (more efficient)
-        bounds = _get_window_bounds(self._window_id)
+
+        # On Windows, use client bounds since capture crops title bar
+        if _system == "Windows":
+            bounds = _get_client_bounds(self._window_id)
+        else:
+            bounds = _get_window_bounds(self._window_id)
+
         if bounds:
             self._last_bounds = bounds
 
@@ -130,12 +145,6 @@ class WindowCapture:
         """Get the bounds of the target window."""
         return self._last_bounds
 
-    def get_display_bounds(self) -> Optional[dict]:
-        """Get the bounds of the display containing the target window."""
-        if self._window_id is None:
-            return None
-        return get_display_bounds_for_window(self._window_id)
-
     def get_content_offset(self) -> tuple[int, int]:
         """Get the offset of the content area within the window.
 
@@ -148,6 +157,17 @@ class WindowCapture:
         if self._window_id is None:
             return (0, 0)
         return get_content_offset(self._window_id)
+
+    def is_foreground(self) -> bool:
+        """Check if the target window is currently in the foreground.
+
+        Returns:
+            True if the window is the foreground window, False otherwise.
+            Returns True if window_id is not set (fail-open for safety).
+        """
+        if self._window_id is None:
+            return True
+        return is_window_foreground(self._window_id)
 
     @staticmethod
     def list_windows() -> list[dict]:
@@ -239,6 +259,19 @@ class WindowCapture:
             self._refresh_bounds()
 
         return frame
+
+    @property
+    def fps(self) -> float:
+        """Get the current capture frame rate from the stream.
+
+        Returns:
+            Frames per second being captured, or 0.0 if no stream.
+        """
+        if self._stream is None:
+            return 0.0
+        if hasattr(self._stream, 'fps'):
+            return self._stream.fps
+        return 0.0
 
     def stop_stream(self):
         """Stop the background capture stream."""

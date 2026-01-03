@@ -18,6 +18,7 @@ from Xlib.error import BadWindow, BadDrawable
 from Xlib.ext import randr
 
 from .. import log
+from .base import FPSTrackerMixin
 
 logger = log.get_logger()
 
@@ -75,15 +76,38 @@ def _get_window_geometry(window) -> Optional[dict]:
         return None
 
 
-def _enumerate_windows(disp: display.Display, parent=None) -> list[dict]:
-    """Recursively enumerate all visible windows with titles."""
-    if parent is None:
-        parent = disp.screen().root
+def _is_normal_window(disp: display.Display, window) -> bool:
+    """Check if a window is a normal application window.
 
+    Uses _NET_WM_WINDOW_TYPE to filter out dialogs, tooltips, etc.
+    Windows without this property are assumed to be normal windows.
+    """
+    try:
+        window_type_atom = disp.intern_atom("_NET_WM_WINDOW_TYPE")
+        normal_atom = disp.intern_atom("_NET_WM_WINDOW_TYPE_NORMAL")
+
+        prop = window.get_full_property(window_type_atom, Xatom.ATOM)
+        if prop and prop.value:
+            # Window has explicit type - check if it's NORMAL
+            return normal_atom in prop.value
+
+        # No window type property - assume it's a normal window
+        return True
+    except (BadWindow, BadDrawable):
+        return False
+
+
+def _enumerate_windows(disp: display.Display) -> list[dict]:
+    """Enumerate top-level application windows.
+
+    Only returns direct children of the root window that are normal
+    application windows (not dialogs, tooltips, etc.).
+    """
+    root = disp.screen().root
     windows = []
 
     try:
-        children = parent.query_tree().children
+        children = root.query_tree().children
     except BadWindow:
         return windows
 
@@ -92,6 +116,10 @@ def _enumerate_windows(disp: display.Display, parent=None) -> list[dict]:
             # Get window attributes
             attrs = child.get_attributes()
             if attrs.map_state != X.IsViewable:
+                continue
+
+            # Only include normal application windows
+            if not _is_normal_window(disp, child):
                 continue
 
             title = _get_window_title(disp, child)
@@ -104,9 +132,6 @@ def _enumerate_windows(disp: display.Display, parent=None) -> list[dict]:
                     "title": title,
                     "bounds": geom,
                 })
-
-            # Recurse into children
-            windows.extend(_enumerate_windows(disp, child))
 
         except BadWindow:
             continue
@@ -319,62 +344,6 @@ def _get_monitors() -> list[dict]:
     return _monitors_cache
 
 
-def get_display_bounds_for_window(window_id: int, debug: bool = False) -> Optional[dict]:
-    """Get the display bounds for the monitor containing the window.
-
-    For multi-monitor setups, finds which monitor contains the window
-    and returns that monitor's bounds.
-
-    Args:
-        window_id: The X11 window ID to find the containing monitor for.
-        debug: If True, print debug information.
-
-    Returns:
-        Dictionary with x, y, width, height of the monitor, or None if not found.
-    """
-    # Get window position to find which monitor it's on
-    window_bounds = _get_window_bounds(window_id)
-    if window_bounds and debug:
-        logger.debug("window bounds for display lookup", **window_bounds)
-
-    # Get monitors (cached to avoid RANDR deadlocks)
-    monitors = _get_monitors()
-
-    if not monitors:
-        if debug:
-            logger.debug("no monitors found via RANDR")
-        return None
-
-    if debug:
-        for monitor in monitors:
-            logger.debug("found monitor", **monitor)
-
-    # If we have window bounds, find the monitor containing the window center
-    if window_bounds:
-        win_center_x = window_bounds["x"] + window_bounds["width"] // 2
-        win_center_y = window_bounds["y"] + window_bounds["height"] // 2
-
-        for monitor in monitors:
-            mon_x = monitor["x"]
-            mon_y = monitor["y"]
-            mon_right = mon_x + monitor["width"]
-            mon_bottom = mon_y + monitor["height"]
-
-            if mon_x <= win_center_x < mon_right and mon_y <= win_center_y < mon_bottom:
-                if debug:
-                    logger.debug("window on monitor", win_center=(win_center_x, win_center_y), monitor=monitor)
-                return monitor
-
-        # Window center not on any monitor, use first
-        if debug:
-            logger.debug("window center not on any monitor, using first", win_center=(win_center_x, win_center_y))
-
-    # Fallback: return first monitor
-    if debug:
-        logger.debug("using first monitor as fallback")
-    return monitors[0]
-
-
 def _find_content_window(window) -> Optional[tuple]:
     """Find the largest child window (likely the content area).
 
@@ -415,7 +384,7 @@ def _find_content_window(window) -> Optional[tuple]:
         return None
 
 
-def capture_window(window_id: int, title_bar_height: int = None) -> Optional[Image.Image]:
+def capture_window(window_id: int) -> Optional[Image.Image]:
     """Capture a screenshot of a specific window.
 
     For CSD windows (with client-side decorations), this will attempt to
@@ -423,14 +392,11 @@ def capture_window(window_id: int, title_bar_height: int = None) -> Optional[Ima
 
     Args:
         window_id: The X11 window ID (XID) of the window to capture.
-        title_bar_height: Height of window title bar to crop. If None, auto-detects.
-                         Only used as fallback if no content window found.
 
     Returns:
         PIL Image of the window content, or None if capture failed.
     """
-    if title_bar_height is None:
-        title_bar_height = _get_title_bar_height(window_id)
+    title_bar_height = _get_title_bar_height(window_id)
     disp = _get_display()
 
     try:
@@ -523,7 +489,7 @@ def capture_window(window_id: int, title_bar_height: int = None) -> Optional[Ima
         return None
 
 
-class LinuxCaptureStream:
+class LinuxCaptureStream(FPSTrackerMixin):
     """Continuous background window capture using X11.
 
     Captures frames in a background thread at a fixed interval.
@@ -555,9 +521,13 @@ class LinuxCaptureStream:
         self._capture_times: list[float] = []  # Recent capture times in ms
         self._warning_shown = False
 
+        # FPS tracking (from mixin)
+        self._init_fps_tracking()
+
     def start(self):
         """Start the capture stream in background."""
         self._running = True
+        self._reset_fps_tracking()
         self._thread = threading.Thread(target=self._capture_loop, daemon=True)
         self._thread.start()
         logger.debug("capture started (continuous)", window_id=self._window_id,
@@ -582,6 +552,7 @@ class LinuxCaptureStream:
             if frame:
                 with self._frame_lock:
                     self._latest_frame = frame
+                    self._update_fps()
 
                 # Track capture times and check for slow capture
                 self._check_capture_performance(capture_time_ms, frame.size)
@@ -712,6 +683,8 @@ class LinuxCaptureStream:
         """
         with self._frame_lock:
             return self._latest_frame
+
+    # fps property is inherited from FPSTrackerMixin
 
     def stop(self):
         """Stop the capture stream."""
