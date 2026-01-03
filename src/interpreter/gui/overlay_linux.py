@@ -24,7 +24,6 @@ logger = log.get_logger()
 # =============================================================================
 
 # Platform constants
-TITLE_BAR_HEIGHT = 0  # Linux capture handles title bar exclusion
 FONT_FAMILY = "Helvetica"
 
 # X11 shape extension support
@@ -151,15 +150,6 @@ def _update_shape_mask(window_handle: Any, labels: list[tk.Label]) -> None:
 
     except Exception as e:
         logger.debug("shape mask: failed", error=str(e))
-
-
-# =============================================================================
-# Overlay Constants
-# =============================================================================
-
-MIN_FONT_SIZE = 8
-MAX_FONT_SIZE = 72
-
 
 # =============================================================================
 # Core Tkinter Overlay Class
@@ -327,10 +317,9 @@ class Overlay:
 
     def adjust_font_size(self, delta: int):
         """Adjust the font size by delta pixels."""
-        new_size = max(MIN_FONT_SIZE, min(MAX_FONT_SIZE, self.font_size + delta))
-        if new_size == self.font_size:
+        if delta == 0:
             return
-        self.font_size = new_size
+        self.font_size += delta
 
         if self._banner_font:
             self._banner_font.configure(size=self.font_size)

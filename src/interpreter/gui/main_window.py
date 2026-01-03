@@ -26,6 +26,10 @@ if platform.system() == "Linux":
 else:
     from .overlay import BannerOverlay, InplaceOverlay
 
+# Font size range for slider
+MIN_FONT_SIZE = 8
+MAX_FONT_SIZE = 72
+
 
 class MainWindow(QMainWindow):
     """Main application window."""
@@ -205,7 +209,7 @@ class MainWindow(QMainWindow):
         # Font size
         settings_layout.addWidget(QLabel("Font Size:"), 2, 0)
         self._font_slider = QSlider(Qt.Orientation.Horizontal)
-        self._font_slider.setRange(8, 72)
+        self._font_slider.setRange(MIN_FONT_SIZE, MAX_FONT_SIZE)
         self._font_slider.setValue(self._config.font_size)
         self._font_slider.valueChanged.connect(self._on_font_size_changed)
         settings_layout.addWidget(self._font_slider, 2, 1)
