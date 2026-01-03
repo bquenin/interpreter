@@ -1,6 +1,5 @@
 """Background workers for capture, OCR, and translation."""
 
-import time
 from typing import Optional
 
 from PySide6.QtCore import QObject, Signal, QTimer
@@ -72,9 +71,6 @@ class ProcessWorker(QObject):
     # Inplace mode: list of (text, bbox) regions
     regions_ready = Signal(list)  # list of (translated_text, bbox)
 
-    # Processing timing
-    timing_ready = Signal(dict)  # timing info dict
-
     def __init__(self):
         super().__init__()
         self._ocr: Optional[OCR] = None
@@ -103,10 +99,7 @@ class ProcessWorker(QObject):
         if self._ocr is None:
             return
 
-        timing = {}
-
         # OCR
-        ocr_start = time.perf_counter()
         try:
             if self._mode == "inplace":
                 regions = self._ocr.extract_text_regions(frame)
@@ -117,18 +110,15 @@ class ProcessWorker(QObject):
         except Exception as e:
             print(f"OCR error: {e}")
             return
-        timing["ocr_ms"] = int((time.perf_counter() - ocr_start) * 1000)
 
         if not text:
             if self._mode == "inplace":
                 self.regions_ready.emit([])
             else:
                 self.text_ready.emit("", "", False)
-            self.timing_ready.emit(timing)
             return
 
         # Translation
-        translate_start = time.perf_counter()
         cached = False
 
         if self._mode == "inplace":
@@ -145,8 +135,6 @@ class ProcessWorker(QObject):
                     translated = region.text
                 translated_regions.append((translated, region.bbox))
 
-            timing["translate_ms"] = int((time.perf_counter() - translate_start) * 1000)
-            timing["cached"] = cached
             self.regions_ready.emit(translated_regions)
         else:
             # Banner mode: single text
@@ -158,8 +146,4 @@ class ProcessWorker(QObject):
             else:
                 translated = text
 
-            timing["translate_ms"] = int((time.perf_counter() - translate_start) * 1000)
-            timing["cached"] = cached
             self.text_ready.emit(text, translated, cached)
-
-        self.timing_ready.emit(timing)
