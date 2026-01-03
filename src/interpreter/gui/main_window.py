@@ -11,13 +11,15 @@ from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QPixmap, QImage, QKeySequence
 
 from . import keyboard
-
+from .. import log
 from ..capture import WindowCapture
 from ..config import Config
 from ..ocr import OCR
 from ..translate import Translator
 from .workers import CaptureWorker, ProcessWorker
 from .overlay import BannerOverlay, InplaceOverlay
+
+logger = log.get_logger()
 
 # Font settings
 FONT_FAMILY = "Helvetica"
@@ -158,7 +160,7 @@ class MainWindow(QMainWindow):
 
         overlay_layout.addStretch()
 
-        self._pause_btn = QPushButton("Pause")
+        self._pause_btn = QPushButton("Hide")
         self._pause_btn.clicked.connect(self._toggle_pause)
         self._pause_btn.setEnabled(False)
         overlay_layout.addWidget(self._pause_btn)
@@ -332,7 +334,7 @@ class MainWindow(QMainWindow):
         self._paused = False
         self._start_btn.setText("Stop Capture")
         self._pause_btn.setEnabled(True)
-        self._pause_btn.setText("Pause")
+        self._pause_btn.setText("Hide")
         self.statusBar().showMessage(f"Capturing '{title[:40]}...'")
 
         # Update config with selected window
@@ -372,17 +374,18 @@ class MainWindow(QMainWindow):
             return
         self._paused = not self._paused
         if self._paused:
-            self._pause_btn.setText("Resume")
+            self._pause_btn.setText("Show")
             self._banner_overlay.hide()
             self._inplace_overlay.clear_regions()
             self._inplace_overlay.hide()
         else:
-            self._pause_btn.setText("Pause")
+            self._pause_btn.setText("Hide")
             self._show_overlay()
 
     def _on_key_press(self, key):
         """Handle global key press (called from keyboard listener thread)."""
         # Compare the pressed key with our hotkey
+        logger.debug("hotkey check", pressed=key, hotkey=self._current_hotkey, match=(key == self._current_hotkey))
         if key == self._current_hotkey:
             self.hotkey_pressed.emit()
 
