@@ -1,10 +1,40 @@
 """Linux overlay implementation using Tkinter with X11 shape extension.
 
-This module provides BannerOverlay and InplaceOverlay classes that are compatible
-with the Qt-based overlays in overlay.py, but use Tkinter internally for proper
-window behavior on Linux (stay-on-top, positioning, click-through).
+Why Tkinter instead of Qt on Linux?
+-----------------------------------
+Qt overlays on Linux/X11 have issues with stay-on-top behavior, click-through
+transparency, and window positioning over fullscreen applications. Tkinter with
+the X11 shape extension provides reliable overlay behavior.
 
-The Tkinter event loop is pumped by a Qt timer to coexist with the Qt main window.
+Architecture
+------------
+This module provides BannerOverlay and InplaceOverlay wrapper classes that expose
+the same API as the Qt-based overlays in overlay.py. This allows main_window.py
+to use identical code regardless of platform:
+
+    main_window.py
+        ↓
+    BannerOverlay / InplaceOverlay  (Qt-compatible API)
+        ↓
+    _get_or_create_overlay()        (singleton factory)
+        ↓
+    Overlay                         (Tkinter core, manages both windows)
+
+Why wrappers around a singleton?
+--------------------------------
+Tkinter has a fundamental constraint: only one Tk() root window can exist per
+process. Both banner and inplace modes need to share this root. The Overlay class
+manages both windows internally, while the wrapper classes provide the expected
+interface (separate BannerOverlay and InplaceOverlay instances that main_window.py
+can call show/hide on independently).
+
+The singleton pattern with _get_or_create_overlay() ensures both wrappers share
+the same underlying Tkinter instance.
+
+Event loop integration
+----------------------
+Since the main application uses Qt, we pump Tkinter events from a Qt timer
+(_pump_tk_events) rather than running Tk's mainloop.
 """
 
 import tkinter as tk
@@ -106,11 +136,6 @@ def _setup_window(root: tk.Tk, mode: str) -> Optional[LinuxWindowHandle]:
     except Exception as e:
         logger.debug("setup_window: failed", error=str(e))
         return None
-
-
-def _set_click_through(window_handle: Any, enabled: bool) -> None:
-    """Set click-through behavior (managed via shape masks)."""
-    pass
 
 
 def _update_shape_mask(window_handle: Any, labels: list[tk.Label]) -> None:
@@ -261,8 +286,6 @@ class Overlay:
         self._inplace_handle = _setup_window(self._inplace_root, "inplace")
 
         self._inplace_font = tkfont.Font(family=self.font_family, size=self.font_size, weight="bold")
-
-        _set_click_through(self._inplace_handle, True)
 
         self._inplace_root.withdraw()
 
