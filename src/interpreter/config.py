@@ -72,7 +72,7 @@ class Config:
         if config_path and os.path.exists(config_path):
             # Resolve to absolute path for clear display
             config_path = str(Path(config_path).resolve())
-            with open(config_path, "r", encoding="utf-8") as f:
+            with open(config_path, encoding="utf-8") as f:
                 data = yaml.safe_load(f) or {}
 
             # Load hotkeys with defaults for any missing keys
@@ -148,7 +148,10 @@ hotkeys:
     def hex_to_rgb(self, hex_color: str) -> tuple[int, int, int]:
         """Convert hex color string to RGB tuple."""
         hex_color = hex_color.lstrip("#")
-        return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+        if len(hex_color) != 6 or not all(c in "0123456789abcdefABCDEF" for c in hex_color):
+            logger.warning("invalid hex color, using white", color=hex_color)
+            return (255, 255, 255)
+        return tuple(int(hex_color[i : i + 2], 16) for i in (0, 2, 4))
 
     def save(self, config_path: str | None = None) -> None:
         """Save configuration to YAML file.

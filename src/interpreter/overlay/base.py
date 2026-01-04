@@ -4,12 +4,9 @@ Platform-specific implementations inherit from these base classes.
 macOS and Windows use PySide6, Linux uses Tkinter (separate implementation).
 """
 
-from typing import Optional
-
-from PySide6.QtWidgets import QWidget, QLabel, QVBoxLayout, QApplication
-from PySide6.QtCore import Qt, QPoint
+from PySide6.QtCore import QPoint, Qt
 from PySide6.QtGui import QFont
-
+from PySide6.QtWidgets import QApplication, QLabel, QVBoxLayout, QWidget
 
 # Banner overlay dimensions
 BANNER_HEIGHT = 100
@@ -32,7 +29,7 @@ class BannerOverlayBase(QWidget):
         background_color: str = "#404040",
     ):
         super().__init__()
-        self._drag_pos: Optional[QPoint] = None
+        self._drag_pos: QPoint | None = None
         self._font_family = font_family
         self._font_size = font_size
         self._font_color = font_color
@@ -43,10 +40,10 @@ class BannerOverlayBase(QWidget):
     def _setup_window(self):
         """Configure window flags for overlay behavior."""
         flags = (
-            Qt.WindowType.FramelessWindowHint |
-            Qt.WindowType.WindowStaysOnTopHint |
-            Qt.WindowType.WindowDoesNotAcceptFocus |
-            Qt.WindowType.Tool  # Hides from taskbar
+            Qt.WindowType.FramelessWindowHint
+            | Qt.WindowType.WindowStaysOnTopHint
+            | Qt.WindowType.WindowDoesNotAcceptFocus
+            | Qt.WindowType.Tool  # Hides from taskbar
         )
 
         self.setWindowFlags(flags)
@@ -134,7 +131,7 @@ class InplaceOverlayBase(QWidget):
         font_family: str = "Helvetica",
         font_size: int = 18,
         font_color: str = "#FFFFFF",
-        background_color: str = "#000000",
+        background_color: str = "#404040",
     ):
         super().__init__()
         self._labels: list[QLabel] = []
@@ -149,10 +146,10 @@ class InplaceOverlayBase(QWidget):
     def _setup_window(self):
         """Configure window flags for transparent, click-through overlay."""
         flags = (
-            Qt.WindowType.FramelessWindowHint |
-            Qt.WindowType.WindowStaysOnTopHint |
-            Qt.WindowType.WindowTransparentForInput |
-            Qt.WindowType.Tool
+            Qt.WindowType.FramelessWindowHint
+            | Qt.WindowType.WindowStaysOnTopHint
+            | Qt.WindowType.WindowTransparentForInput
+            | Qt.WindowType.Tool
         )
 
         self.setWindowFlags(flags)
@@ -162,6 +159,14 @@ class InplaceOverlayBase(QWidget):
         # Full screen size by default
         screen = QApplication.primaryScreen().geometry()
         self.setGeometry(screen)
+
+    def _clear_labels(self):
+        """Remove all labels from the overlay."""
+        for label in self._labels:
+            label.hide()
+            label.setParent(None)
+            label.deleteLater()
+        self._labels.clear()
 
     def _get_scale_factor(self) -> float:
         """Get the display scale factor for coordinate conversion.
@@ -188,12 +193,7 @@ class InplaceOverlayBase(QWidget):
         content_offset_x = int(content_offset[0] / scale)
         content_offset_y = int(content_offset[1] / scale)
 
-        # Remove old labels immediately (hide + unparent before deleteLater)
-        for label in self._labels:
-            label.hide()
-            label.setParent(None)
-            label.deleteLater()
-        self._labels.clear()
+        self._clear_labels()
 
         # Create new labels
         for text, bbox in regions:
@@ -202,7 +202,7 @@ class InplaceOverlayBase(QWidget):
             label = QLabel(text, self)
             label.setFont(QFont(self._font_family, self._font_size, QFont.Weight.Bold))
             # Convert hex background color to rgba with transparency
-            bg_color = self._background_color.lstrip('#')
+            bg_color = self._background_color.lstrip("#")
             r, g, b = int(bg_color[0:2], 16), int(bg_color[2:4], 16), int(bg_color[4:6], 16)
             label.setStyleSheet(
                 f"color: {self._font_color}; "
@@ -239,11 +239,7 @@ class InplaceOverlayBase(QWidget):
 
     def clear_regions(self):
         """Clear all displayed text regions."""
-        for label in self._labels:
-            label.hide()
-            label.setParent(None)
-            label.deleteLater()
-        self._labels.clear()
+        self._clear_labels()
         self._last_regions = []
 
     def set_font_size(self, size: int):

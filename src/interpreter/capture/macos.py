@@ -2,10 +2,8 @@
 
 import os
 import threading
-import time
-from typing import Optional
 
-from AppKit import NSWindow, NSScreen, NSTitledWindowMask, NSClosableWindowMask, NSMiniaturizableWindowMask
+from AppKit import NSClosableWindowMask, NSMiniaturizableWindowMask, NSScreen, NSTitledWindowMask, NSWindow
 from PIL import Image
 from Quartz import CoreGraphics as CG
 
@@ -47,8 +45,7 @@ def get_window_list() -> list[dict]:
 
     # Use kCGWindowListOptionAll to include windows on other Spaces (e.g., fullscreen apps)
     window_list = CG.CGWindowListCopyWindowInfo(
-        CG.kCGWindowListOptionAll | CG.kCGWindowListExcludeDesktopElements,
-        CG.kCGNullWindowID
+        CG.kCGWindowListOptionAll | CG.kCGWindowListExcludeDesktopElements, CG.kCGNullWindowID
     )
 
     for window in window_list:
@@ -64,23 +61,25 @@ def get_window_list() -> list[dict]:
         if layer != 0 or not title or owner_pid == own_pid or title == "Interpreter":
             continue
 
-        windows.append({
-            "id": window_id,
-            "title": title,
-            "owner": owner,
-            "bounds": {
-                "x": int(bounds.get("X", 0)),
-                "y": int(bounds.get("Y", 0)),
-                "width": int(bounds.get("Width", 0)),
-                "height": int(bounds.get("Height", 0)),
+        windows.append(
+            {
+                "id": window_id,
+                "title": title,
+                "owner": owner,
+                "bounds": {
+                    "x": int(bounds.get("X", 0)),
+                    "y": int(bounds.get("Y", 0)),
+                    "width": int(bounds.get("Width", 0)),
+                    "height": int(bounds.get("Height", 0)),
+                },
             }
-        })
+        )
 
     # Sort alphabetically by title
     return sorted(windows, key=lambda w: w["title"].lower())
 
 
-def find_window_by_title(title_substring: str) -> Optional[dict]:
+def find_window_by_title(title_substring: str) -> dict | None:
     """Find a window by partial title match.
 
     Args:
@@ -101,7 +100,7 @@ def find_window_by_title(title_substring: str) -> Optional[dict]:
     return None
 
 
-def _get_window_bounds(window_id: int) -> Optional[dict]:
+def _get_window_bounds(window_id: int) -> dict | None:
     """Get the current bounds of a window by its ID.
 
     Args:
@@ -110,10 +109,7 @@ def _get_window_bounds(window_id: int) -> Optional[dict]:
     Returns:
         Bounds dictionary with x, y, width, height, or None if not found.
     """
-    window_list = CG.CGWindowListCopyWindowInfo(
-        CG.kCGWindowListOptionIncludingWindow,
-        window_id
-    )
+    window_list = CG.CGWindowListCopyWindowInfo(CG.kCGWindowListOptionIncludingWindow, window_id)
 
     for window in window_list:
         if window.get(CG.kCGWindowNumber) == window_id:
@@ -165,17 +161,31 @@ def _is_fullscreen(window_id: int) -> bool:
         if dx <= window_center_x < dx + dw and dy <= window_center_y < dy + dh:
             # Check if window fills this display (with tolerance for menu bar ~50px)
             is_fullscreen = (
-                bounds["x"] == dx and
-                bounds["y"] <= dy + 50 and
-                bounds["width"] == dw and
-                bounds["height"] >= dh - 50
+                bounds["x"] == dx and bounds["y"] <= dy + 50 and bounds["width"] == dw and bounds["height"] >= dh - 50
             )
             return is_fullscreen
 
     return False
 
 
-def capture_window(window_id: int) -> Optional[Image.Image]:
+def get_content_offset(window_id: int) -> tuple[int, int]:
+    """Get the offset of the content area within a window.
+
+    On macOS, capture crops the title bar, so we report that offset.
+    In fullscreen mode, no cropping happens.
+
+    Args:
+        window_id: The CGWindowID of the window.
+
+    Returns:
+        Tuple of (x_offset, y_offset) in pixels.
+    """
+    if _is_fullscreen(window_id):
+        return (0, 0)
+    return (0, _get_title_bar_height_pixels())
+
+
+def capture_window(window_id: int) -> Image.Image | None:
     """Capture a screenshot of a specific window using CGWindowListCreateImage.
 
     This captures the actual window content, not the screen region,
@@ -202,7 +212,7 @@ def capture_window(window_id: int) -> Optional[Image.Image]:
         CG.CGRectNull,  # Capture the window's own bounds
         CG.kCGWindowListOptionIncludingWindow,
         window_id,
-        CG.kCGWindowImageBoundsIgnoreFraming
+        CG.kCGWindowImageBoundsIgnoreFraming,
     )
 
     if cg_image is None:
@@ -228,9 +238,10 @@ def capture_window(window_id: int) -> Optional[Image.Image]:
     else:
         # Has padding, need to handle stride manually
         import numpy as np
+
         arr = np.frombuffer(data, dtype=np.uint8).reshape((height, bytes_per_row))
         # Take only the actual pixel data (width * 4 bytes per row)
-        arr = arr[:, :width * 4].reshape((height, width, 4))
+        arr = arr[:, : width * 4].reshape((height, width, 4))
         # Convert from BGRA to RGBA
         image = Image.fromarray(arr[:, :, [2, 1, 0, 3]], "RGBA")
 
@@ -258,10 +269,10 @@ class MacOSCaptureStream(FPSTrackerMixin):
             window_id: The CGWindowID of the window to capture.
         """
         self._window_id = window_id
-        self._latest_frame: Optional[Image.Image] = None
+        self._latest_frame: Image.Image | None = None
         self._frame_lock = threading.Lock()
         self._running = False
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
 
         # FPS tracking (from mixin)
         self._init_fps_tracking()
@@ -287,7 +298,7 @@ class MacOSCaptureStream(FPSTrackerMixin):
                     self._latest_frame = frame
                     self._update_fps()
 
-    def get_frame(self) -> Optional[Image.Image]:
+    def get_frame(self) -> Image.Image | None:
         """Get the latest captured frame.
 
         Returns:

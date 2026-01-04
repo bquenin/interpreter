@@ -7,17 +7,13 @@ On macOS:
 - Click-through works via Qt.WindowTransparentForInput flag
 """
 
-from PySide6.QtWidgets import QApplication
-from PySide6.QtCore import Qt, QPoint
+from PySide6.QtCore import Qt
 
-from .overlay_base import BannerOverlayBase, InplaceOverlayBase
+from .base import BannerOverlayBase, InplaceOverlayBase
 
 
-class BannerOverlay(BannerOverlayBase):
-    """macOS banner overlay.
-
-    No platform-specific overrides needed - base class handles everything.
-    """
+class _MacOSOverlayMixin:
+    """Mixin for macOS-specific window setup."""
 
     def _setup_window(self):
         """Configure window flags for overlay behavior."""
@@ -26,19 +22,19 @@ class BannerOverlay(BannerOverlayBase):
         self.setAttribute(Qt.WidgetAttribute.WA_MacAlwaysShowToolWindow, True)
 
 
-class InplaceOverlay(InplaceOverlayBase):
+class BannerOverlay(_MacOSOverlayMixin, BannerOverlayBase):
+    """macOS banner overlay."""
+
+    pass
+
+
+class InplaceOverlay(_MacOSOverlayMixin, InplaceOverlayBase):
     """macOS inplace overlay.
 
     Key difference from Windows:
     - Window bounds from CGWindowBounds are already in points (logical pixels)
     - No coordinate conversion needed for positioning
     """
-
-    def _setup_window(self):
-        """Configure window flags for overlay behavior."""
-        super()._setup_window()
-        # macOS: ensure window stays on top across Spaces
-        self.setAttribute(Qt.WidgetAttribute.WA_MacAlwaysShowToolWindow, True)
 
     def position_over_window(self, bounds: dict):
         """Position overlay to cover a window.
@@ -49,10 +45,4 @@ class InplaceOverlay(InplaceOverlayBase):
         Args:
             bounds: Dict with x, y, width, height in points from CGWindowBounds.
         """
-        # Use bounds directly - already in points
-        x = bounds["x"]
-        y = bounds["y"]
-        width = bounds["width"]
-        height = bounds["height"]
-
-        self.setGeometry(x, y, width, height)
+        self.setGeometry(bounds["x"], bounds["y"], bounds["width"], bounds["height"])

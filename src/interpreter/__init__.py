@@ -11,7 +11,8 @@ __version__ = "2.2.1"
 def main():
     """Entry point for the application."""
     from .gui import run
+
     return run()
 
 
-__all__ = ["main", "__version__"]
+__all__ = ["__version__", "main"]

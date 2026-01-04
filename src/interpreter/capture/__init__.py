@@ -2,7 +2,6 @@
 
 import platform
 import time
-from typing import Optional
 
 from PIL import Image
 
@@ -17,28 +16,45 @@ _invalid_time: float = 0
 _system = platform.system()
 
 if _system == "Darwin":
-    from .macos import find_window_by_title, capture_window, get_window_list, _get_window_bounds, MacOSCaptureStream, _get_title_bar_height_pixels, _is_fullscreen
+    from .macos import (
+        MacOSCaptureStream,
+        _get_window_bounds,
+        capture_window,
+        find_window_by_title,
+        get_content_offset,
+        get_window_list,
+    )
+
     CaptureStream = MacOSCaptureStream
-    def get_content_offset(window_id: int) -> tuple[int, int]:
-        # macOS capture crops the title bar, so we need to report that offset
-        # In fullscreen mode, no cropping happens
-        if _is_fullscreen(window_id):
-            return (0, 0)
-        return (0, _get_title_bar_height_pixels())
+
     def is_window_foreground(window_id: int) -> bool:
         # TODO: Implement for macOS if needed
         return True
 elif _system == "Windows":
-    from .windows import find_window_by_title, capture_window, get_window_list, _get_window_bounds, _get_client_bounds, _get_screen_size, get_title_bar_height, WindowsCaptureStream, is_window_foreground
+    from .windows import (
+        WindowsCaptureStream,
+        _get_client_bounds,
+        _get_window_bounds,
+        capture_window,
+        find_window_by_title,
+        get_content_offset,
+        get_window_list,
+        is_window_foreground,
+    )
+
     CaptureStream = WindowsCaptureStream
-    def get_content_offset(window_id: int) -> tuple[int, int]:
-        # On Windows, the overlay is positioned at the client area (using _get_client_bounds)
-        # and the capture also covers the client area (after cropping title bar).
-        # So overlay and capture are aligned - no offset needed.
-        return (0, 0)
 elif _system == "Linux":
-    from .linux import find_window_by_title, capture_window, get_window_list, _get_window_bounds, LinuxCaptureStream, get_content_offset
+    from .linux import (
+        LinuxCaptureStream,
+        _get_window_bounds,
+        capture_window,
+        find_window_by_title,
+        get_content_offset,
+        get_window_list,
+    )
+
     CaptureStream = LinuxCaptureStream
+
     def is_window_foreground(window_id: int) -> bool:
         # TODO: Implement for Linux if needed
         return True
@@ -49,7 +65,13 @@ else:
 class WindowCapture:
     """Captures screenshots of a specific window by title."""
 
-    def __init__(self, window_title: str, capture_interval: float = 0.25, window_id: Optional[int] = None, bounds: Optional[dict] = None):
+    def __init__(
+        self,
+        window_title: str,
+        capture_interval: float = 0.25,
+        window_id: int | None = None,
+        bounds: dict | None = None,
+    ):
         """Initialize the window capture.
 
         Args:
@@ -59,10 +81,10 @@ class WindowCapture:
             bounds: Optional window bounds if window_id is provided.
         """
         self.window_title = window_title
-        self._window_id: Optional[int] = window_id
-        self._actual_title: Optional[str] = window_title if window_id else None
-        self._last_bounds: Optional[dict] = bounds
-        self._stream: Optional[CaptureStream] = None
+        self._window_id: int | None = window_id
+        self._actual_title: str | None = window_title if window_id else None
+        self._last_bounds: dict | None = bounds
+        self._stream: CaptureStream | None = None
         self._capture_interval = capture_interval
 
     def find_window(self) -> bool:
@@ -89,7 +111,7 @@ class WindowCapture:
             return True
         return False
 
-    def capture(self) -> Optional[Image.Image]:
+    def capture(self) -> Image.Image | None:
         """Capture a screenshot of the target window.
 
         Returns:
@@ -141,7 +163,7 @@ class WindowCapture:
         return self._window_id is not None
 
     @property
-    def bounds(self) -> Optional[dict]:
+    def bounds(self) -> dict | None:
         """Get the bounds of the target window."""
         return self._last_bounds
 
@@ -203,7 +225,7 @@ class WindowCapture:
         self._stream.start()
         return True
 
-    def get_frame(self) -> Optional[Image.Image]:
+    def get_frame(self) -> Image.Image | None:
         """Get the latest frame from the capture stream.
 
         Returns:
@@ -219,7 +241,7 @@ class WindowCapture:
             return None
 
         # Check if window became invalid (e.g., fullscreen transition)
-        if hasattr(self._stream, 'window_invalid') and self._stream.window_invalid:
+        if hasattr(self._stream, "window_invalid") and self._stream.window_invalid:
             _invalid_time = time.time()
             old_id = self._window_id
             logger.debug("window invalid, stopping stream", old_id=old_id)
@@ -238,7 +260,7 @@ class WindowCapture:
         frame = self._stream.get_frame()
 
         # Double-check: window might have become invalid between our initial check and now
-        if hasattr(self._stream, 'window_invalid') and self._stream.window_invalid:
+        if hasattr(self._stream, "window_invalid") and self._stream.window_invalid:
             old_id = self._window_id
             logger.debug("window invalid after frame fetch, discarding", old_id=old_id)
             self._stream.stop()
@@ -269,7 +291,7 @@ class WindowCapture:
         """
         if self._stream is None:
             return 0.0
-        if hasattr(self._stream, 'fps'):
+        if hasattr(self._stream, "fps"):
             return self._stream.fps
         return 0.0
 

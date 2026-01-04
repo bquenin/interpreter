@@ -1,12 +1,13 @@
 """Background workers for capture, OCR, and translation."""
 
-from typing import Optional
+from PySide6.QtCore import QObject, QTimer, Signal
 
-from PySide6.QtCore import QObject, Signal, QTimer
-
+from .. import log
 from ..capture import WindowCapture
 from ..ocr import OCR
 from ..translate import Translator
+
+logger = log.get_logger()
 
 
 class CaptureWorker(QObject):
@@ -22,11 +23,11 @@ class CaptureWorker(QObject):
 
     def __init__(self):
         super().__init__()
-        self._capture: Optional[WindowCapture] = None
+        self._capture: WindowCapture | None = None
         self._timer = QTimer()
         self._timer.timeout.connect(self._fetch_frame)
 
-    def set_capture(self, capture: Optional[WindowCapture]):
+    def set_capture(self, capture: WindowCapture | None):
         """Set the capture instance."""
         self._capture = capture
 
@@ -66,22 +67,22 @@ class ProcessWorker(QObject):
     """
 
     # Banner mode: single translated text
-    text_ready = Signal(str, str, bool)  # original, translated, cached
+    text_ready = Signal(str)  # translated text
 
     # Inplace mode: list of (text, bbox) regions
     regions_ready = Signal(list)  # list of (translated_text, bbox)
 
     def __init__(self):
         super().__init__()
-        self._ocr: Optional[OCR] = None
-        self._translator: Optional[Translator] = None
+        self._ocr: OCR | None = None
+        self._translator: Translator | None = None
         self._mode = "banner"
 
-    def set_ocr(self, ocr: Optional[OCR]):
+    def set_ocr(self, ocr: OCR | None):
         """Set the OCR instance."""
         self._ocr = ocr
 
-    def set_translator(self, translator: Optional[Translator]):
+    def set_translator(self, translator: Translator | None):
         """Set the translator instance."""
         self._translator = translator
 
@@ -111,28 +112,26 @@ class ProcessWorker(QObject):
                 text = self._ocr.extract_text(frame)
                 regions = []
         except Exception as e:
-            print(f"OCR error: {e}")
+            logger.error("OCR error", error=str(e))
             return
 
         if not text:
             if self._mode == "inplace":
                 self.regions_ready.emit([])
             else:
-                self.text_ready.emit("", "", False)
+                self.text_ready.emit("")
             return
 
         # Translation
-        cached = False
-
         if self._mode == "inplace":
             # Translate each region
             translated_regions = []
             for region in regions:
                 if self._translator and region.text:
                     try:
-                        translated, was_cached = self._translator.translate(region.text)
-                        cached = cached or was_cached
-                    except Exception:
+                        translated, _ = self._translator.translate(region.text)
+                    except Exception as e:
+                        logger.warning("Translation error", error=str(e), text=region.text[:50])
                         translated = region.text
                 else:
                     translated = region.text
@@ -143,10 +142,11 @@ class ProcessWorker(QObject):
             # Banner mode: single text
             if self._translator:
                 try:
-                    translated, cached = self._translator.translate(text)
-                except Exception:
+                    translated, _ = self._translator.translate(text)
+                except Exception as e:
+                    logger.warning("Translation error", error=str(e), text=text[:50])
                     translated = f"[{text}]"
             else:
                 translated = text
 
-            self.text_ready.emit(text, translated, cached)
+            self.text_ready.emit(translated)

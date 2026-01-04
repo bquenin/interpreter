@@ -39,13 +39,13 @@ Since the main application uses Qt, we pump Tkinter events from a Qt timer
 
 import tkinter as tk
 from tkinter import font as tkfont
-from typing import Any, Optional
+from typing import Any
 
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
 from .. import log
-from .overlay_base import BANNER_HEIGHT, BANNER_BOTTOM_MARGIN
+from .base import BANNER_BOTTOM_MARGIN, BANNER_HEIGHT
 
 logger = log.get_logger()
 
@@ -59,6 +59,7 @@ _display = None
 try:
     from Xlib import display
     from Xlib.ext import shape
+
     _xlib_available = True
 except ImportError:
     pass
@@ -70,7 +71,6 @@ class LinuxWindowHandle:
     def __init__(self, toplevel_window: Any, xdisplay: Any):
         self.toplevel = toplevel_window
         self.display = xdisplay
-        self.shape_applied = False
 
 
 def _setup_transparency(root: tk.Tk) -> None:
@@ -79,12 +79,12 @@ def _setup_transparency(root: tk.Tk) -> None:
     root.config(bg=transparent_color)
 
     try:
-        root.attributes('-transparentcolor', transparent_color)
+        root.attributes("-transparentcolor", transparent_color)
     except Exception:
         pass
 
 
-def _setup_window(root: tk.Tk, mode: str) -> Optional[LinuxWindowHandle]:
+def _setup_window(root: tk.Tk, mode: str) -> LinuxWindowHandle | None:
     """Configure Linux-specific window behavior.
 
     Returns:
@@ -106,7 +106,7 @@ def _setup_window(root: tk.Tk, mode: str) -> Optional[LinuxWindowHandle]:
     try:
         window_id = root.winfo_id()
         _display = display.Display()
-        window = _display.create_resource_object('window', window_id)
+        window = _display.create_resource_object("window", window_id)
 
         # Walk up to find the true toplevel window
         toplevel = window
@@ -152,22 +152,19 @@ def _update_shape_mask(window_handle: Any, labels: list[tk.Label]) -> None:
         if not rects:
             rects = [(-1, -1, 1, 1)]
 
-        window_handle.toplevel.shape_rectangles(
-            shape.SO.Set, shape.SK.Bounding, 0, 0, 0, rects
-        )
-        window_handle.toplevel.shape_rectangles(
-            shape.SO.Set, shape.SK.Input, 0, 0, 0, rects
-        )
+        window_handle.toplevel.shape_rectangles(shape.SO.Set, shape.SK.Bounding, 0, 0, 0, rects)
+        window_handle.toplevel.shape_rectangles(shape.SO.Set, shape.SK.Input, 0, 0, 0, rects)
 
         window_handle.display.flush()
-        window_handle.shape_applied = True
 
     except Exception as e:
         logger.debug("shape mask: failed", error=str(e))
 
+
 # =============================================================================
 # Core Tkinter Overlay Class
 # =============================================================================
+
 
 class Overlay:
     """A transparent, always-on-top window for displaying translated text.
@@ -190,15 +187,15 @@ class Overlay:
         self.background_color = background_color
 
         # Banner window components
-        self._banner_root: Optional[tk.Tk] = None
-        self._banner_frame: Optional[tk.Frame] = None
-        self._banner_label: Optional[tk.Label] = None
-        self._banner_font: Optional[tkfont.Font] = None
+        self._banner_root: tk.Tk | None = None
+        self._banner_frame: tk.Frame | None = None
+        self._banner_label: tk.Label | None = None
+        self._banner_font: tkfont.Font | None = None
 
         # Inplace window components
-        self._inplace_root: Optional[tk.Toplevel] = None
+        self._inplace_root: tk.Toplevel | None = None
         self._inplace_labels: list[tk.Label] = []
-        self._inplace_font: Optional[tkfont.Font] = None
+        self._inplace_font: tkfont.Font | None = None
         self._inplace_handle = None
 
         self._current_text: str = ""
@@ -206,8 +203,8 @@ class Overlay:
         self._mode: str = "banner"
 
         # Bounds tracking
-        self._display_bounds: Optional[dict] = None
-        self._window_bounds: Optional[dict] = None
+        self._display_bounds: dict | None = None
+        self._window_bounds: dict | None = None
         self._image_size: tuple[int, int] = (0, 0)
         self._retina_scale: float = 1.0
         self._content_offset: tuple[int, int] = (0, 0)
@@ -217,7 +214,14 @@ class Overlay:
         self._drag_start_x: int = 0
         self._drag_start_y: int = 0
 
-    def create(self, display_bounds: dict, window_bounds: dict, image_size: tuple[int, int], mode: str = "banner", content_offset: tuple[int, int] = (0, 0)):
+    def create(
+        self,
+        display_bounds: dict,
+        window_bounds: dict,
+        image_size: tuple[int, int],
+        mode: str = "banner",
+        content_offset: tuple[int, int] = (0, 0),
+    ):
         """Create and configure both overlay windows."""
         self._display_bounds = display_bounds
         self._window_bounds = window_bounds.copy()
@@ -362,7 +366,13 @@ class Overlay:
         for label in self._inplace_labels:
             label.config(fg=font_color, bg=background_color)
 
-    def update_position(self, window_bounds: dict, display_bounds: dict = None, image_size: tuple[int, int] = None, content_offset: tuple[int, int] = None):
+    def update_position(
+        self,
+        window_bounds: dict,
+        display_bounds: dict | None = None,
+        image_size: tuple[int, int] | None = None,
+        content_offset: tuple[int, int] | None = None,
+    ):
         """Update overlay position to follow the game window."""
         window_changed = window_bounds != self._window_bounds
         if window_changed:
@@ -445,8 +455,8 @@ class Overlay:
             self._inplace_root.withdraw()
             return
 
-        min_x = float('inf')
-        min_y = float('inf')
+        min_x = float("inf")
+        min_y = float("inf")
         max_x = 0
         max_y = 0
 
@@ -460,7 +470,7 @@ class Overlay:
             max_x = max(max_x, x + w)
             max_y = max(max_y, y + h)
 
-        if min_x == float('inf'):
+        if min_x == float("inf"):
             self._inplace_root.withdraw()
             return
 
@@ -587,8 +597,8 @@ class Overlay:
 # =============================================================================
 
 # Shared Tkinter overlay instance
-_tk_overlay: Optional[Overlay] = None
-_tk_timer: Optional[QTimer] = None
+_tk_overlay: Overlay | None = None
+_tk_timer: QTimer | None = None
 _initialized = False
 
 
@@ -658,10 +668,10 @@ class _OverlayWrapper:
     """Base class for Qt-compatible overlay wrappers.
 
     Provides common functionality for font size, colors, and lifecycle management.
-    Subclasses must set _mode in __init__ before calling super().__init__().
+    Subclasses must define _mode as a class attribute.
     """
 
-    _mode: str  # Must be set by subclass
+    _mode: str  # Must be defined as class attribute by subclass
 
     def __init__(
         self,
@@ -778,11 +788,7 @@ class InplaceOverlay(_OverlayWrapper):
 
         image_size = (int(bounds["width"] * scale), int(bounds["height"] * scale))
 
-        _tk_overlay.update_position(
-            bounds,
-            image_size=image_size,
-            content_offset=self._content_offset
-        )
+        _tk_overlay.update_position(bounds, image_size=image_size, content_offset=self._content_offset)
 
     def position_over_window(self, bounds: dict):
         """Position overlay to cover a window."""

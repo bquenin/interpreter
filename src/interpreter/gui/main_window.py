@@ -1,23 +1,32 @@
 """Main application window with settings and controls."""
 
-from typing import Optional
-
-from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
-    QLabel, QComboBox, QPushButton, QGroupBox, QSlider,
-    QFrame, QColorDialog, QButtonGroup, QKeySequenceEdit,
-)
 from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtGui import QPixmap, QImage, QKeySequence
+from PySide6.QtGui import QImage, QKeySequence, QPixmap
+from PySide6.QtWidgets import (
+    QButtonGroup,
+    QColorDialog,
+    QComboBox,
+    QFrame,
+    QGridLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QKeySequenceEdit,
+    QLabel,
+    QMainWindow,
+    QPushButton,
+    QSlider,
+    QVBoxLayout,
+    QWidget,
+)
 
-from . import keyboard
 from .. import log
 from ..capture import WindowCapture
 from ..config import Config
 from ..ocr import OCR
+from ..overlay import BannerOverlay, InplaceOverlay
 from ..translate import Translator
+from . import keyboard
 from .workers import CaptureWorker, ProcessWorker
-from .overlay import BannerOverlay, InplaceOverlay
 
 logger = log.get_logger()
 
@@ -47,9 +56,9 @@ class MainWindow(QMainWindow):
         self._paused = False
 
         # Components
-        self._capture: Optional[WindowCapture] = None
-        self._ocr: Optional[OCR] = None
-        self._translator: Optional[Translator] = None
+        self._capture: WindowCapture | None = None
+        self._ocr: OCR | None = None
+        self._translator: Translator | None = None
 
         # Workers
         self._capture_worker = CaptureWorker()
@@ -144,7 +153,9 @@ class MainWindow(QMainWindow):
                 background-color: #4a4a4a;
             }
         """
-        self._banner_btn.setStyleSheet(segment_style + "QPushButton { border-radius: 4px 0 0 4px; border-right: none; }")
+        self._banner_btn.setStyleSheet(
+            segment_style + "QPushButton { border-radius: 4px 0 0 4px; border-right: none; }"
+        )
         self._inplace_btn.setStyleSheet(segment_style + "QPushButton { border-radius: 0 4px 4px 0; }")
 
         self._mode_group.idClicked.connect(self._on_mode_changed)
@@ -409,6 +420,16 @@ class MainWindow(QMainWindow):
             "tab": keyboard.Key.tab,
             "return": keyboard.Key.enter,
             "enter": keyboard.Key.enter,
+            "backspace": keyboard.Key.backspace,
+            "delete": keyboard.Key.delete,
+            "home": keyboard.Key.home,
+            "end": keyboard.Key.end,
+            "pgup": keyboard.Key.page_up,
+            "pgdown": keyboard.Key.page_down,
+            "up": keyboard.Key.up,
+            "down": keyboard.Key.down,
+            "left": keyboard.Key.left,
+            "right": keyboard.Key.right,
             "f1": keyboard.Key.f1,
             "f2": keyboard.Key.f2,
             "f3": keyboard.Key.f3,
@@ -475,7 +496,7 @@ class MainWindow(QMainWindow):
 
         self._process_worker.process_frame(self._last_frame, self._config.ocr_confidence)
 
-    def _on_text_ready(self, _original: str, translated: str, _cached: bool):
+    def _on_text_ready(self, translated: str):
         """Handle translated text (banner mode)."""
         if not self._paused:
             self._banner_overlay.set_text(translated)
@@ -527,10 +548,6 @@ class MainWindow(QMainWindow):
             self._bg_color_btn.setStyleSheet(f"background-color: {hex_color};")
             self._banner_overlay.set_colors(self._config.font_color, hex_color)
             self._inplace_overlay.set_colors(self._config.font_color, hex_color)
-
-    def get_config(self) -> Config:
-        """Get the current configuration."""
-        return self._config
 
     def cleanup(self):
         """Clean up resources before closing."""

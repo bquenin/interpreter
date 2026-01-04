@@ -1,7 +1,6 @@
 """OCR module using MeikiOCR for Japanese game text extraction."""
 
 from dataclasses import dataclass
-from typing import Optional
 
 import numpy as np
 from PIL import Image
@@ -12,19 +11,20 @@ logger = log.get_logger()
 
 # Detection thresholds
 DEFAULT_CONFIDENCE_THRESHOLD = 0.6  # Minimum avg confidence per line (0.0-1.0)
-DUPLICATE_OVERLAP_THRESHOLD = 0.5   # Lines with >50% bbox overlap are duplicates
+DUPLICATE_OVERLAP_THRESHOLD = 0.5  # Lines with >50% bbox overlap are duplicates
 SPATIAL_PROXIMITY_MULTIPLIER = 1.5  # Gap threshold = height * this value
 
 # Punctuation characters to exclude from confidence calculation
 # These often have lower OCR confidence but shouldn't invalidate the line
-PUNCTUATION = set('。、！？・…「」『』（）【】〈〉《》～ー－—.!?,;:\'"()-~')
+PUNCTUATION = set("。、！？・…「」『』（）【】〈〉《》～ー－—.!?,;:'\"()-~")
 
 
 @dataclass
 class OCRResult:
     """Result from OCR extraction with optional bounding box."""
+
     text: str
-    bbox: Optional[dict] = None  # {"x": int, "y": int, "width": int, "height": int}
+    bbox: dict | None = None  # {"x": int, "y": int, "width": int, "height": int}
 
 
 class OCR:
@@ -64,6 +64,7 @@ class OCR:
 
         logger.info("loading meikiocr")
         from meikiocr import MeikiOCR
+
         self._model = MeikiOCR()
         logger.info("meikiocr ready")
 
@@ -82,43 +83,53 @@ class OCR:
         if self._model is None:
             self.load()
 
-        img_array = np.array(image.convert('RGB'))
+        img_array = np.array(image.convert("RGB"))
         results = self._model.run_ocr(img_array)
 
         lines = []
         for result in results:
-            chars = result.get('chars', [])
-            text = result.get('text', '')
+            chars = result.get("chars", [])
+            text = result.get("text", "")
 
             if not chars or not text:
                 continue
 
-            non_punct_chars = [c for c in chars if c['char'] not in PUNCTUATION]
+            non_punct_chars = [c for c in chars if c["char"] not in PUNCTUATION]
 
             if non_punct_chars:
-                avg_conf = sum(c['conf'] for c in non_punct_chars) / len(non_punct_chars)
+                avg_conf = sum(c["conf"] for c in non_punct_chars) / len(non_punct_chars)
             elif chars:
-                avg_conf = sum(c['conf'] for c in chars) / len(chars)
+                avg_conf = sum(c["conf"] for c in chars) / len(chars)
             else:
                 continue
 
             # Only log rejected regions in debug mode (accepted ones are too verbose)
             if self._debug and chars and avg_conf < self._confidence_threshold:
-                char_info = ' '.join(f"{c['char']}({c['conf']:.2f})" for c in chars)
-                punct_note = f" (excl {len(chars) - len(non_punct_chars)} punct)" if len(non_punct_chars) < len(chars) else ""
+                char_info = " ".join(f"{c['char']}({c['conf']:.2f})" for c in chars)
+                punct_note = (
+                    f" (excl {len(chars) - len(non_punct_chars)} punct)" if len(non_punct_chars) < len(chars) else ""
+                )
                 logger.debug("ocr rejected", chars=char_info, avg=f"{avg_conf:.2f}", note=punct_note)
 
             if avg_conf >= self._confidence_threshold:
-                char_bboxes = [c['bbox'] for c in chars if c.get('bbox') and len(c['bbox']) == 4]
+                char_bboxes = [c["bbox"] for c in chars if c.get("bbox") and len(c["bbox"]) == 4]
                 if char_bboxes:
                     min_x = min(b[0] for b in char_bboxes)
                     min_y = min(b[1] for b in char_bboxes)
                     max_x = max(b[2] for b in char_bboxes)
                     max_y = max(b[3] for b in char_bboxes)
-                    lines.append({
-                        'text': text,
-                        'bbox': [min_x, min_y, max_x, max_y],
-                    })
+
+                    # Validate bbox coordinates
+                    if min_x < 0 or min_y < 0 or max_x <= min_x or max_y <= min_y:
+                        logger.debug("invalid bbox, skipping", bbox=[min_x, min_y, max_x, max_y])
+                        continue
+
+                    lines.append(
+                        {
+                            "text": text,
+                            "bbox": [min_x, min_y, max_x, max_y],
+                        }
+                    )
 
         return self._deduplicate_lines(lines)
 
@@ -136,10 +147,10 @@ class OCR:
             return ""
 
         # Sort by position (top-to-bottom, left-to-right) for correct reading order
-        lines = sorted(lines, key=lambda l: (l['bbox'][1], l['bbox'][0]))
+        lines = sorted(lines, key=lambda line: (line["bbox"][1], line["bbox"][0]))
 
         # Concatenate all text (no spatial clustering for banner mode)
-        return self._clean_text(''.join(line['text'] for line in lines))
+        return self._clean_text("".join(line["text"] for line in lines))
 
     def extract_text_regions(self, image: Image.Image) -> list[OCRResult]:
         """Extract Japanese text regions from an image with spatial clustering.
@@ -164,20 +175,20 @@ class OCR:
         regions = []
         for cluster in clusters:
             # Sort lines top-to-bottom for reading order
-            cluster.sort(key=lambda line: line['bbox'][1])
+            cluster.sort(key=lambda line: line["bbox"][1])
 
             # Combine text from lines
-            text = ''.join(line['text'] for line in cluster)
+            text = "".join(line["text"] for line in cluster)
             text = self._clean_text(text)
 
             if not text:
                 continue
 
             # Compute bbox for this cluster
-            min_x = min(line['bbox'][0] for line in cluster)
-            min_y = min(line['bbox'][1] for line in cluster)
-            max_x = max(line['bbox'][2] for line in cluster)
-            max_y = max(line['bbox'][3] for line in cluster)
+            min_x = min(line["bbox"][0] for line in cluster)
+            min_y = min(line["bbox"][1] for line in cluster)
+            max_x = max(line["bbox"][2] for line in cluster)
+            max_y = max(line["bbox"][3] for line in cluster)
 
             bbox = {
                 "x": int(min_x),
@@ -206,17 +217,17 @@ class OCR:
             return lines
 
         # Sort by text length (descending) so we prefer longer detections
-        lines = sorted(lines, key=lambda l: len(l['text']), reverse=True)
+        lines = sorted(lines, key=lambda line: len(line["text"]), reverse=True)
 
         kept = []
         for line in lines:
-            x1, y1, x2, y2 = line['bbox']
+            x1, y1, x2, y2 = line["bbox"]
             line_area = (x2 - x1) * (y2 - y1)
 
             # Check if this line overlaps significantly with any kept line
             is_duplicate = False
             for kept_line in kept:
-                kx1, ky1, kx2, ky2 = kept_line['bbox']
+                kx1, ky1, kx2, ky2 = kept_line["bbox"]
 
                 # Calculate intersection
                 ix1 = max(x1, kx1)
@@ -250,13 +261,12 @@ class OCR:
             return []
 
         # Sort by position (top-to-bottom, left-to-right)
-        lines = sorted(lines, key=lambda line: (line['bbox'][1], line['bbox'][0]))
+        lines = sorted(lines, key=lambda line: (line["bbox"][1], line["bbox"][0]))
 
         clusters = []
 
         for line in lines:
-            x1, y1, x2, y2 = line['bbox']
-            line_width = x2 - x1
+            x1, y1, x2, y2 = line["bbox"]
             line_height = y2 - y1
 
             h_threshold = line_height * SPATIAL_PROXIMITY_MULTIPLIER
@@ -265,7 +275,7 @@ class OCR:
             merged = False
             for cluster in clusters:
                 for existing in cluster:
-                    ex1, ey1, ex2, ey2 = existing['bbox']
+                    ex1, ey1, ex2, ey2 = existing["bbox"]
 
                     # Check vertical overlap - must actually overlap
                     y_overlap = not (y2 <= ey1 or y1 >= ey2)

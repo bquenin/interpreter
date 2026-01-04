@@ -8,7 +8,6 @@ import sys
 import threading
 import time
 from ctypes import wintypes
-from typing import Optional
 
 import numpy as np
 from PIL import Image
@@ -20,6 +19,22 @@ from .base import FPSTrackerMixin
 # - Build 22000 (Win11): IsBorderRequired property to disable yellow border
 MIN_BUILD_GRAPHICS_CAPTURE = 18362
 MIN_BUILD_BORDER_TOGGLE = 22000
+
+
+def get_content_offset(window_id: int) -> tuple[int, int]:
+    """Get the offset of the content area within a window.
+
+    On Windows, the overlay is positioned at the client area and the capture
+    also covers the client area (after cropping title bar). So overlay and
+    capture are aligned - no offset needed.
+
+    Args:
+        window_id: The window handle (HWND).
+
+    Returns:
+        Tuple of (x_offset, y_offset) in pixels. Always (0, 0) on Windows.
+    """
+    return (0, 0)
 
 
 def get_windows_build() -> int:
@@ -76,9 +91,11 @@ def get_windows_version_string() -> str:
     else:
         return f"Windows 10 (build {build})"
 
+
 # Windows-specific imports
 try:
     import pygetwindow as gw
+
     WINDOWS_AVAILABLE = True
 except ImportError:
     WINDOWS_AVAILABLE = False
@@ -89,10 +106,9 @@ BI_RGB = 0
 PW_RENDERFULLCONTENT = 2  # Capture even if window is layered/composited
 
 # System metrics constants
-SM_CYCAPTION = 4      # Title bar height
-SM_CYFRAME = 33       # Window frame height
+SM_CYCAPTION = 4  # Title bar height
+SM_CYFRAME = 33  # Window frame height
 SM_CXPADDEDBORDER = 92  # Padded border width (Vista+)
-
 
 
 def get_title_bar_height() -> int:
@@ -151,21 +167,23 @@ def get_window_list() -> list[dict]:
     windows = []
     for win in gw.getAllWindows():
         if win.title:  # Skip windows without titles
-            windows.append({
-                "id": win._hWnd,
-                "title": win.title,
-                "owner": "",
-                "bounds": {
-                    "x": win.left,
-                    "y": win.top,
-                    "width": win.width,
-                    "height": win.height,
+            windows.append(
+                {
+                    "id": win._hWnd,
+                    "title": win.title,
+                    "owner": "",
+                    "bounds": {
+                        "x": win.left,
+                        "y": win.top,
+                        "width": win.width,
+                        "height": win.height,
+                    },
                 }
-            })
+            )
     return windows
 
 
-def find_window_by_title(title_substring: str) -> Optional[dict]:
+def find_window_by_title(title_substring: str) -> dict | None:
     """Find a window by partial title match.
 
     Args:
@@ -186,6 +204,7 @@ def find_window_by_title(title_substring: str) -> Optional[dict]:
 
 class RECT(ctypes.Structure):
     """Windows RECT structure."""
+
     _fields_ = [
         ("left", wintypes.LONG),
         ("top", wintypes.LONG),
@@ -196,13 +215,14 @@ class RECT(ctypes.Structure):
 
 class POINT(ctypes.Structure):
     """Windows POINT structure."""
+
     _fields_ = [
         ("x", wintypes.LONG),
         ("y", wintypes.LONG),
     ]
 
 
-def _get_window_bounds(window_id: int) -> Optional[dict]:
+def _get_window_bounds(window_id: int) -> dict | None:
     """Get the current bounds of a window (full window including chrome).
 
     Args:
@@ -237,7 +257,7 @@ def is_window_foreground(window_id: int) -> bool:
     return foreground_hwnd == window_id
 
 
-def _get_client_bounds(window_id: int) -> Optional[dict]:
+def _get_client_bounds(window_id: int) -> dict | None:
     """Get the client area bounds (content without title bar/borders).
 
     Args:
@@ -266,7 +286,7 @@ def _get_client_bounds(window_id: int) -> Optional[dict]:
     }
 
 
-def capture_window(window_id: int) -> Optional[Image.Image]:
+def capture_window(window_id: int) -> Image.Image | None:
     """Capture a screenshot of a specific window's client area.
 
     Uses BitBlt from the window's DC (same approach as the Go 'captured' library).
@@ -316,10 +336,7 @@ def capture_window(window_id: int) -> Optional[Image.Image]:
 
                 # BitBlt from window DC (copies from client area origin 0,0)
                 SRCCOPY = 0x00CC0020
-                result = gdi32.BitBlt(
-                    mem_dc, 0, 0, width, height,
-                    hwnd_dc, 0, 0, SRCCOPY
-                )
+                result = gdi32.BitBlt(mem_dc, 0, 0, width, height, hwnd_dc, 0, 0, SRCCOPY)
 
                 if not result:
                     gdi32.SelectObject(mem_dc, old_bitmap)
@@ -339,10 +356,7 @@ def capture_window(window_id: int) -> Optional[Image.Image]:
                 buffer = ctypes.create_string_buffer(buffer_size)
 
                 # Get bitmap bits
-                result = gdi32.GetDIBits(
-                    mem_dc, bitmap, 0, height,
-                    buffer, ctypes.byref(bmi), DIB_RGB_COLORS
-                )
+                result = gdi32.GetDIBits(mem_dc, bitmap, 0, height, buffer, ctypes.byref(bmi), DIB_RGB_COLORS)
 
                 gdi32.SelectObject(mem_dc, old_bitmap)
 
@@ -372,6 +386,7 @@ def _get_screen_size() -> tuple[int, int]:
 
 class MONITORINFO(ctypes.Structure):
     """Windows MONITORINFO structure."""
+
     _fields_ = [
         ("cbSize", wintypes.DWORD),
         ("rcMonitor", RECT),
@@ -424,7 +439,7 @@ class WindowsCaptureStream(FPSTrackerMixin):
             window_title: Partial title of the window to capture.
         """
         self._window_title = window_title
-        self._latest_frame: Optional[Image.Image] = None
+        self._latest_frame: Image.Image | None = None
         self._frame_lock = threading.Lock()
         self._capture = None
         self._running = False
@@ -433,7 +448,7 @@ class WindowsCaptureStream(FPSTrackerMixin):
         self._init_fps_tracking()
 
         # Store window ID for monitor detection
-        self._window_id: Optional[int] = None
+        self._window_id: int | None = None
         window = find_window_by_title(window_title)
         if window:
             self._window_id = window["id"]
@@ -444,8 +459,7 @@ class WindowsCaptureStream(FPSTrackerMixin):
         Raises:
             RuntimeError: If Windows version doesn't support Graphics Capture API.
         """
-        from windows_capture import WindowsCapture, Frame, InternalCaptureControl
-        import numpy as np
+        from windows_capture import Frame, InternalCaptureControl, WindowsCapture
 
         # Check Windows version for Graphics Capture API support
         build = get_windows_build()
@@ -491,7 +505,7 @@ class WindowsCaptureStream(FPSTrackerMixin):
                     screen_w, screen_h = _get_monitor_size_for_window(stream._window_id)
                 else:
                     screen_w, screen_h = _get_screen_size()
-                is_fullscreen = (frame.width >= screen_w and frame.height >= screen_h)
+                is_fullscreen = frame.width >= screen_w and frame.height >= screen_h
 
                 # Crop out title bar only if not fullscreen
                 if not is_fullscreen:
@@ -510,9 +524,10 @@ class WindowsCaptureStream(FPSTrackerMixin):
                         frame = frame.crop(0, title_bar_px, frame.width, frame.height)
 
                 # Save first frame for debugging (only once, only in debug mode)
-                if not hasattr(stream, '_debug_frame_saved'):
+                if not hasattr(stream, "_debug_frame_saved"):
                     stream._debug_frame_saved = True
                     from .. import log
+
                     if log.is_debug_enabled():
                         try:
                             # Get frame buffer and save as PNG
@@ -523,9 +538,11 @@ class WindowsCaptureStream(FPSTrackerMixin):
                             debug_path = "debug_capture.png"
                             debug_img.save(debug_path)
                             from .. import log
+
                             log.get_logger().info("saved debug frame", path=debug_path)
                         except Exception as e:
                             from .. import log
+
                             log.get_logger().warning("failed to save debug frame", error=str(e))
 
                 # Get frame buffer (numpy array, shape: height x width x 4, BGRA format)
@@ -540,8 +557,10 @@ class WindowsCaptureStream(FPSTrackerMixin):
                 with stream._frame_lock:
                     stream._latest_frame = img
                     stream._update_fps()
-            except Exception:
-                pass  # Silently ignore frame errors
+            except Exception as e:
+                from .. import log
+
+                log.get_logger().error("frame processing failed", error=str(e))
 
         @self._capture.event
         def on_closed():
@@ -565,9 +584,7 @@ class WindowsCaptureStream(FPSTrackerMixin):
                     f"  - Try running interpreter-v2 as Administrator"
                 ) from e
             else:
-                raise RuntimeError(
-                    f"Failed to start screen capture for '{self._window_title}': {error_msg}"
-                ) from e
+                raise RuntimeError(f"Failed to start screen capture for '{self._window_title}': {error_msg}") from e
 
         # Wait for first frame to arrive (up to 5 seconds)
         for _ in range(100):
@@ -576,7 +593,7 @@ class WindowsCaptureStream(FPSTrackerMixin):
                     break
             time.sleep(0.05)
 
-    def get_frame(self) -> Optional[Image.Image]:
+    def get_frame(self) -> Image.Image | None:
         """Get the latest captured frame.
 
         Returns:

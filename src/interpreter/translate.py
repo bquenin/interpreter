@@ -20,7 +20,7 @@ logger = log.get_logger()
 SUGOI_REPO_ID = "entai2965/sugoi-v4-ja-en-ctranslate2"
 
 # Translation cache defaults
-DEFAULT_CACHE_SIZE = 200            # Max cached translations
+DEFAULT_CACHE_SIZE = 200  # Max cached translations
 DEFAULT_SIMILARITY_THRESHOLD = 0.9  # Fuzzy match threshold for cache lookup
 
 
@@ -209,16 +209,16 @@ class Translator:
         result = (
             result
             # Curly quotes → straight quotes
-            .replace("\u2018", "'")   # LEFT SINGLE QUOTATION MARK
-            .replace("\u2019", "'")   # RIGHT SINGLE QUOTATION MARK
-            .replace("\u201C", '"')   # LEFT DOUBLE QUOTATION MARK
-            .replace("\u201D", '"')   # RIGHT DOUBLE QUOTATION MARK
+            .replace("\u2018", "'")  # LEFT SINGLE QUOTATION MARK
+            .replace("\u2019", "'")  # RIGHT SINGLE QUOTATION MARK
+            .replace("\u201c", '"')  # LEFT DOUBLE QUOTATION MARK
+            .replace("\u201d", '"')  # RIGHT DOUBLE QUOTATION MARK
             # Dashes
-            .replace("\u2013", "-")   # EN DASH
+            .replace("\u2013", "-")  # EN DASH
             .replace("\u2014", "--")  # EM DASH
-            .replace("\u2212", "-")   # MINUS SIGN
+            .replace("\u2212", "-")  # MINUS SIGN
             # Spaces
-            .replace("\u00A0", " ")   # NO-BREAK SPACE
+            .replace("\u00a0", " ")  # NO-BREAK SPACE
             # Ellipsis
             .replace("\u2026", "...")  # HORIZONTAL ELLIPSIS
         )
