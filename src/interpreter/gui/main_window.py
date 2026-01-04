@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 
 from .. import log
 from ..capture import WindowCapture
+from ..capture.convert import bgra_to_rgb_pil
 from ..config import Config
 from ..ocr import OCR
 from ..overlay import BannerOverlay, InplaceOverlay
@@ -477,8 +478,8 @@ class MainWindow(QMainWindow):
         self._last_frame = frame
         self._last_bounds = bounds
 
-        # Update preview
-        preview = frame.copy()
+        # Update preview (convert BGRA numpy to PIL RGB for thumbnail)
+        preview = bgra_to_rgb_pil(frame)
         preview.thumbnail((320, 240))
         data = preview.tobytes("raw", "RGB")
         qimg = QImage(data, preview.width, preview.height, preview.width * 3, QImage.Format.Format_RGB888)

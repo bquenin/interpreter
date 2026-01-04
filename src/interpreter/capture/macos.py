@@ -3,8 +3,9 @@
 import os
 import threading
 
+import numpy as np
 from AppKit import NSClosableWindowMask, NSMiniaturizableWindowMask, NSScreen, NSTitledWindowMask, NSWindow
-from PIL import Image
+from numpy.typing import NDArray
 from Quartz import CoreGraphics as CG
 
 from .base import FPSTrackerMixin
@@ -185,7 +186,7 @@ def get_content_offset(window_id: int) -> tuple[int, int]:
     return (0, _get_title_bar_height_pixels())
 
 
-def capture_window(window_id: int) -> Image.Image | None:
+def capture_window(window_id: int) -> NDArray[np.uint8] | None:
     """Capture a screenshot of a specific window using CGWindowListCreateImage.
 
     This captures the actual window content, not the screen region,
@@ -197,7 +198,7 @@ def capture_window(window_id: int) -> Image.Image | None:
         window_id: The CGWindowID of the window to capture.
 
     Returns:
-        PIL Image of the window content (excluding title bar), or None if capture failed.
+        Numpy array (H, W, 4) in BGRA format, or None if capture failed.
     """
     # Check if fullscreen before capturing
     is_fullscreen = _is_fullscreen(window_id)
@@ -230,29 +231,22 @@ def capture_window(window_id: int) -> Image.Image | None:
     data_provider = CG.CGImageGetDataProvider(cg_image)
     data = CG.CGDataProviderCopyData(data_provider)
 
-    # Create PIL Image from raw data (BGRA format)
+    # Convert to numpy array in BGRA format
     # Need to account for bytes_per_row which may include padding
     if bytes_per_row == width * 4:
-        # No padding, can use frombytes directly
-        image = Image.frombytes("RGBA", (width, height), bytes(data), "raw", "BGRA")
+        # No padding, reshape directly
+        arr = np.frombuffer(data, dtype=np.uint8).reshape((height, width, 4)).copy()
     else:
         # Has padding, need to handle stride manually
-        import numpy as np
-
         arr = np.frombuffer(data, dtype=np.uint8).reshape((height, bytes_per_row))
         # Take only the actual pixel data (width * 4 bytes per row)
-        arr = arr[:, : width * 4].reshape((height, width, 4))
-        # Convert from BGRA to RGBA
-        image = Image.fromarray(arr[:, :, [2, 1, 0, 3]], "RGBA")
-
-    # Convert to RGB (drop alpha channel)
-    image = image.convert("RGB")
+        arr = arr[:, : width * 4].reshape((height, width, 4)).copy()
 
     # Crop out the title bar if needed
     if title_bar_height > 0 and height > title_bar_height:
-        image = image.crop((0, title_bar_height, width, height))
+        arr = arr[title_bar_height:, :, :]
 
-    return image
+    return arr
 
 
 class MacOSCaptureStream(FPSTrackerMixin):
@@ -269,7 +263,7 @@ class MacOSCaptureStream(FPSTrackerMixin):
             window_id: The CGWindowID of the window to capture.
         """
         self._window_id = window_id
-        self._latest_frame: Image.Image | None = None
+        self._latest_frame: NDArray[np.uint8] | None = None
         self._frame_lock = threading.Lock()
         self._running = False
         self._thread: threading.Thread | None = None
@@ -293,16 +287,16 @@ class MacOSCaptureStream(FPSTrackerMixin):
         """
         while self._running:
             frame = capture_window(self._window_id)
-            if frame:
+            if frame is not None:
                 with self._frame_lock:
                     self._latest_frame = frame
                     self._update_fps()
 
-    def get_frame(self) -> Image.Image | None:
+    def get_frame(self) -> NDArray[np.uint8] | None:
         """Get the latest captured frame.
 
         Returns:
-            PIL Image of the captured frame, or None if no frame available.
+            Numpy array (H, W, 4) in BGRA format, or None if no frame available.
         """
         with self._frame_lock:
             return self._latest_frame

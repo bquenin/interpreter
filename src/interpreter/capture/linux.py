@@ -7,11 +7,11 @@ This module captures windows through the X11 protocol, which works for:
 Most retro game emulators run under XWayland, so this covers the primary use case.
 """
 
-import struct
 import threading
 import time
 
-from PIL import Image
+import numpy as np
+from numpy.typing import NDArray
 from Xlib import X, Xatom, display
 from Xlib.error import BadDrawable, BadWindow
 from Xlib.ext import randr
@@ -356,8 +356,8 @@ def _get_monitors() -> list[dict]:
     return _monitors_cache
 
 
-def _raw_to_image(data: bytes, width: int, height: int, depth: int) -> Image.Image | None:
-    """Convert raw X11 pixel data to PIL Image.
+def _raw_to_numpy(data: bytes, width: int, height: int, depth: int) -> NDArray[np.uint8] | None:
+    """Convert raw X11 pixel data to numpy array in BGRA format.
 
     Handles both 24/32-bit BGRA and 16-bit RGB565 formats.
 
@@ -368,27 +368,29 @@ def _raw_to_image(data: bytes, width: int, height: int, depth: int) -> Image.Ima
         depth: Color depth (16, 24, or 32).
 
     Returns:
-        PIL Image in RGB format, or None if conversion failed.
+        Numpy array (H, W, 4) in BGRA format, or None if conversion failed.
     """
     if depth == 24 or depth == 32:
         expected_size = width * height * 4
         if len(data) < expected_size:
             return None
-        image = Image.frombytes("RGBA", (width, height), bytes(data[:expected_size]), "raw", "BGRA")
-        return image.convert("RGB")
+        # Data is already in BGRA format, just reshape
+        arr = np.frombuffer(data[:expected_size], dtype=np.uint8).reshape((height, width, 4)).copy()
+        return arr
 
     elif depth == 16:
         expected_size = width * height * 2
         if len(data) < expected_size:
             return None
-        pixels = []
-        for i in range(0, expected_size, 2):
-            pixel = struct.unpack("<H", data[i : i + 2])[0]
-            r = ((pixel >> 11) & 0x1F) << 3
-            g = ((pixel >> 5) & 0x3F) << 2
-            b = (pixel & 0x1F) << 3
-            pixels.extend([r, g, b])
-        return Image.frombytes("RGB", (width, height), bytes(pixels))
+        # Convert RGB565 to BGRA
+        pixels = np.frombuffer(data[:expected_size], dtype=np.uint16).reshape((height, width))
+        r = ((pixels >> 11) & 0x1F).astype(np.uint8) << 3
+        g = ((pixels >> 5) & 0x3F).astype(np.uint8) << 2
+        b = (pixels & 0x1F).astype(np.uint8) << 3
+        a = np.full((height, width), 255, dtype=np.uint8)
+        # Stack as BGRA
+        arr = np.stack([b, g, r, a], axis=-1)
+        return arr
 
     return None
 
@@ -433,30 +435,30 @@ def _find_content_window(window) -> tuple | None:
         return None
 
 
-def _crop_title_bar_if_needed(image: Image.Image, window_id: int, crop_title_bar: bool) -> Image.Image:
-    """Crop title bar from image if needed.
+def _crop_title_bar_if_needed(frame: NDArray[np.uint8], window_id: int, crop_title_bar: bool) -> NDArray[np.uint8]:
+    """Crop title bar from frame if needed.
 
     Uses lazy evaluation - only fetches title bar height if actually needed.
 
     Args:
-        image: The captured image.
+        frame: The captured numpy array (H, W, 4) in BGRA format.
         window_id: The X11 window ID.
         crop_title_bar: Whether cropping should be considered.
 
     Returns:
-        Cropped image if title bar was removed, original image otherwise.
+        Cropped frame if title bar was removed, original frame otherwise.
     """
     if not crop_title_bar or _is_fullscreen(window_id):
-        return image
+        return frame
 
     title_bar = _get_title_bar_height(window_id)
-    if title_bar > 0 and image.height > title_bar:
-        return image.crop((0, title_bar, image.width, image.height))
+    if title_bar > 0 and frame.shape[0] > title_bar:
+        return frame[title_bar:, :, :]
 
-    return image
+    return frame
 
 
-def capture_window(window_id: int) -> Image.Image | None:
+def capture_window(window_id: int) -> NDArray[np.uint8] | None:
     """Capture a screenshot of a specific window.
 
     For CSD windows (with client-side decorations), this will attempt to
@@ -466,7 +468,7 @@ def capture_window(window_id: int) -> Image.Image | None:
         window_id: The X11 window ID (XID) of the window to capture.
 
     Returns:
-        PIL Image of the window content, or None if capture failed.
+        Numpy array (H, W, 4) in BGRA format, or None if capture failed.
     """
     disp = _get_display()
 
@@ -508,12 +510,12 @@ def capture_window(window_id: int) -> Image.Image | None:
             0xFFFFFFFF,  # plane mask (all planes)
         )
 
-        # Convert raw pixel data to PIL Image
-        image = _raw_to_image(raw.data, width, height, depth)
-        if image is None:
+        # Convert raw pixel data to numpy BGRA array
+        frame = _raw_to_numpy(raw.data, width, height, depth)
+        if frame is None:
             return None
 
-        return _crop_title_bar_if_needed(image, window_id, crop_title_bar)
+        return _crop_title_bar_if_needed(frame, window_id, crop_title_bar)
 
     except BadWindow:
         return None
@@ -546,7 +548,7 @@ class LinuxCaptureStream(FPSTrackerMixin):
         """
         self._window_id = window_id
         self._capture_interval = capture_interval
-        self._latest_frame: Image.Image | None = None
+        self._latest_frame: NDArray[np.uint8] | None = None
         self._frame_lock = threading.Lock()
         self._running = False
         self._thread: threading.Thread | None = None
@@ -585,13 +587,14 @@ class LinuxCaptureStream(FPSTrackerMixin):
                 frame = self._capture_frame()
                 capture_time_ms = (time.perf_counter() - start_time) * 1000
 
-                if frame:
+                if frame is not None:
                     with self._frame_lock:
                         self._latest_frame = frame
                         self._update_fps()
 
                     # Track capture times and check for slow capture
-                    self._check_capture_performance(capture_time_ms, frame.size)
+                    # frame.shape is (height, width, channels)
+                    self._check_capture_performance(capture_time_ms, (frame.shape[1], frame.shape[0]))
 
                 time.sleep(self._capture_interval)
         finally:
@@ -639,7 +642,7 @@ class LinuxCaptureStream(FPSTrackerMixin):
                     "(2) Lower display resolution, or (3) Increase capture interval in config.",
                 )
 
-    def _capture_frame(self) -> Image.Image | None:
+    def _capture_frame(self) -> NDArray[np.uint8] | None:
         """Capture a single frame using the thread's display connection."""
         if self._capture_display is None:
             return None
@@ -672,12 +675,12 @@ class LinuxCaptureStream(FPSTrackerMixin):
 
             raw = target_window.get_image(0, 0, width, height, X.ZPixmap, 0xFFFFFFFF)
 
-            # Convert raw pixel data to PIL Image
-            image = _raw_to_image(raw.data, width, height, depth)
-            if image is None:
+            # Convert raw pixel data to numpy BGRA array
+            frame = _raw_to_numpy(raw.data, width, height, depth)
+            if frame is None:
                 return None
 
-            return _crop_title_bar_if_needed(image, self._window_id, crop_title_bar)
+            return _crop_title_bar_if_needed(frame, self._window_id, crop_title_bar)
 
         except (BadDrawable, BadWindow):
             self._window_invalid = True
@@ -687,11 +690,11 @@ class LinuxCaptureStream(FPSTrackerMixin):
         except Exception:
             return None
 
-    def get_frame(self) -> Image.Image | None:
+    def get_frame(self) -> NDArray[np.uint8] | None:
         """Get the latest captured frame (non-blocking).
 
         Returns:
-            PIL Image of the captured frame, or None if no frame available.
+            Numpy array (H, W, 4) in BGRA format, or None if no frame available.
         """
         with self._frame_lock:
             return self._latest_frame

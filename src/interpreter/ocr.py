@@ -3,9 +3,10 @@
 from dataclasses import dataclass
 
 import numpy as np
-from PIL import Image
+from numpy.typing import NDArray
 
 from . import log
+from .capture.convert import bgra_to_rgb
 
 logger = log.get_logger()
 
@@ -68,13 +69,13 @@ class OCR:
         self._model = MeikiOCR()
         logger.info("meikiocr ready")
 
-    def _run_ocr_and_filter(self, image: Image.Image) -> list[dict]:
+    def _run_ocr_and_filter(self, image: NDArray[np.uint8]) -> list[dict]:
         """Run OCR and filter results by confidence threshold.
 
         This is the common logic shared between extract_text() and extract_text_regions().
 
         Args:
-            image: PIL Image to extract text from.
+            image: Numpy array (H, W, 4) in BGRA format.
 
         Returns:
             List of line dicts: [{"text": str, "bbox": [x1, y1, x2, y2]}, ...]
@@ -83,7 +84,8 @@ class OCR:
         if self._model is None:
             self.load()
 
-        img_array = np.array(image.convert("RGB"))
+        # Convert BGRA to RGB for MeikiOCR
+        img_array = bgra_to_rgb(image)
         results = self._model.run_ocr(img_array)
 
         lines = []
@@ -133,11 +135,11 @@ class OCR:
 
         return self._deduplicate_lines(lines)
 
-    def extract_text(self, image: Image.Image) -> str:
+    def extract_text(self, image: NDArray[np.uint8]) -> str:
         """Extract Japanese text from an image.
 
         Args:
-            image: PIL Image to extract text from.
+            image: Numpy array (H, W, 4) in BGRA format.
 
         Returns:
             Extracted text string.
@@ -152,14 +154,14 @@ class OCR:
         # Concatenate all text (no spatial clustering for banner mode)
         return self._clean_text("".join(line["text"] for line in lines))
 
-    def extract_text_regions(self, image: Image.Image) -> list[OCRResult]:
+    def extract_text_regions(self, image: NDArray[np.uint8]) -> list[OCRResult]:
         """Extract Japanese text regions from an image with spatial clustering.
 
         Lines that are spatially close are grouped into the same region.
         This handles screens with multiple separate text areas.
 
         Args:
-            image: PIL Image to extract text from.
+            image: Numpy array (H, W, 4) in BGRA format.
 
         Returns:
             List of OCRResult objects, one per detected text region.

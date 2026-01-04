@@ -10,9 +10,10 @@ import time
 from ctypes import wintypes
 
 import numpy as np
-from PIL import Image
+from numpy.typing import NDArray
 
 from .base import FPSTrackerMixin
+from .convert import bgra_to_rgb_pil
 
 # Windows build number requirements for Graphics Capture API features
 # - Build 18362 (Win10 1903): Basic Windows Graphics Capture API
@@ -286,7 +287,7 @@ def _get_client_bounds(window_id: int) -> dict | None:
     }
 
 
-def capture_window(window_id: int) -> Image.Image | None:
+def capture_window(window_id: int) -> NDArray[np.uint8] | None:
     """Capture a screenshot of a specific window's client area.
 
     Uses BitBlt from the window's DC (same approach as the Go 'captured' library).
@@ -296,7 +297,7 @@ def capture_window(window_id: int) -> Image.Image | None:
         window_id: The window handle (HWND).
 
     Returns:
-        PIL Image of the window's client area, or None if capture failed.
+        Numpy array (H, W, 4) in BGRA format, or None if capture failed.
     """
     # Get client area dimensions
     client_bounds = _get_client_bounds(window_id)
@@ -363,9 +364,9 @@ def capture_window(window_id: int) -> Image.Image | None:
                 if result == 0:
                     return None
 
-                # Convert BGRA to RGB
-                img = Image.frombuffer("RGBA", (width, height), buffer, "raw", "BGRA", 0, 1)
-                return img.convert("RGB")
+                # Return raw BGRA numpy array (consumers convert on demand)
+                arr = np.frombuffer(buffer, dtype=np.uint8).reshape((height, width, 4)).copy()
+                return arr
 
             finally:
                 gdi32.DeleteObject(bitmap)
@@ -439,7 +440,7 @@ class WindowsCaptureStream(FPSTrackerMixin):
             window_title: Partial title of the window to capture.
         """
         self._window_title = window_title
-        self._latest_frame: Image.Image | None = None
+        self._latest_frame: NDArray[np.uint8] | None = None
         self._frame_lock = threading.Lock()
         self._capture = None
         self._running = False
@@ -523,6 +524,9 @@ class WindowsCaptureStream(FPSTrackerMixin):
                     if frame.height > title_bar_px:
                         frame = frame.crop(0, title_bar_px, frame.width, frame.height)
 
+                # Get frame buffer (numpy array, shape: height x width x 4, BGRA format)
+                arr = frame.frame_buffer
+
                 # Save first frame for debugging (only once, only in debug mode)
                 if not hasattr(stream, "_debug_frame_saved"):
                     stream._debug_frame_saved = True
@@ -530,32 +534,16 @@ class WindowsCaptureStream(FPSTrackerMixin):
 
                     if log.is_debug_enabled():
                         try:
-                            # Get frame buffer and save as PNG
-                            debug_arr = frame.frame_buffer
-                            debug_rgb = debug_arr[:, :, [2, 1, 0]]
-                            debug_rgb = np.ascontiguousarray(debug_rgb)
-                            debug_img = Image.fromarray(debug_rgb, mode="RGB")
+                            debug_img = bgra_to_rgb_pil(arr)
                             debug_path = "debug_capture.png"
                             debug_img.save(debug_path)
-                            from .. import log
-
                             log.get_logger().info("saved debug frame", path=debug_path)
                         except Exception as e:
-                            from .. import log
-
                             log.get_logger().warning("failed to save debug frame", error=str(e))
 
-                # Get frame buffer (numpy array, shape: height x width x 4, BGRA format)
-                arr = frame.frame_buffer
-
-                # Convert BGRA to RGB
-                rgb = arr[:, :, [2, 1, 0]]  # Reorder channels: B,G,R,A -> R,G,B
-                rgb = np.ascontiguousarray(rgb)  # Ensure C-contiguous for PIL
-
-                img = Image.fromarray(rgb, mode="RGB")
-
+                # Store raw BGRA numpy array (consumers convert on demand)
                 with stream._frame_lock:
-                    stream._latest_frame = img
+                    stream._latest_frame = arr.copy()
                     stream._update_fps()
             except Exception as e:
                 from .. import log
@@ -593,11 +581,11 @@ class WindowsCaptureStream(FPSTrackerMixin):
                     break
             time.sleep(0.05)
 
-    def get_frame(self) -> Image.Image | None:
+    def get_frame(self) -> NDArray[np.uint8] | None:
         """Get the latest captured frame.
 
         Returns:
-            PIL Image of the captured frame, or None if no frame available.
+            Numpy array (H, W, 4) in BGRA format, or None if no frame available.
         """
         with self._frame_lock:
             return self._latest_frame
