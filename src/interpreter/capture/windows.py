@@ -12,8 +12,10 @@ from ctypes import wintypes
 import numpy as np
 from numpy.typing import NDArray
 
-from .base import FPSTrackerMixin
 from .convert import bgra_to_rgb_pil
+
+# Fixed capture interval (4 FPS) - throttle Windows Graphics Capture API
+CAPTURE_INTERVAL = 0.25
 
 # Windows build number requirements for Graphics Capture API features
 # - Build 18362 (Win10 1903): Basic Windows Graphics Capture API
@@ -424,14 +426,13 @@ def _get_monitor_size_for_window(window_id: int) -> tuple[int, int]:
     return _get_screen_size()
 
 
-class WindowsCaptureStream(FPSTrackerMixin):
+class WindowsCaptureStream:
     """Continuous window capture using Windows Graphics Capture API.
 
     Uses the windows-capture library which wraps the Windows Graphics Capture API.
     This can capture DirectX/OpenGL content even when the window is in the background.
+    Throttled to 4 FPS to avoid wasteful high-frequency capture.
     """
-
-    # Title bar cropping is now computed dynamically via get_title_bar_height_capture_pixels()
 
     def __init__(self, window_title: str):
         """Initialize the capture stream.
@@ -444,9 +445,7 @@ class WindowsCaptureStream(FPSTrackerMixin):
         self._frame_lock = threading.Lock()
         self._capture = None
         self._running = False
-
-        # FPS tracking (from mixin)
-        self._init_fps_tracking()
+        self._last_frame_time: float = 0.0  # For 4 FPS throttling
 
         # Store window ID for monitor detection
         self._window_id: int | None = None
@@ -480,7 +479,7 @@ class WindowsCaptureStream(FPSTrackerMixin):
             draw_border = None  # Skip border config (yellow border will appear)
 
         self._running = True
-        self._reset_fps_tracking()
+        self._last_frame_time = 0.0  # Reset throttling
 
         # Create capture instance
         self._capture = WindowsCapture(
@@ -498,6 +497,12 @@ class WindowsCaptureStream(FPSTrackerMixin):
             if not stream._running:
                 capture_control.stop()
                 return
+
+            # Throttle to 4 FPS - skip frames that arrive too quickly
+            now = time.time()
+            if now - stream._last_frame_time < CAPTURE_INTERVAL:
+                return
+            stream._last_frame_time = now
 
             try:
                 # Detect fullscreen: if frame fills the monitor, don't crop title bar
@@ -544,7 +549,6 @@ class WindowsCaptureStream(FPSTrackerMixin):
                 # Store raw BGRA numpy array (consumers convert on demand)
                 with stream._frame_lock:
                     stream._latest_frame = arr.copy()
-                    stream._update_fps()
             except Exception as e:
                 from .. import log
 
@@ -594,5 +598,3 @@ class WindowsCaptureStream(FPSTrackerMixin):
         """Stop the capture stream."""
         self._running = False
         # The capture will stop on next frame via capture_control.stop()
-
-    # fps property is inherited from FPSTrackerMixin

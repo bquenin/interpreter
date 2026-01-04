@@ -27,7 +27,7 @@ from ..ocr import OCR
 from ..overlay import BannerOverlay, InplaceOverlay
 from ..translate import Translator
 from . import keyboard
-from .workers import CaptureWorker, ProcessWorker
+from .workers import ProcessWorker
 
 logger = log.get_logger()
 
@@ -35,6 +35,9 @@ logger = log.get_logger()
 FONT_FAMILY = "Helvetica"
 MIN_FONT_SIZE = 8
 MAX_FONT_SIZE = 72
+
+# Fixed processing interval (2 FPS)
+PROCESS_INTERVAL_MS = 500
 
 
 class MainWindow(QMainWindow):
@@ -61,10 +64,7 @@ class MainWindow(QMainWindow):
         self._ocr: OCR | None = None
         self._translator: Translator | None = None
 
-        # Workers
-        self._capture_worker = CaptureWorker()
-        self._capture_worker.frame_ready.connect(self._on_frame)
-
+        # Worker for OCR/translation
         self._process_worker = ProcessWorker()
         self._process_worker.text_ready.connect(self._on_text_ready)
         self._process_worker.regions_ready.connect(self._on_regions_ready)
@@ -83,9 +83,9 @@ class MainWindow(QMainWindow):
             background_color=config.background_color,
         )
 
-        # Processing timer (respects refresh rate)
+        # Main processing timer (fixed 2 FPS)
         self._process_timer = QTimer()
-        self._process_timer.timeout.connect(self._process_frame)
+        self._process_timer.timeout.connect(self._capture_and_process)
         self._last_frame = None
         self._last_bounds = {}
 
@@ -196,57 +196,44 @@ class MainWindow(QMainWindow):
         settings_group = QGroupBox("Settings")
         settings_layout = QGridLayout(settings_group)
 
-        # Refresh rate
-        settings_layout.addWidget(QLabel("Refresh Rate:"), 0, 0)
-        self._refresh_slider = QSlider(Qt.Orientation.Horizontal)
-        self._refresh_slider.setRange(1, 20)  # 0.1 to 2.0 seconds
-        self._refresh_slider.setValue(int(self._config.refresh_rate * 10))
-        self._refresh_slider.valueChanged.connect(self._on_refresh_rate_changed)
-        settings_layout.addWidget(self._refresh_slider, 0, 1)
-        self._refresh_label = QLabel(f"{self._config.refresh_rate:.1f}s")
-        settings_layout.addWidget(self._refresh_label, 0, 2)
-
         # OCR Confidence
-        settings_layout.addWidget(QLabel("OCR Confidence:"), 1, 0)
+        settings_layout.addWidget(QLabel("OCR Confidence:"), 0, 0)
         self._confidence_slider = QSlider(Qt.Orientation.Horizontal)
         self._confidence_slider.setRange(0, 100)
         self._confidence_slider.setValue(int(self._config.ocr_confidence * 100))
         self._confidence_slider.valueChanged.connect(self._on_confidence_changed)
-        settings_layout.addWidget(self._confidence_slider, 1, 1)
+        settings_layout.addWidget(self._confidence_slider, 0, 1)
         self._confidence_label = QLabel(f"{self._config.ocr_confidence:.0%}")
-        settings_layout.addWidget(self._confidence_label, 1, 2)
+        settings_layout.addWidget(self._confidence_label, 0, 2)
 
         # Font size
-        settings_layout.addWidget(QLabel("Font Size:"), 2, 0)
+        settings_layout.addWidget(QLabel("Font Size:"), 1, 0)
         self._font_slider = QSlider(Qt.Orientation.Horizontal)
         self._font_slider.setRange(MIN_FONT_SIZE, MAX_FONT_SIZE)
         self._font_slider.setValue(self._config.font_size)
         self._font_slider.valueChanged.connect(self._on_font_size_changed)
-        settings_layout.addWidget(self._font_slider, 2, 1)
+        settings_layout.addWidget(self._font_slider, 1, 1)
         self._font_label = QLabel(f"{self._config.font_size}pt")
-        settings_layout.addWidget(self._font_label, 2, 2)
+        settings_layout.addWidget(self._font_label, 1, 2)
 
         # Colors
-        settings_layout.addWidget(QLabel("Font Color:"), 3, 0)
+        settings_layout.addWidget(QLabel("Font Color:"), 2, 0)
         self._font_color_btn = QPushButton()
         self._font_color_btn.setStyleSheet(f"background-color: {self._config.font_color};")
         self._font_color_btn.clicked.connect(self._pick_font_color)
-        settings_layout.addWidget(self._font_color_btn, 3, 1)
+        settings_layout.addWidget(self._font_color_btn, 2, 1)
 
-        settings_layout.addWidget(QLabel("Background:"), 4, 0)
+        settings_layout.addWidget(QLabel("Background:"), 3, 0)
         self._bg_color_btn = QPushButton()
         self._bg_color_btn.setStyleSheet(f"background-color: {self._config.background_color};")
         self._bg_color_btn.clicked.connect(self._pick_bg_color)
-        settings_layout.addWidget(self._bg_color_btn, 4, 1)
+        settings_layout.addWidget(self._bg_color_btn, 3, 1)
 
         layout.addWidget(settings_group)
 
         # Preview
         preview_group = QGroupBox("Preview")
         preview_layout = QVBoxLayout(preview_group)
-
-        self._fps_label = QLabel("FPS: --")
-        preview_layout.addWidget(self._fps_label)
 
         self._preview_label = QLabel()
         self._preview_label.setFixedSize(320, 240)
@@ -334,12 +321,8 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage("Failed to start stream")
             return
 
-        self._capture_worker.set_capture(self._capture)
-        self._capture_worker.start()
-
-        # Start process timer based on refresh rate
-        interval_ms = int(self._config.refresh_rate * 1000)
-        self._process_timer.setInterval(interval_ms)
+        # Start single timer for capture + processing (fixed 2 FPS)
+        self._process_timer.setInterval(PROCESS_INTERVAL_MS)
         self._process_timer.start()
 
         self._capturing = True
@@ -357,7 +340,6 @@ class MainWindow(QMainWindow):
 
     def _stop_capture(self):
         """Stop capturing."""
-        self._capture_worker.stop()
         self._process_timer.stop()
 
         if self._capture:
@@ -369,7 +351,6 @@ class MainWindow(QMainWindow):
         self._start_btn.setText("Start Capture")
         self._pause_btn.setEnabled(False)
         self.statusBar().showMessage("Ready")
-        self._fps_label.setText("FPS: --")
 
         # Clear preview
         self._preview_label.clear()
@@ -472,9 +453,18 @@ class MainWindow(QMainWindow):
                 self._inplace_overlay.position_over_window(self._last_bounds)
             self._inplace_overlay.show()
 
-    def _on_frame(self, frame, fps: float, bounds: dict):
-        """Handle new frame from capture worker."""
-        self._fps_label.setText(f"FPS: {fps:.1f}")
+    def _capture_and_process(self):
+        """Capture a frame and process it through OCR and translation."""
+        if self._capture is None:
+            return
+
+        # Get latest frame from background capture stream
+        frame = self._capture.get_frame()
+        if frame is None:
+            return
+
+        # Update bounds
+        bounds = self._capture.bounds or {}
         self._last_frame = frame
         self._last_bounds = bounds
 
@@ -490,12 +480,9 @@ class MainWindow(QMainWindow):
         if self._mode == "inplace" and bounds and not self._paused:
             self._inplace_overlay.position_over_window(bounds)
 
-    def _process_frame(self):
-        """Process the latest frame through OCR and translation."""
-        if self._paused or self._last_frame is None:
-            return
-
-        self._process_worker.process_frame(self._last_frame, self._config.ocr_confidence)
+        # Process through OCR and translation
+        if not self._paused:
+            self._process_worker.process_frame(frame, self._config.ocr_confidence)
 
     def _on_text_ready(self, translated: str):
         """Handle translated text (banner mode)."""
@@ -512,13 +499,6 @@ class MainWindow(QMainWindow):
             self._inplace_overlay.set_regions(regions, content_offset)
 
     # Settings handlers
-    def _on_refresh_rate_changed(self, value: int):
-        rate = value / 10.0
-        self._config.refresh_rate = rate
-        self._refresh_label.setText(f"{rate:.1f}s")
-        if self._capturing:
-            self._process_timer.setInterval(int(rate * 1000))
-
     def _on_confidence_changed(self, value: int):
         confidence = value / 100.0
         self._config.ocr_confidence = confidence

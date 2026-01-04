@@ -2,13 +2,15 @@
 
 import os
 import threading
+import time
 
 import numpy as np
 from AppKit import NSClosableWindowMask, NSMiniaturizableWindowMask, NSScreen, NSTitledWindowMask, NSWindow
 from numpy.typing import NDArray
 from Quartz import CoreGraphics as CG
 
-from .base import FPSTrackerMixin
+# Fixed capture interval (4 FPS)
+CAPTURE_INTERVAL = 0.25
 
 
 def _get_title_bar_height_pixels() -> int:
@@ -249,11 +251,11 @@ def capture_window(window_id: int) -> NDArray[np.uint8] | None:
     return arr
 
 
-class MacOSCaptureStream(FPSTrackerMixin):
+class MacOSCaptureStream:
     """Continuous window capture wrapping existing Quartz capture.
 
     Provides the same streaming interface as WindowsCaptureStream for
-    platform-agnostic capture code.
+    platform-agnostic capture code. Captures at fixed 4 FPS.
     """
 
     def __init__(self, window_id: int):
@@ -268,29 +270,20 @@ class MacOSCaptureStream(FPSTrackerMixin):
         self._running = False
         self._thread: threading.Thread | None = None
 
-        # FPS tracking (from mixin)
-        self._init_fps_tracking()
-
     def start(self):
         """Start the capture stream in background."""
         self._running = True
-        self._reset_fps_tracking()
         self._thread = threading.Thread(target=self._capture_loop, daemon=True)
         self._thread.start()
 
     def _capture_loop(self):
-        """Background thread that continuously captures frames.
-
-        Captures as fast as possible without artificial delay. The actual
-        capture rate is limited by the system (CGWindowListCreateImage speed).
-        Cross-Space capture may be throttled by macOS to ~5-6 FPS.
-        """
+        """Background thread that captures frames at fixed 4 FPS."""
         while self._running:
             frame = capture_window(self._window_id)
             if frame is not None:
                 with self._frame_lock:
                     self._latest_frame = frame
-                    self._update_fps()
+            time.sleep(CAPTURE_INTERVAL)
 
     def get_frame(self) -> NDArray[np.uint8] | None:
         """Get the latest captured frame.
@@ -300,8 +293,6 @@ class MacOSCaptureStream(FPSTrackerMixin):
         """
         with self._frame_lock:
             return self._latest_frame
-
-    # fps property is inherited from FPSTrackerMixin
 
     def stop(self):
         """Stop the capture stream."""

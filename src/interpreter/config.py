@@ -27,7 +27,6 @@ class Config:
     def __init__(
         self,
         window_title: str = "Snes9x",
-        refresh_rate: float = 0.5,
         ocr_confidence: float = 0.6,
         overlay_mode: str = "banner",
         font_size: int = 26,
@@ -37,7 +36,6 @@ class Config:
         config_path: str | None = None,
     ):
         self.window_title = window_title
-        self.refresh_rate = refresh_rate
         self.ocr_confidence = ocr_confidence
         self.overlay_mode = overlay_mode  # "banner" or "inplace"
         self.font_size = font_size
@@ -82,7 +80,6 @@ class Config:
 
             return cls(
                 window_title=data.get("window_title", cls.DEFAULT_WINDOW_TITLE),
-                refresh_rate=float(data.get("refresh_rate", 0.5)),
                 ocr_confidence=float(data.get("ocr_confidence", 0.6)),
                 overlay_mode=data.get("overlay_mode", "banner"),
                 font_size=int(data.get("font_size", 26)),
@@ -112,11 +109,6 @@ class Config:
         # Write default config with comments
         default_config = """# Window to capture (partial title match)
 window_title: "Snes9x"
-
-# Refresh rate in seconds (how often to capture and process the screen)
-# Lower = more responsive but higher CPU usage
-# Recommended: 0.5s (fast CPU) to 1.0s (slower CPU)
-refresh_rate: 0.5
 
 # OCR confidence threshold (0.0-1.0)
 # Filters out low-confidence text detection
@@ -171,7 +163,6 @@ hotkeys:
         # Explicitly convert to basic types to avoid Python-specific YAML tags
         data = {
             "window_title": str(self.window_title) if self.window_title else "",
-            "refresh_rate": float(self.refresh_rate),
             "ocr_confidence": float(self.ocr_confidence),
             "overlay_mode": str(self.overlay_mode),
             "font_size": int(self.font_size),

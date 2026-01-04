@@ -17,7 +17,6 @@ from Xlib.error import BadDrawable, BadWindow
 from Xlib.ext import randr
 
 from .. import log
-from .base import FPSTrackerMixin
 
 logger = log.get_logger()
 
@@ -525,10 +524,10 @@ def capture_window(window_id: int) -> NDArray[np.uint8] | None:
         return None
 
 
-class LinuxCaptureStream(FPSTrackerMixin):
+class LinuxCaptureStream:
     """Continuous background window capture using X11.
 
-    Captures frames in a background thread at a fixed interval.
+    Captures frames in a background thread at a fixed 4 FPS interval.
     The main thread can get the latest frame without blocking.
 
     Provides the same interface as MacOSCaptureStream and WindowsCaptureStream
@@ -557,13 +556,9 @@ class LinuxCaptureStream(FPSTrackerMixin):
         self._capture_times: list[float] = []  # Recent capture times in ms
         self._warning_shown = False
 
-        # FPS tracking (from mixin)
-        self._init_fps_tracking()
-
     def start(self):
         """Start the capture stream in background."""
         self._running = True
-        self._reset_fps_tracking()
         self._thread = threading.Thread(target=self._capture_loop, daemon=True)
         self._thread.start()
         logger.debug(
@@ -590,7 +585,6 @@ class LinuxCaptureStream(FPSTrackerMixin):
                 if frame is not None:
                     with self._frame_lock:
                         self._latest_frame = frame
-                        self._update_fps()
 
                     # Track capture times and check for slow capture
                     # frame.shape is (height, width, channels)
@@ -698,8 +692,6 @@ class LinuxCaptureStream(FPSTrackerMixin):
         """
         with self._frame_lock:
             return self._latest_frame
-
-    # fps property is inherited from FPSTrackerMixin
 
     def stop(self):
         """Stop the capture stream."""

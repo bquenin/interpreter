@@ -283,19 +283,6 @@ class WindowCapture:
 
         return frame
 
-    @property
-    def fps(self) -> float:
-        """Get the current capture frame rate from the stream.
-
-        Returns:
-            Frames per second being captured, or 0.0 if no stream.
-        """
-        if self._stream is None:
-            return 0.0
-        if hasattr(self._stream, "fps"):
-            return self._stream.fps
-        return 0.0
-
     def stop_stream(self):
         """Stop the background capture stream."""
         if self._stream is not None:
