@@ -1,62 +1,12 @@
-"""Background workers for capture, OCR, and translation."""
+"""Background workers for OCR and translation."""
 
-from PySide6.QtCore import QObject, QTimer, Signal
+from PySide6.QtCore import QObject, Signal
 
 from .. import log
-from ..capture import WindowCapture
 from ..ocr import OCR
 from ..translate import Translator
 
 logger = log.get_logger()
-
-
-class CaptureWorker(QObject):
-    """Worker for window capture with FPS tracking.
-
-    Uses a QTimer to poll frames from the capture stream.
-    Emits frame_ready signal when a new frame is available.
-    The FPS comes from the capture stream itself, which tracks actual
-    capture rate in its background thread.
-    """
-
-    frame_ready = Signal(object, float, dict)  # PIL Image, fps, bounds
-
-    def __init__(self):
-        super().__init__()
-        self._capture: WindowCapture | None = None
-        self._timer = QTimer()
-        self._timer.timeout.connect(self._fetch_frame)
-
-    def set_capture(self, capture: WindowCapture | None):
-        """Set the capture instance."""
-        self._capture = capture
-
-    def start(self, interval_ms: int = 33):
-        """Start polling for frames.
-
-        Args:
-            interval_ms: Polling interval in milliseconds (default ~30 FPS)
-        """
-        self._timer.setInterval(interval_ms)
-        self._timer.start()
-
-    def stop(self):
-        """Stop polling for frames."""
-        self._timer.stop()
-
-    def _fetch_frame(self):
-        """Fetch a frame from capture stream."""
-        if self._capture is None:
-            return
-
-        frame = self._capture.get_frame()
-        if frame is not None:
-            # Get FPS from the capture stream (tracks actual capture rate)
-            fps = self._capture.fps
-
-            # Emit frame with bounds
-            bounds = self._capture.bounds or {}
-            self.frame_ready.emit(frame, fps, bounds)
 
 
 class ProcessWorker(QObject):

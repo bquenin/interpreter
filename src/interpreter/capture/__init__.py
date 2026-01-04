@@ -3,7 +3,8 @@
 import platform
 import time
 
-from PIL import Image
+import numpy as np
+from numpy.typing import NDArray
 
 from .. import log
 
@@ -111,11 +112,11 @@ class WindowCapture:
             return True
         return False
 
-    def capture(self) -> Image.Image | None:
+    def capture(self) -> NDArray[np.uint8] | None:
         """Capture a screenshot of the target window.
 
         Returns:
-            PIL Image of the window, or None if capture failed.
+            Numpy array (H, W, 4) in BGRA format, or None if capture failed.
         """
         # Try to find window if we don't have an ID yet
         if self._window_id is None:
@@ -225,11 +226,11 @@ class WindowCapture:
         self._stream.start()
         return True
 
-    def get_frame(self) -> Image.Image | None:
+    def get_frame(self) -> NDArray[np.uint8] | None:
         """Get the latest frame from the capture stream.
 
         Returns:
-            PIL Image of the window, or None if no frame available.
+            Numpy array (H, W, 4) in BGRA format, or None if no frame available.
         """
         global _invalid_time
 
@@ -281,19 +282,6 @@ class WindowCapture:
             self._refresh_bounds()
 
         return frame
-
-    @property
-    def fps(self) -> float:
-        """Get the current capture frame rate from the stream.
-
-        Returns:
-            Frames per second being captured, or 0.0 if no stream.
-        """
-        if self._stream is None:
-            return 0.0
-        if hasattr(self._stream, "fps"):
-            return self._stream.fps
-        return 0.0
 
     def stop_stream(self):
         """Stop the background capture stream."""
