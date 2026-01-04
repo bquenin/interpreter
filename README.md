@@ -56,37 +56,13 @@ interpreter-v2
 
 This opens the GUI where you can select a window to capture and configure all settings.
 
-## Controls
-
-Default hotkeys (configurable in `config.yml`):
+## Hotkeys
 
 | Key | Action |
 |-----|--------|
-| `Space` | Toggle overlay on/off |
-| `m` | Switch mode: banner ↔ inplace |
-| `-` | Decrease font size |
-| `=` | Increase font size |
-| `q` | Quit |
+| `Space` | Toggle overlay on/off (configurable in GUI) |
 
 In banner mode, you can drag the overlay to reposition it.
-
-### Custom Hotkeys
-
-You can customize hotkeys in `config.yml`:
-
-```yaml
-hotkeys:
-  toggle_overlay: "space"   # Toggle overlay on/off
-  switch_mode: "m"          # Switch between banner/inplace
-  increase_font: "="        # Increase font size
-  decrease_font: "-"        # Decrease font size
-  quit: "q"                 # Quit application
-```
-
-Supported key values:
-- Single characters: `a`-`z`, `0`-`9`, `` ` ``, `-`, `=`, etc.
-- Function keys: `f1`-`f12`
-- Special keys: `space`, `escape`, `enter`, `tab`, `backspace`, `delete`, `insert`, `home`, `end`, `page_up`, `page_down`, `up`, `down`, `left`, `right`
 
 ## Overlay Modes
 
@@ -98,24 +74,7 @@ Transparent overlay positioned over the game window. Translated text appears dir
 
 ## Configuration
 
-Edit `config.yml`:
-
-```yaml
-# Window to capture (partial title match)
-window_title: "Tales"
-
-# Refresh rate in seconds
-refresh_rate: 0.5
-
-# OCR confidence threshold (0.0-1.0)
-# Filters out garbage text by average per-line confidence
-ocr_confidence: 0.6
-
-# Subtitle appearance
-font_size: 24
-font_color: "#FFFFFF"
-background_color: "#404040"
-```
+All settings are configured through the GUI and saved to `~/.interpreter/config.yml`.
 
 ## How It Works
 
@@ -127,7 +86,7 @@ background_color: "#404040"
 ## Troubleshooting
 
 ### Poor OCR accuracy
-Try adjusting `ocr_confidence` in config. Lower values include more text (but may include garbage), higher values are stricter.
+Try adjusting the OCR confidence slider in the GUI. Lower values include more text (but may include garbage), higher values are stricter.
 
 ### Slow performance
 First run downloads models (~1.5GB). Subsequent runs use cached models from `~/.cache/huggingface/`.
@@ -135,8 +94,6 @@ First run downloads models (~1.5GB). Subsequent runs use cached models from `~/.
 ## What's New in v2
 
 - **Inplace overlay mode** - Text appears directly over game text
-- **Mode cycling** - Press `m` to switch between off/banner/inplace
-- **Font size adjustment** - Press `-`/`=` to resize on the fly
 - **Translation caching** - Fuzzy matching reduces redundant translations
 - **Improved OCR** - Punctuation excluded from confidence calculation
 - **Better window capture** - Excludes overlapping windows, auto-detects fullscreen
