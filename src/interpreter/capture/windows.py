@@ -95,6 +95,37 @@ def get_windows_version_string() -> str:
         return f"Windows 10 (build {build})"
 
 
+def get_window_style_flags(hwnd: int) -> str:
+    """Get window style flags for diagnostic logging.
+
+    Args:
+        hwnd: The window handle (HWND).
+
+    Returns:
+        String describing the window style flags (e.g., "POPUP+TOPMOST" or "CAPTION").
+    """
+    user32 = ctypes.windll.user32
+
+    GWL_STYLE = -16
+    GWL_EXSTYLE = -20
+
+    style = user32.GetWindowLongW(hwnd, GWL_STYLE)
+    exstyle = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+
+    # Key style flags that affect capture
+    flags = []
+    if style & 0x80000000:  # WS_POPUP
+        flags.append("POPUP")
+    if style & 0x00C00000:  # WS_CAPTION
+        flags.append("CAPTION")
+    if exstyle & 0x00000008:  # WS_EX_TOPMOST
+        flags.append("TOPMOST")
+    if exstyle & 0x08000000:  # WS_EX_NOREDIRECTIONBITMAP
+        flags.append("NOREDIRECT")
+
+    return "+".join(flags) if flags else "NORMAL"
+
+
 # Windows-specific imports
 try:
     import pygetwindow as gw
@@ -480,6 +511,18 @@ class WindowsCaptureStream:
 
         self._running = True
         self._last_frame_time = 0.0  # Reset throttling
+        self._first_frame_logged = False  # Track if we've logged first frame
+
+        # Log capture configuration (window title already logged by WindowCapture)
+        from .. import log
+
+        logger = log.get_logger()
+        window_style = get_window_style_flags(self._window_id) if self._window_id else "unknown"
+        logger.info(
+            "capture config",
+            draw_border=draw_border,
+            window_style=window_style,
+        )
 
         # Create capture instance
         self._capture = WindowsCapture(
@@ -512,6 +555,17 @@ class WindowsCaptureStream:
                 else:
                     screen_w, screen_h = _get_screen_size()
                 is_fullscreen = frame.width >= screen_w and frame.height >= screen_h
+
+                # Log first frame info
+                if not stream._first_frame_logged:
+                    stream._first_frame_logged = True
+                    from .. import log
+
+                    log.get_logger().info(
+                        "capture started",
+                        resolution=f"{frame.width}x{frame.height}",
+                        fullscreen=is_fullscreen,
+                    )
 
                 # Crop out title bar only if not fullscreen
                 if not is_fullscreen:

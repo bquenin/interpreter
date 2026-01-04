@@ -212,6 +212,18 @@ class WindowCapture:
             if not self.find_window():
                 return False
 
+        # Log window selection
+        bounds = self._last_bounds or {}
+        logger.info(
+            "window selected",
+            title=self._actual_title,
+            window_id=self._window_id,
+            width=bounds.get("width", 0),
+            height=bounds.get("height", 0),
+            x=bounds.get("x", 0),
+            y=bounds.get("y", 0),
+        )
+
         # Create platform-specific stream
         if _system == "Windows":
             # Windows uses exact window title for capture

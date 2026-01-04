@@ -7,6 +7,7 @@ This module captures windows through the X11 protocol, which works for:
 Most retro game emulators run under XWayland, so this covers the primary use case.
 """
 
+import os
 import threading
 import time
 
@@ -19,6 +20,15 @@ from Xlib.ext import randr
 from .. import log
 
 logger = log.get_logger()
+
+
+def _get_display_server_info() -> str:
+    """Get display server info (X11/Wayland/XWayland)."""
+    display = os.environ.get("DISPLAY", "")
+    wayland = os.environ.get("WAYLAND_DISPLAY", "")
+    if wayland:
+        return f"XWayland ({wayland})" if display else f"Wayland ({wayland})"
+    return f"X11 ({display})" if display else "unknown"
 
 
 # Module-level display connection (reused for efficiency)
@@ -558,12 +568,16 @@ class LinuxCaptureStream:
 
     def start(self):
         """Start the capture stream in background."""
+        # Log capture configuration (window title already logged by WindowCapture)
+        logger.info(
+            "capture config",
+            display_server=_get_display_server_info(),
+            interval_ms=int(self._capture_interval * 1000),
+        )
+
         self._running = True
         self._thread = threading.Thread(target=self._capture_loop, daemon=True)
         self._thread.start()
-        logger.debug(
-            "capture started (continuous)", window_id=self._window_id, interval_ms=int(self._capture_interval * 1000)
-        )
 
     @property
     def window_invalid(self) -> bool:

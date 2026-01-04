@@ -317,8 +317,17 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage("Window not found")
             return
 
-        if not self._capture.start_stream():
-            self.statusBar().showMessage("Failed to start stream")
+        try:
+            if not self._capture.start_stream():
+                self.statusBar().showMessage("Failed to start stream")
+                return
+        except Exception as e:
+            error_msg = str(e)
+            log.get_logger().error("capture failed", error=error_msg)
+            # Show truncated message in status bar (full message in logs)
+            display_msg = error_msg.split("\n")[0][:100]  # First line, max 100 chars
+            self.statusBar().showMessage(f"Capture failed: {display_msg}")
+            self._capture = None
             return
 
         # Start single timer for capture + processing (fixed 2 FPS)
