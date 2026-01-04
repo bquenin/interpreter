@@ -557,8 +557,10 @@ class WindowsCaptureStream(FPSTrackerMixin):
                 with stream._frame_lock:
                     stream._latest_frame = img
                     stream._update_fps()
-            except Exception:
-                pass  # Silently ignore frame errors
+            except Exception as e:
+                from .. import log
+
+                log.get_logger().error("frame processing failed", error=str(e))
 
         @self._capture.event
         def on_closed():
