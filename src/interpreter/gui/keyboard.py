@@ -25,6 +25,14 @@ class Key:
     enter = "enter"
     backspace = "backspace"
     delete = "delete"
+    home = "home"
+    end = "end"
+    page_up = "page_up"
+    page_down = "page_down"
+    up = "up"
+    down = "down"
+    left = "left"
+    right = "right"
     f1 = "f1"
     f2 = "f2"
     f3 = "f3"
@@ -152,7 +160,9 @@ if _system == "Linux":
 
             data = reply.data
             while len(data):
-                event, data = rq.EventField(None).parse_binary_value(data, self._record_display.display, None, None)
+                event, data = rq.EventField(None).parse_binary_value(
+                    data, self._record_display.display, None, None
+                )
 
                 if event.type == X.KeyPress:
                     # Get the keysym for this keycode
@@ -163,12 +173,9 @@ if _system == "Linux":
 
                     # Convert keysym to key object
                     key = self._keysym_to_key(keysym)
-                    logger.debug("key press detected", keysym=keysym, key=key)
                     if key and self._on_press:
                         try:
-                            logger.debug("calling on_press callback")
                             self._on_press(key)
-                            logger.debug("on_press callback completed")
                         except Exception as e:
                             logger.error("on_press callback error", err=str(e))
 
@@ -210,6 +217,14 @@ if _system == "Linux":
                     "tab": Key.tab,
                     "backspace": Key.backspace,
                     "delete": Key.delete,
+                    "home": Key.home,
+                    "end": Key.end,
+                    "prior": Key.page_up,
+                    "next": Key.page_down,
+                    "up": Key.up,
+                    "down": Key.down,
+                    "left": Key.left,
+                    "right": Key.right,
                     "f1": Key.f1,
                     "f2": Key.f2,
                     "f3": Key.f3,

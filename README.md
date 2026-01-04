@@ -39,6 +39,8 @@ sudo pacman -S gst-plugin-pipewire
 
 Without these packages, the application still works but can only capture X11/XWayland windows.
 
+**Known limitation:** Global hotkeys (e.g., Space to toggle overlay) only work when an X11/XWayland window is focused. When a native Wayland window has focus, use the GUI button to toggle the overlay instead.
+
 ## Installation
 
 ### One-liner Install
