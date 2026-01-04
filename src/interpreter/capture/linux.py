@@ -30,7 +30,13 @@ def _get_display() -> display.Display:
     """Get or create a shared X11 display connection."""
     global _display
     if _display is None:
-        _display = display.Display()
+        try:
+            _display = display.Display()
+        except Exception as e:
+            raise RuntimeError(
+                "Cannot connect to X11 display. This application requires X11 or XWayland. "
+                "If you're using Wayland, ensure XWayland is installed and running."
+            ) from e
     return _display
 
 
@@ -350,6 +356,43 @@ def _get_monitors() -> list[dict]:
     return _monitors_cache
 
 
+def _raw_to_image(data: bytes, width: int, height: int, depth: int) -> Image.Image | None:
+    """Convert raw X11 pixel data to PIL Image.
+
+    Handles both 24/32-bit BGRA and 16-bit RGB565 formats.
+
+    Args:
+        data: Raw pixel data from X11 get_image().
+        width: Image width in pixels.
+        height: Image height in pixels.
+        depth: Color depth (16, 24, or 32).
+
+    Returns:
+        PIL Image in RGB format, or None if conversion failed.
+    """
+    if depth == 24 or depth == 32:
+        expected_size = width * height * 4
+        if len(data) < expected_size:
+            return None
+        image = Image.frombytes("RGBA", (width, height), bytes(data[:expected_size]), "raw", "BGRA")
+        return image.convert("RGB")
+
+    elif depth == 16:
+        expected_size = width * height * 2
+        if len(data) < expected_size:
+            return None
+        pixels = []
+        for i in range(0, expected_size, 2):
+            pixel = struct.unpack("<H", data[i : i + 2])[0]
+            r = ((pixel >> 11) & 0x1F) << 3
+            g = ((pixel >> 5) & 0x3F) << 2
+            b = (pixel & 0x1F) << 3
+            pixels.extend([r, g, b])
+        return Image.frombytes("RGB", (width, height), bytes(pixels))
+
+    return None
+
+
 def _find_content_window(window) -> tuple | None:
     """Find the largest child window (likely the content area).
 
@@ -390,6 +433,29 @@ def _find_content_window(window) -> tuple | None:
         return None
 
 
+def _crop_title_bar_if_needed(image: Image.Image, window_id: int, crop_title_bar: bool) -> Image.Image:
+    """Crop title bar from image if needed.
+
+    Uses lazy evaluation - only fetches title bar height if actually needed.
+
+    Args:
+        image: The captured image.
+        window_id: The X11 window ID.
+        crop_title_bar: Whether cropping should be considered.
+
+    Returns:
+        Cropped image if title bar was removed, original image otherwise.
+    """
+    if not crop_title_bar or _is_fullscreen(window_id):
+        return image
+
+    title_bar = _get_title_bar_height(window_id)
+    if title_bar > 0 and image.height > title_bar:
+        return image.crop((0, title_bar, image.width, image.height))
+
+    return image
+
+
 def capture_window(window_id: int) -> Image.Image | None:
     """Capture a screenshot of a specific window.
 
@@ -402,7 +468,6 @@ def capture_window(window_id: int) -> Image.Image | None:
     Returns:
         PIL Image of the window content, or None if capture failed.
     """
-    title_bar_height = _get_title_bar_height(window_id)
     disp = _get_display()
 
     try:
@@ -443,47 +508,12 @@ def capture_window(window_id: int) -> Image.Image | None:
             0xFFFFFFFF,  # plane mask (all planes)
         )
 
-        # Get the raw data
-        data = raw.data
-
-        if depth == 24 or depth == 32:
-            # 32-bit BGRX or BGRA format (X11 typically uses this)
-            expected_size = width * height * 4
-            if len(data) < expected_size:
-                return None
-
-            # Load as BGRA, then convert to RGB
-            image = Image.frombytes("RGBA", (width, height), bytes(data[:expected_size]), "raw", "BGRA")
-            image = image.convert("RGB")
-
-        elif depth == 16:
-            # 16-bit RGB (5-6-5 format)
-            expected_size = width * height * 2
-            if len(data) < expected_size:
-                return None
-
-            # Convert 5-6-5 to RGB24
-            pixels = []
-            for i in range(0, expected_size, 2):
-                pixel = struct.unpack("<H", data[i : i + 2])[0]
-                r = ((pixel >> 11) & 0x1F) << 3
-                g = ((pixel >> 5) & 0x3F) << 2
-                b = (pixel & 0x1F) << 3
-                pixels.extend([r, g, b])
-
-            image = Image.frombytes("RGB", (width, height), bytes(pixels))
-
-        else:
-            # Unsupported depth
+        # Convert raw pixel data to PIL Image
+        image = _raw_to_image(raw.data, width, height, depth)
+        if image is None:
             return None
 
-        # Only crop title bar if we couldn't find a content window
-        if crop_title_bar:
-            is_fullscreen = _is_fullscreen(window_id)
-            if not is_fullscreen and title_bar_height > 0 and height > title_bar_height:
-                image = image.crop((0, title_bar_height, width, height))
-
-        return image
+        return _crop_title_bar_if_needed(image, window_id, crop_title_bar)
 
     except BadWindow:
         return None
@@ -548,29 +578,30 @@ class LinuxCaptureStream(FPSTrackerMixin):
         # Create dedicated display connection for thread-safety
         self._capture_display = display.Display()
 
-        while self._running and not self._window_invalid:
-            # Measure capture time
-            start_time = time.perf_counter()
-            frame = self._capture_frame()
-            capture_time_ms = (time.perf_counter() - start_time) * 1000
+        try:
+            while self._running and not self._window_invalid:
+                # Measure capture time
+                start_time = time.perf_counter()
+                frame = self._capture_frame()
+                capture_time_ms = (time.perf_counter() - start_time) * 1000
 
-            if frame:
-                with self._frame_lock:
-                    self._latest_frame = frame
-                    self._update_fps()
+                if frame:
+                    with self._frame_lock:
+                        self._latest_frame = frame
+                        self._update_fps()
 
-                # Track capture times and check for slow capture
-                self._check_capture_performance(capture_time_ms, frame.size)
+                    # Track capture times and check for slow capture
+                    self._check_capture_performance(capture_time_ms, frame.size)
 
-            time.sleep(self._capture_interval)
-
-        # Cleanup
-        if self._capture_display:
-            try:
-                self._capture_display.close()
-            except Exception:
-                pass
-            self._capture_display = None
+                time.sleep(self._capture_interval)
+        finally:
+            # Cleanup - always runs even if exception occurs
+            if self._capture_display:
+                try:
+                    self._capture_display.close()
+                except Exception:
+                    pass
+                self._capture_display = None
 
     def _check_capture_performance(self, capture_time_ms: float, frame_size: tuple[int, int]):
         """Check capture performance and warn if too slow.
@@ -640,36 +671,13 @@ class LinuxCaptureStream(FPSTrackerMixin):
                 return None
 
             raw = target_window.get_image(0, 0, width, height, X.ZPixmap, 0xFFFFFFFF)
-            data = raw.data
 
-            if depth == 24 or depth == 32:
-                expected_size = width * height * 4
-                if len(data) < expected_size:
-                    return None
-                image = Image.frombytes("RGBA", (width, height), bytes(data[:expected_size]), "raw", "BGRA")
-                image = image.convert("RGB")
-            elif depth == 16:
-                expected_size = width * height * 2
-                if len(data) < expected_size:
-                    return None
-                pixels = []
-                for i in range(0, expected_size, 2):
-                    pixel = struct.unpack("<H", data[i : i + 2])[0]
-                    r = ((pixel >> 11) & 0x1F) << 3
-                    g = ((pixel >> 5) & 0x3F) << 2
-                    b = (pixel & 0x1F) << 3
-                    pixels.extend([r, g, b])
-                image = Image.frombytes("RGB", (width, height), bytes(pixels))
-            else:
+            # Convert raw pixel data to PIL Image
+            image = _raw_to_image(raw.data, width, height, depth)
+            if image is None:
                 return None
 
-            # Crop title bar if needed
-            if crop_title_bar and not _is_fullscreen(self._window_id):
-                title_bar = _get_title_bar_height(self._window_id)
-                if title_bar > 0 and height > title_bar:
-                    image = image.crop((0, title_bar, width, height))
-
-            return image
+            return _crop_title_bar_if_needed(image, self._window_id, crop_title_bar)
 
         except (BadDrawable, BadWindow):
             self._window_invalid = True
