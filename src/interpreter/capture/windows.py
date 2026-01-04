@@ -21,6 +21,22 @@ MIN_BUILD_GRAPHICS_CAPTURE = 18362
 MIN_BUILD_BORDER_TOGGLE = 22000
 
 
+def get_content_offset(window_id: int) -> tuple[int, int]:
+    """Get the offset of the content area within a window.
+
+    On Windows, the overlay is positioned at the client area and the capture
+    also covers the client area (after cropping title bar). So overlay and
+    capture are aligned - no offset needed.
+
+    Args:
+        window_id: The window handle (HWND).
+
+    Returns:
+        Tuple of (x_offset, y_offset) in pixels. Always (0, 0) on Windows.
+    """
+    return (0, 0)
+
+
 def get_windows_build() -> int:
     """Get the Windows build number.
 

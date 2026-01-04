@@ -168,6 +168,23 @@ def _is_fullscreen(window_id: int) -> bool:
     return False
 
 
+def get_content_offset(window_id: int) -> tuple[int, int]:
+    """Get the offset of the content area within a window.
+
+    On macOS, capture crops the title bar, so we report that offset.
+    In fullscreen mode, no cropping happens.
+
+    Args:
+        window_id: The CGWindowID of the window.
+
+    Returns:
+        Tuple of (x_offset, y_offset) in pixels.
+    """
+    if _is_fullscreen(window_id):
+        return (0, 0)
+    return (0, _get_title_bar_height_pixels())
+
+
 def capture_window(window_id: int) -> Image.Image | None:
     """Capture a screenshot of a specific window using CGWindowListCreateImage.
 

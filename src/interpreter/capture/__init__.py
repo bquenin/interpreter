@@ -18,22 +18,14 @@ _system = platform.system()
 if _system == "Darwin":
     from .macos import (
         MacOSCaptureStream,
-        _get_title_bar_height_pixels,
         _get_window_bounds,
-        _is_fullscreen,
         capture_window,
         find_window_by_title,
+        get_content_offset,
         get_window_list,
     )
 
     CaptureStream = MacOSCaptureStream
-
-    def get_content_offset(window_id: int) -> tuple[int, int]:
-        # macOS capture crops the title bar, so we need to report that offset
-        # In fullscreen mode, no cropping happens
-        if _is_fullscreen(window_id):
-            return (0, 0)
-        return (0, _get_title_bar_height_pixels())
 
     def is_window_foreground(window_id: int) -> bool:
         # TODO: Implement for macOS if needed
@@ -45,17 +37,12 @@ elif _system == "Windows":
         _get_window_bounds,
         capture_window,
         find_window_by_title,
+        get_content_offset,
         get_window_list,
         is_window_foreground,
     )
 
     CaptureStream = WindowsCaptureStream
-
-    def get_content_offset(window_id: int) -> tuple[int, int]:
-        # On Windows, the overlay is positioned at the client area (using _get_client_bounds)
-        # and the capture also covers the client area (after cropping title bar).
-        # So overlay and capture are aligned - no offset needed.
-        return (0, 0)
 elif _system == "Linux":
     from .linux import (
         LinuxCaptureStream,
