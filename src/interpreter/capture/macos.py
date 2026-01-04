@@ -305,11 +305,11 @@ class MacOSCaptureStream:
         """Start the capture stream in background."""
         # Log capture configuration (window title already logged by WindowCapture)
         window_info = _get_window_info(self._window_id)
-        logger.info(
-            "capture config",
-            macos_version=_get_macos_version(),
-            owner=window_info.get("owner", "") if window_info else "",
-        )
+        owner = window_info.get("owner", "") if window_info else ""
+        log_kwargs = {"macos_version": _get_macos_version()}
+        if owner:
+            log_kwargs["owner"] = owner
+        logger.info("capture config", **log_kwargs)
 
         self._running = True
         self._thread = threading.Thread(target=self._capture_loop, daemon=True)

@@ -7,6 +7,7 @@ This module captures windows through the X11 protocol, which works for:
 Most retro game emulators run under XWayland, so this covers the primary use case.
 """
 
+import os
 import threading
 import time
 
@@ -23,8 +24,6 @@ logger = log.get_logger()
 
 def _get_display_server_info() -> str:
     """Get display server info (X11/Wayland/XWayland)."""
-    import os
-
     display = os.environ.get("DISPLAY", "")
     wayland = os.environ.get("WAYLAND_DISPLAY", "")
     if wayland:

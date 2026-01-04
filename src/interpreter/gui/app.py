@@ -6,6 +6,14 @@ import platform
 import sys
 from pathlib import Path
 
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QIcon
+from PySide6.QtWidgets import QApplication
+
+from .. import __version__, log
+from ..config import Config
+from .main_window import MainWindow
+
 
 def _get_gpu_info() -> str:
     """Get GPU/CUDA info string for logging."""
@@ -30,14 +38,6 @@ def _get_gpu_info() -> str:
         return "cpu"
     except Exception:
         return "cpu"
-
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QIcon
-from PySide6.QtWidgets import QApplication
-
-from .. import __version__, log
-from ..config import Config
-from .main_window import MainWindow
 
 
 class InterpreterApp:
