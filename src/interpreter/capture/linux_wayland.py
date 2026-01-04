@@ -13,6 +13,7 @@ works with all Wayland compositors that support the ScreenCast portal
 import os
 import re
 import threading
+import uuid
 from typing import Callable
 
 import numpy as np
@@ -108,24 +109,24 @@ class WaylandPortalCapture:
         self._streams: list | None = None
         self._pipewire_fd: int | None = None
         self._callback: Callable[[bool], None] | None = None
-        self._request_counter = 0
-        self._session_counter = 0
 
         # Get sender name for request/session paths
         sender = self._bus.get_unique_name()
         self._sender_name = re.sub(r"\.", r"_", sender[1:])
 
+    def _new_token(self) -> str:
+        """Generate a unique token for portal requests."""
+        return f"t{uuid.uuid4().hex[:8]}"
+
     def _new_request_path(self) -> tuple[str, str]:
         """Generate a new request path and token."""
-        self._request_counter += 1
-        token = f"u{self._request_counter}"
+        token = self._new_token()
         path = f"/org/freedesktop/portal/desktop/request/{self._sender_name}/{token}"
         return path, token
 
     def _new_session_path(self) -> tuple[str, str]:
         """Generate a new session path and token."""
-        self._session_counter += 1
-        token = f"u{self._session_counter}"
+        token = self._new_token()
         path = f"/org/freedesktop/portal/desktop/session/{self._sender_name}/{token}"
         return path, token
 
@@ -303,10 +304,28 @@ class WaylandPortalCapture:
 
     def _finish(self, success: bool) -> None:
         """Complete the portal flow and call the callback."""
+        # On failure, close the session to avoid "Sources already selected" errors
+        if not success:
+            self._close_session()
+
         if self._callback:
             callback = self._callback
             self._callback = None
             callback(success)
+
+    def _close_session(self) -> None:
+        """Close just the portal session (not the PipeWire fd)."""
+        if self._session_path:
+            try:
+                session = self._bus.get_object(
+                    "org.freedesktop.portal.Desktop", self._session_path
+                )
+                session.Close(dbus_interface="org.freedesktop.portal.Session")
+                logger.debug("portal session closed", session=self._session_path)
+            except Exception:
+                pass
+            self._session_path = None
+        self._streams = None
 
     def get_stream_info(self) -> tuple[int, int] | None:
         """Get the PipeWire connection info for frame capture.
@@ -321,15 +340,7 @@ class WaylandPortalCapture:
 
     def close(self) -> None:
         """Close the portal session and release resources."""
-        if self._session_path:
-            try:
-                session = self._bus.get_object(
-                    "org.freedesktop.portal.Desktop", self._session_path
-                )
-                session.Close(dbus_interface="org.freedesktop.portal.Session")
-            except Exception:
-                pass
-            self._session_path = None
+        self._close_session()
 
         if self._pipewire_fd is not None:
             try:
