@@ -16,7 +16,28 @@ Offline screen translator for Japanese retro games. Captures text from any windo
 ## Requirements
 
 - Python 3.11+ (Python 3.14 not yet supported)
-- **Windows 10 version 1903+**, macOS, or Linux (X11/XWayland)
+- **Windows 10 version 1903+**, macOS, or Linux (X11/XWayland/Wayland)
+
+### Linux: Native Wayland Support (Optional)
+
+For capturing native Wayland applications (not running through XWayland), install GStreamer with PipeWire support:
+
+**Ubuntu/Debian:**
+```bash
+sudo apt-get install gstreamer1.0-pipewire gir1.2-gstreamer-1.0
+```
+
+**Fedora:**
+```bash
+sudo dnf install gstreamer1-plugin-pipewire
+```
+
+**Arch Linux:**
+```bash
+sudo pacman -S gst-plugin-pipewire
+```
+
+Without these packages, the application still works but can only capture X11/XWayland windows.
 
 ## Installation
 
