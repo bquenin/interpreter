@@ -118,6 +118,12 @@ class OCR:
                     min_y = min(b[1] for b in char_bboxes)
                     max_x = max(b[2] for b in char_bboxes)
                     max_y = max(b[3] for b in char_bboxes)
+
+                    # Validate bbox coordinates
+                    if min_x < 0 or min_y < 0 or max_x <= min_x or max_y <= min_y:
+                        logger.debug("invalid bbox, skipping", bbox=[min_x, min_y, max_x, max_y])
+                        continue
+
                     lines.append(
                         {
                             "text": text,
