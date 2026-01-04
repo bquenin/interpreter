@@ -6,6 +6,31 @@ import platform
 import sys
 from pathlib import Path
 
+
+def _get_gpu_info() -> str:
+    """Get GPU/CUDA info string for logging."""
+    try:
+        import ctranslate2
+
+        if ctranslate2.get_cuda_device_count() > 0:
+            # Try to get CUDA version from environment (set by nvidia libs)
+            cuda_version = os.environ.get("CUDA_VERSION", "")
+            if cuda_version:
+                return f"cuda {cuda_version}"
+            # Try cudart version from ctranslate2
+            try:
+                cuda_ver = ctranslate2.get_cuda_runtime_version()
+                if cuda_ver:
+                    major = cuda_ver // 1000
+                    minor = (cuda_ver % 1000) // 10
+                    return f"cuda {major}.{minor}"
+            except (AttributeError, Exception):
+                pass
+            return "cuda"
+        return "cpu"
+    except Exception:
+        return "cpu"
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
@@ -98,6 +123,22 @@ def run():
     log.configure(level="DEBUG" if args.debug else "INFO")
     logger = log.get_logger()
     logger.info(f"interpreter v{__version__}")
+
+    # Get OS version string (human-readable on Windows)
+    if platform.system() == "Windows":
+        from ..capture.windows import get_windows_version_string
+
+        os_version = get_windows_version_string()
+    else:
+        os_version = platform.version()
+
+    logger.info(
+        "system",
+        platform=platform.system(),
+        version=os_version,
+        python=platform.python_version(),
+        gpu=_get_gpu_info(),
+    )
 
     # Suppress harmless warnings
     os.environ["PYTHONWARNINGS"] = "ignore::UserWarning:multiprocessing.resource_tracker"

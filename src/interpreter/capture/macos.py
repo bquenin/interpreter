@@ -1,6 +1,7 @@
 """macOS-specific window capture using PyObjC/Quartz."""
 
 import os
+import platform
 import threading
 import time
 
@@ -9,8 +10,17 @@ from AppKit import NSClosableWindowMask, NSMiniaturizableWindowMask, NSScreen, N
 from numpy.typing import NDArray
 from Quartz import CoreGraphics as CG
 
+from .. import log
+
+logger = log.get_logger()
+
 # Fixed capture interval (4 FPS)
 CAPTURE_INTERVAL = 0.25
+
+
+def _get_macos_version() -> str:
+    """Get macOS version string."""
+    return f"macOS {platform.mac_ver()[0]}"
 
 
 def _get_title_bar_height_pixels() -> int:
@@ -251,6 +261,26 @@ def capture_window(window_id: int) -> NDArray[np.uint8] | None:
     return arr
 
 
+def _get_window_info(window_id: int) -> dict | None:
+    """Get window info including owner name.
+
+    Args:
+        window_id: The CGWindowID of the window.
+
+    Returns:
+        Dictionary with title, owner, bounds or None if not found.
+    """
+    window_list = CG.CGWindowListCopyWindowInfo(CG.kCGWindowListOptionIncludingWindow, window_id)
+
+    for window in window_list:
+        if window.get(CG.kCGWindowNumber) == window_id:
+            return {
+                "title": window.get(CG.kCGWindowName, ""),
+                "owner": window.get(CG.kCGWindowOwnerName, ""),
+            }
+    return None
+
+
 class MacOSCaptureStream:
     """Continuous window capture wrapping existing Quartz capture.
 
@@ -269,9 +299,18 @@ class MacOSCaptureStream:
         self._frame_lock = threading.Lock()
         self._running = False
         self._thread: threading.Thread | None = None
+        self._first_frame_logged = False
 
     def start(self):
         """Start the capture stream in background."""
+        # Log capture configuration (window title already logged by WindowCapture)
+        window_info = _get_window_info(self._window_id)
+        logger.info(
+            "capture config",
+            macos_version=_get_macos_version(),
+            owner=window_info.get("owner", "") if window_info else "",
+        )
+
         self._running = True
         self._thread = threading.Thread(target=self._capture_loop, daemon=True)
         self._thread.start()
@@ -281,6 +320,17 @@ class MacOSCaptureStream:
         while self._running:
             frame = capture_window(self._window_id)
             if frame is not None:
+                # Log first frame info
+                if not self._first_frame_logged:
+                    self._first_frame_logged = True
+                    height, width = frame.shape[:2]
+                    is_fullscreen = _is_fullscreen(self._window_id)
+                    logger.info(
+                        "capture started",
+                        resolution=f"{width}x{height}",
+                        fullscreen=is_fullscreen,
+                    )
+
                 with self._frame_lock:
                     self._latest_frame = frame
             time.sleep(CAPTURE_INTERVAL)
