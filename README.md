@@ -51,21 +51,10 @@ powershell -c "irm https://raw.githubusercontent.com/bquenin/interpreter/main/in
 ## Usage
 
 ```bash
-# List available windows
-interpreter-v2 --list-windows
-
-# Run with default config
 interpreter-v2
-
-# Run with specific window
-interpreter-v2 --window "Tales"
-
-# Start in inplace mode (text over game)
-interpreter-v2 --overlay-mode inplace
-
-# Debug mode (show OCR confidence scores)
-interpreter-v2 --debug
 ```
+
+This opens the GUI where you can select a window to capture and configure all settings.
 
 ## Controls
 
@@ -136,9 +125,6 @@ background_color: "#404040"
 4. **Display** - Shows translated text in the selected overlay mode
 
 ## Troubleshooting
-
-### Window not found
-Use `--list-windows` to see available windows. The window title is a partial match.
 
 ### Poor OCR accuracy
 Try adjusting `ocr_confidence` in config. Lower values include more text (but may include garbage), higher values are stricter.
