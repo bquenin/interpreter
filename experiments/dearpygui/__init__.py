@@ -1,1 +1,0 @@
-"""Dear PyGui GUI prototype."""

@@ -1,1 +1,0 @@
-"""CustomTkinter GUI prototype."""
