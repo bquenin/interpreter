@@ -108,6 +108,7 @@ class MainWindow(QMainWindow):
 
         self._window_combo = QComboBox()
         self._window_combo.setMinimumWidth(250)
+        self._window_combo.activated.connect(self._on_window_selected)
         window_layout.addWidget(self._window_combo, 1)
 
         self._start_btn = QPushButton("Start Capture")
@@ -362,6 +363,16 @@ class MainWindow(QMainWindow):
 
         # Show overlay
         self._show_overlay()
+
+    def _on_window_selected(self, index: int):
+        """Handle window selection change - auto-start Wayland capture if selected."""
+        if not self._wayland_available or self._capturing:
+            return
+
+        # Check if Wayland option is selected (after separator)
+        wayland_idx = len(self._windows_list) + 1  # +1 for separator
+        if index == wayland_idx:
+            self._start_wayland_capture()
 
     def _start_wayland_capture(self):
         """Start Wayland capture using xdg-desktop-portal."""
