@@ -15,6 +15,8 @@ logger = log.get_logger()
 # Banner overlay dimensions
 BANNER_HEIGHT = 100
 BANNER_BOTTOM_MARGIN = 50
+BANNER_HORIZONTAL_PADDING = 60
+BANNER_VERTICAL_PADDING = 30
 
 
 class BannerOverlayBase(QWidget):
@@ -114,6 +116,9 @@ class BannerOverlayBase(QWidget):
         pos = (self.x(), self.y())
         logger.debug("qt get_position", x=pos[0], y=pos[1])
         return pos
+
+    # Snap to screen (Linux-only for now, stub for API compatibility)
+    _snap_to_screen: bool = True
 
     # Dragging support
     def mousePressEvent(self, event):

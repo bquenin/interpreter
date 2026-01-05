@@ -4,6 +4,7 @@ from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QImage, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
     QButtonGroup,
+    QCheckBox,
     QColorDialog,
     QComboBox,
     QFrame,
@@ -88,6 +89,9 @@ class MainWindow(QMainWindow):
         if config.banner_x is not None and config.banner_y is not None:
             logger.debug("restoring banner position", x=config.banner_x, y=config.banner_y)
             self._banner_overlay.set_position(config.banner_x, config.banner_y)
+
+        # Apply snap to screen setting
+        self._banner_overlay._snap_to_screen = config.banner_snap_to_screen
 
         # Main processing timer (fixed 2 FPS)
         self._process_timer = QTimer()
@@ -236,6 +240,12 @@ class MainWindow(QMainWindow):
         self._bg_color_btn.setStyleSheet(f"background-color: {self._config.background_color};")
         self._bg_color_btn.clicked.connect(self._pick_bg_color)
         settings_layout.addWidget(self._bg_color_btn, 3, 1)
+
+        # Banner snap to screen
+        self._snap_checkbox = QCheckBox("Snap banner to screen edges")
+        self._snap_checkbox.setChecked(self._config.banner_snap_to_screen)
+        self._snap_checkbox.stateChanged.connect(self._on_snap_changed)
+        settings_layout.addWidget(self._snap_checkbox, 4, 0, 1, 2)
 
         layout.addWidget(settings_group)
 
@@ -681,6 +691,10 @@ class MainWindow(QMainWindow):
             self._bg_color_btn.setStyleSheet(f"background-color: {hex_color};")
             self._banner_overlay.set_colors(self._config.font_color, hex_color)
             self._inplace_overlay.set_colors(self._config.font_color, hex_color)
+
+    def _on_snap_changed(self, state: int):
+        self._config.banner_snap_to_screen = state == Qt.CheckState.Checked.value
+        self._banner_overlay._snap_to_screen = self._config.banner_snap_to_screen
 
     def get_banner_position(self) -> tuple[int, int]:
         """Get current banner overlay position."""

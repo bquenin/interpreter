@@ -46,7 +46,12 @@ from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QApplication
 
 from .. import log
-from .base import BANNER_BOTTOM_MARGIN, BANNER_HEIGHT
+from .base import (
+    BANNER_BOTTOM_MARGIN,
+    BANNER_HEIGHT,
+    BANNER_HORIZONTAL_PADDING,
+    BANNER_VERTICAL_PADDING,
+)
 
 logger = log.get_logger()
 
@@ -215,6 +220,9 @@ class Overlay:
         self._drag_start_x: int = 0
         self._drag_start_y: int = 0
 
+        # Settings
+        self.snap_to_screen: bool = True
+
     def create(
         self,
         display_bounds: dict,
@@ -305,7 +313,7 @@ class Overlay:
             x = 0
             y = self._banner_root.winfo_screenheight() - BANNER_HEIGHT - BANNER_BOTTOM_MARGIN
 
-        self._banner_label.config(wraplength=width - 60)
+        self._banner_label.config(wraplength=width - BANNER_HORIZONTAL_PADDING)
         self._banner_root.geometry(f"{width}x{BANNER_HEIGHT}+{x}+{y}")
         self._banner_root.update_idletasks()
 
@@ -350,6 +358,8 @@ class Overlay:
 
         if self._banner_font:
             self._banner_font.configure(size=self.font_size)
+            if self._mode == "banner":
+                self._resize_banner_to_fit()
         if self._inplace_font:
             self._inplace_font.configure(size=self.font_size)
 
@@ -405,7 +415,7 @@ class Overlay:
             return
 
         self._banner_root.update_idletasks()
-        required_height = self._banner_label.winfo_reqheight() + 30
+        required_height = self._banner_label.winfo_reqheight() + BANNER_VERTICAL_PADDING
         current_width = self._banner_root.winfo_width()
         current_x = self._banner_root.winfo_x()
         current_height = self._banner_root.winfo_height()
@@ -439,8 +449,8 @@ class Overlay:
         self._banner_root.geometry(f"+{x}+{y}")
 
     def _end_drag(self, event):
-        """Handle end of banner drag - resize to match current screen."""
-        if not self._banner_root:
+        """Handle end of banner drag - resize to screen width, optionally snap to bounds."""
+        if not self._banner_root or not self._banner_label:
             return
 
         # Get banner position and size
@@ -458,12 +468,55 @@ class Overlay:
 
         screen_geom = screen.geometry()
         new_width = screen_geom.width()
+        width_changed = new_width != width
 
-        # Resize banner to match screen width if changed
+        # Always resize width to match screen
+        if width_changed:
+            self._banner_label.config(wraplength=new_width - BANNER_HORIZONTAL_PADDING)
+
+        # Determine new position
+        if self.snap_to_screen:
+            # Snap X to screen left edge, clamp Y to screen bounds
+            new_x = screen_geom.x()
+            new_y = max(screen_geom.y(), min(y, screen_geom.y() + screen_geom.height() - height))
+        else:
+            # Keep current position
+            new_x = x
+            new_y = y
+
+        if width_changed or (self.snap_to_screen and (new_x != x or new_y != y)):
+            self._banner_root.geometry(f"{new_width}x{height}+{new_x}+{new_y}")
+            if width_changed:
+                # Refit height for new text wrapping
+                self._resize_banner_to_fit()
+
+    def snap_to_current_screen(self):
+        """Snap banner to current screen bounds immediately."""
+        if not self._banner_root or not self._banner_label:
+            return
+
+        x = self._banner_root.winfo_x()
+        y = self._banner_root.winfo_y()
+        width = self._banner_root.winfo_width()
+        height = self._banner_root.winfo_height()
+        center_x = x + width // 2
+        center_y = y + height // 2
+
+        screen = QGuiApplication.screenAt(QPoint(center_x, center_y))
+        if not screen:
+            return
+
+        screen_geom = screen.geometry()
+        new_width = screen_geom.width()
+        new_x = screen_geom.x()
+        new_y = max(screen_geom.y(), min(y, screen_geom.y() + screen_geom.height() - height))
+
         if new_width != width:
-            self._banner_label.config(wraplength=new_width - 60)
-            self._banner_root.geometry(f"{new_width}x{height}+{screen_geom.x()}+{y}")
-            self._banner_root.update_idletasks()
+            self._banner_label.config(wraplength=new_width - BANNER_HORIZONTAL_PADDING)
+
+        self._banner_root.geometry(f"{new_width}x{height}+{new_x}+{new_y}")
+        if new_width != width:
+            self._resize_banner_to_fit()
 
     def update_regions(self, regions: list[tuple[str, dict]]):
         """Update the displayed text regions (inplace mode)."""
@@ -773,6 +826,17 @@ class BannerOverlay(_OverlayWrapper):
         super().__init__(font_family, font_size, font_color, background_color)
         self._pending_position: tuple[int, int] | None = None
 
+    @property
+    def _snap_to_screen(self) -> bool:
+        return _tk_overlay.snap_to_screen if _tk_overlay else True
+
+    @_snap_to_screen.setter
+    def _snap_to_screen(self, value: bool):
+        if _tk_overlay:
+            _tk_overlay.snap_to_screen = value
+            if value:
+                _tk_overlay.snap_to_current_screen()
+
     def set_text(self, text: str):
         """Update the displayed text."""
         if _tk_overlay:
@@ -812,7 +876,6 @@ class BannerOverlay(_OverlayWrapper):
             return pos
         logger.debug("linux get_position: no overlay or banner_root")
         return (0, 0)
-
 
 class InplaceOverlay(_OverlayWrapper):
     """Transparent overlay for inplace text display.
