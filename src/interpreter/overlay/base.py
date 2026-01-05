@@ -108,8 +108,6 @@ class BannerOverlayBase(QWidget):
         """Move banner to specific position."""
         logger.debug("qt set_position", x=x, y=y)
         self.move(x, y)
-        # Verify position was set
-        logger.debug("qt set_position result", actual_x=self.x(), actual_y=self.y())
 
     def get_position(self) -> tuple[int, int]:
         """Get current position (x, y)."""
