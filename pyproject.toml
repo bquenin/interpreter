@@ -45,8 +45,8 @@ dependencies = [
     "nvidia-cudnn-cu12; sys_platform == 'win32' or sys_platform == 'linux'",
     # GUI
     "PySide6>=6.6.0",
-    # Global hotkeys - pynput for macOS/Windows, python-xlib for Linux
-    "pynput>=1.7.0; sys_platform != 'linux'",
+    # Global hotkeys
+    "pynput>=1.7.0",
     "pyobjc-framework-cocoa>=12.1; sys_platform == 'darwin'",
 ]
 

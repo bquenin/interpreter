@@ -14,7 +14,7 @@ NC='\033[0m' # No Color
 
 # Determine total steps (Linux has extra steps)
 if [[ "$(uname)" == "Linux" ]]; then
-    TOTAL_STEPS=5
+    TOTAL_STEPS=6
 else
     TOTAL_STEPS=3
 fi
@@ -66,9 +66,32 @@ if [ -d "$TOOL_DIR" ]; then
     interpreter-v2 --list-windows > /dev/null 2>&1 || true
 fi
 
+# Install Python development headers (Linux only - needed for pynput/evdev)
+if [[ "$(uname)" == "Linux" ]]; then
+    echo -e "${YELLOW}[4/${TOTAL_STEPS}] Checking Python development headers...${NC}"
+
+    # Check if python3-dev is installed by trying to find Python.h
+    PYTHON_INCLUDE=$(python3 -c "import sysconfig; print(sysconfig.get_path('include'))" 2>/dev/null)
+    if [ -n "$PYTHON_INCLUDE" ] && [ -f "$PYTHON_INCLUDE/Python.h" ]; then
+        echo -e "${GREEN}     Python development headers already installed${NC}"
+    elif command -v apt-get &> /dev/null; then
+        echo -e "${GRAY}     Installing python3-dev...${NC}"
+        sudo apt-get install -y python3-dev 2>/dev/null || \
+            echo -e "${YELLOW}     Could not install automatically. Run: sudo apt-get install python3-dev${NC}"
+    elif command -v dnf &> /dev/null; then
+        echo -e "${GRAY}     Installing python3-devel...${NC}"
+        sudo dnf install -y python3-devel 2>/dev/null || \
+            echo -e "${YELLOW}     Could not install automatically. Run: sudo dnf install python3-devel${NC}"
+    elif command -v pacman &> /dev/null; then
+        echo -e "${GREEN}     Arch Linux includes headers with python package${NC}"
+    else
+        echo -e "${YELLOW}     Please install Python development headers for your distribution${NC}"
+    fi
+fi
+
 # Install Wayland dependencies (Linux only)
 if [[ "$(uname)" == "Linux" ]]; then
-    echo -e "${YELLOW}[4/${TOTAL_STEPS}] Checking Wayland capture dependencies...${NC}"
+    echo -e "${YELLOW}[5/${TOTAL_STEPS}] Checking Wayland capture dependencies...${NC}"
 
     # Skip if not running on Wayland
     if [ -z "$WAYLAND_DISPLAY" ]; then
@@ -96,7 +119,7 @@ fi
 
 # Install desktop entry and icon (Linux only)
 if [[ "$(uname)" == "Linux" ]]; then
-    echo -e "${YELLOW}[5/${TOTAL_STEPS}] Installing desktop entry...${NC}"
+    echo -e "${YELLOW}[6/${TOTAL_STEPS}] Installing desktop entry...${NC}"
 
     # Find the installed icon
     ICON_SRC=$(find "$TOOL_DIR/lib" -name "icon.png" -path "*/resources/icons/*" 2>/dev/null | head -1)
@@ -142,6 +165,16 @@ if [[ "$(uname)" == "Linux" ]]; then
     echo "Note: You may need to log out and back in for the"
     echo "taskbar icon to appear."
     echo ""
+    # Show Wayland hotkey instructions if on Wayland
+    if [ -n "$WAYLAND_DISPLAY" ]; then
+        echo -e "${YELLOW}Wayland hotkeys:${NC} To use global hotkeys on native Wayland,"
+        echo "add yourself to the input group:"
+        echo ""
+        echo -e "  ${CYAN}sudo usermod -aG input \$USER${NC}"
+        echo ""
+        echo "Then log out and back in."
+        echo ""
+    fi
 fi
 echo "You may need to restart your terminal first."
 echo ""

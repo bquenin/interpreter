@@ -40,7 +40,11 @@ sudo pacman -S gst-plugin-pipewire
 Without these packages, the application still works but can only capture X11/XWayland windows.
 
 **Known limitations:**
-- Global hotkeys (e.g., Space to toggle overlay) only work when an X11/XWayland window is focused. When a native Wayland window has focus, use the GUI button to toggle the overlay instead.
+- Global hotkeys on native Wayland require `input` group membership:
+  ```bash
+  sudo usermod -aG input $USER
+  ```
+  Then log out and back in. Without this, use the GUI button to toggle the overlay.
 - Inplace overlay mode only works correctly with **fullscreen** native Wayland windows. For windowed mode, use Banner overlay or capture via X11/XWayland instead. (Wayland's security model prevents applications from knowing window positions.)
 
 **Tip:** To capture a fullscreen Wayland window, put the game in fullscreen mode *before* starting the capture in Interpreter.
