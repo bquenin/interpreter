@@ -143,7 +143,7 @@ class WaylandPortalCapture:
 
     def _create_session(self) -> None:
         """Step 1: Create a screencast session."""
-        _session_path, session_token = self._new_session_path()
+        _, session_token = self._new_session_path()
         request_path, request_token = self._new_request_path()
 
         # Register response handler
