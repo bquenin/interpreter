@@ -90,6 +90,14 @@ class InterpreterApp:
 
     def _on_quit(self):
         """Handle application quit."""
+        logger = log.get_logger()
+
+        # Save banner position before saving config
+        if self._window:
+            pos = self._window.get_banner_position()
+            logger.debug("saving banner position", x=pos[0], y=pos[1])
+            self._config.banner_x, self._config.banner_y = pos
+
         # Save config
         self._config.save()
 

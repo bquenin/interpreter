@@ -84,6 +84,14 @@ class MainWindow(QMainWindow):
             background_color=config.background_color,
         )
 
+        # Apply saved banner position if available
+        if config.banner_x is not None and config.banner_y is not None:
+            logger.debug("restoring banner position", x=config.banner_x, y=config.banner_y)
+            self._banner_overlay.set_position(config.banner_x, config.banner_y)
+            # Verify position was applied
+            actual_pos = self._banner_overlay.get_position()
+            logger.debug("banner position after restore", x=actual_pos[0], y=actual_pos[1])
+
         # Main processing timer (fixed 2 FPS)
         self._process_timer = QTimer()
         self._process_timer.timeout.connect(self._capture_and_process)
@@ -676,6 +684,10 @@ class MainWindow(QMainWindow):
             self._bg_color_btn.setStyleSheet(f"background-color: {hex_color};")
             self._banner_overlay.set_colors(self._config.font_color, hex_color)
             self._inplace_overlay.set_colors(self._config.font_color, hex_color)
+
+    def get_banner_position(self) -> tuple[int, int]:
+        """Get current banner overlay position."""
+        return self._banner_overlay.get_position()
 
     def cleanup(self):
         """Clean up resources before closing."""

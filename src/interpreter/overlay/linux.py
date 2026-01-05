@@ -243,6 +243,7 @@ class Overlay:
     def _create_banner_window(self):
         """Create the banner mode window."""
         self._banner_root = tk.Tk()
+        self._banner_root.withdraw()  # Hide immediately to prevent flash
         self._banner_root.title("Interpreter Banner")
         self._banner_root.overrideredirect(True)
         self._banner_root.attributes("-topmost", True)
@@ -291,20 +292,18 @@ class Overlay:
         self._inplace_root.withdraw()
 
     def _position_banner(self):
-        """Position the banner window at bottom of display."""
+        """Position the banner window at bottom of display (initial position)."""
         if self._display_bounds:
             width = self._display_bounds["width"]
-            height = BANNER_HEIGHT
             x = self._display_bounds["x"]
-            y = self._display_bounds["y"] + self._display_bounds["height"] - height - BANNER_BOTTOM_MARGIN
+            y = self._display_bounds["y"] + self._display_bounds["height"] - BANNER_HEIGHT - BANNER_BOTTOM_MARGIN
         else:
             width = self._banner_root.winfo_screenwidth()
-            height = BANNER_HEIGHT
             x = 0
-            y = self._banner_root.winfo_screenheight() - height - BANNER_BOTTOM_MARGIN
+            y = self._banner_root.winfo_screenheight() - BANNER_HEIGHT - BANNER_BOTTOM_MARGIN
 
         self._banner_label.config(wraplength=width - 60)
-        self._banner_root.geometry(f"{width}x{height}+{x}+{y}")
+        self._banner_root.geometry(f"{width}x{BANNER_HEIGHT}+{x}+{y}")
         self._banner_root.update_idletasks()
 
     def set_mode(self, mode: str):
@@ -323,7 +322,7 @@ class Overlay:
             self._inplace_root.withdraw()
         if self._banner_root:
             # Set text and resize BEFORE showing to avoid flicker
-            self._position_banner()
+            # Don't call _position_banner() - window keeps its position naturally
             if self._current_text and self._banner_label:
                 self._banner_label.config(text=self._current_text)
                 self._resize_banner_to_fit()
@@ -742,11 +741,47 @@ class BannerOverlay(_OverlayWrapper):
         background_color: str = "#404040",
     ):
         super().__init__(font_family, font_size, font_color, background_color)
+        self._pending_position: tuple[int, int] | None = None
 
     def set_text(self, text: str):
         """Update the displayed text."""
         if _tk_overlay:
             _tk_overlay.update_text(text)
+
+    def show(self):
+        """Show the overlay at pending position."""
+        # Set position BEFORE showing so window appears at correct location
+        if self._pending_position and _tk_overlay and _tk_overlay._banner_root:
+            x, y = self._pending_position
+            self._pending_position = None  # Clear so we don't reapply on mode switch
+            root = _tk_overlay._banner_root
+            width = root.winfo_width()
+            height = root.winfo_height()
+            logger.debug("linux setting position before show", x=x, y=y)
+            root.geometry(f"{width}x{height}+{x}+{y}")
+            root.update_idletasks()
+        super().show()
+
+    def set_position(self, x: int, y: int):
+        """Move banner to specific position."""
+        logger.debug("linux set_position", x=x, y=y)
+        # If visible, apply immediately; otherwise store for first show
+        if self._visible and _tk_overlay and _tk_overlay._banner_root:
+            root = _tk_overlay._banner_root
+            width = root.winfo_width()
+            height = root.winfo_height()
+            root.geometry(f"{width}x{height}+{x}+{y}")
+        else:
+            self._pending_position = (x, y)
+
+    def get_position(self) -> tuple[int, int]:
+        """Get current position (x, y)."""
+        if _tk_overlay and _tk_overlay._banner_root:
+            pos = (_tk_overlay._banner_root.winfo_x(), _tk_overlay._banner_root.winfo_y())
+            logger.debug("linux get_position", x=pos[0], y=pos[1])
+            return pos
+        logger.debug("linux get_position: no overlay or banner_root")
+        return (0, 0)
 
 
 class InplaceOverlay(_OverlayWrapper):

@@ -8,6 +8,10 @@ from PySide6.QtCore import QPoint, Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QApplication, QLabel, QVBoxLayout, QWidget
 
+from .. import log
+
+logger = log.get_logger()
+
 # Banner overlay dimensions
 BANNER_HEIGHT = 100
 BANNER_BOTTOM_MARGIN = 50
@@ -99,6 +103,19 @@ class BannerOverlayBase(QWidget):
     @property
     def font_size(self) -> int:
         return self._font_size
+
+    def set_position(self, x: int, y: int):
+        """Move banner to specific position."""
+        logger.debug("qt set_position", x=x, y=y)
+        self.move(x, y)
+        # Verify position was set
+        logger.debug("qt set_position result", actual_x=self.x(), actual_y=self.y())
+
+    def get_position(self) -> tuple[int, int]:
+        """Get current position (x, y)."""
+        pos = (self.x(), self.y())
+        logger.debug("qt get_position", x=pos[0], y=pos[1])
+        return pos
 
     # Dragging support
     def mousePressEvent(self, event):
