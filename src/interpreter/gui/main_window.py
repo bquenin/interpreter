@@ -1,6 +1,6 @@
 """Main application window with settings and controls."""
 
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import Q_ARG, QMetaObject, Qt, QThread, QTimer, Signal
 from PySide6.QtGui import QImage, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
     QButtonGroup,
@@ -23,9 +23,7 @@ from .. import log
 from ..capture import WindowCapture, is_wayland_capture_available
 from ..capture.convert import bgra_to_rgb_pil
 from ..config import Config
-from ..ocr import OCR
 from ..overlay import BannerOverlay, InplaceOverlay
-from ..translate import Translator
 from . import keyboard
 from .workers import ProcessWorker
 
@@ -46,6 +44,9 @@ class MainWindow(QMainWindow):
     # Signal for thread-safe hotkey handling
     hotkey_pressed = Signal()
 
+    # Signal to request frame processing on worker thread
+    _process_frame_requested = Signal(object, float)
+
     def __init__(self, config: Config):
         super().__init__()
         self._config = config
@@ -64,13 +65,23 @@ class MainWindow(QMainWindow):
 
         # Components
         self._capture: WindowCapture | None = None
-        self._ocr: OCR | None = None
-        self._translator: Translator | None = None
 
-        # Worker for OCR/translation
+        # Worker thread for OCR/translation (runs in background to avoid blocking UI)
+        self._worker_thread = QThread()
         self._process_worker = ProcessWorker()
+        self._process_worker.moveToThread(self._worker_thread)
+
+        # Connect worker signals (automatically queued for cross-thread)
         self._process_worker.text_ready.connect(self._on_text_ready)
         self._process_worker.regions_ready.connect(self._on_regions_ready)
+        self._process_worker.models_ready.connect(self._on_models_ready)
+        self._process_worker.models_failed.connect(self._on_models_failed)
+
+        # Connect frame processing signal to worker slot
+        self._process_frame_requested.connect(self._process_worker.process_frame_slot)
+
+        # Start worker thread
+        self._worker_thread.start()
 
         # Overlays
         self._banner_overlay = BannerOverlay(
@@ -181,15 +192,16 @@ class MainWindow(QMainWindow):
         self._pause_btn.setEnabled(False)
         overlay_layout.addWidget(self._pause_btn)
 
-        # Hotkey picker for pause
-        self._pause_hotkey = QKeySequenceEdit(QKeySequence(Qt.Key.Key_Space))
+        # Hotkey picker for pause - load from config
+        hotkey_str = self._config.hotkeys.get("toggle_overlay", "space")
+        self._pause_hotkey = QKeySequenceEdit(self._hotkey_str_to_qkeysequence(hotkey_str))
         self._pause_hotkey.setFixedWidth(80)
         self._pause_hotkey.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         self._pause_hotkey.keySequenceChanged.connect(self._on_pause_hotkey_changed)
         overlay_layout.addWidget(self._pause_hotkey)
 
-        # Global hotkey listener
-        self._current_hotkey = keyboard.Key.space
+        # Global hotkey listener - load from config
+        self._current_hotkey = self._qt_key_to_key(hotkey_str)
         self._keyboard_listener = keyboard.Listener(on_press=self._on_key_press)
         self._keyboard_listener.start()
         self.hotkey_pressed.connect(self._toggle_pause)
@@ -256,23 +268,26 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage("Idle")
 
     def _load_models(self):
-        """Load OCR and translation models."""
+        """Load OCR and translation models on worker thread."""
         self.statusBar().showMessage("Loading models...")
-        self.repaint()
-
-        # Load OCR
-        self._ocr = OCR(confidence_threshold=self._config.ocr_confidence)
-        self._ocr.load()
-
-        # Load translator
-        self._translator = Translator()
-        self._translator.load()
-
-        self._process_worker.set_ocr(self._ocr)
-        self._process_worker.set_translator(self._translator)
         self._process_worker.set_mode(self._mode)  # Sync mode from config
 
+        # Initialize models on worker thread (non-blocking)
+        QMetaObject.invokeMethod(
+            self._process_worker,
+            "initialize_models",
+            Qt.ConnectionType.QueuedConnection,
+            Q_ARG(float, self._config.ocr_confidence),
+        )
+
+    def _on_models_ready(self):
+        """Handle models loaded signal from worker thread."""
         self.statusBar().showMessage("Ready")
+        logger.debug("models loaded on worker thread")
+
+    def _on_models_failed(self, error: str):
+        """Handle model loading failure from worker thread."""
+        self.statusBar().showMessage(f"Model loading failed: {error[:50]}")
 
     def _refresh_windows(self):
         """Refresh the window list."""
@@ -495,6 +510,8 @@ class MainWindow(QMainWindow):
         # Convert Qt key sequence to keyboard key
         key_str = key_sequence.toString().lower()
         self._current_hotkey = self._qt_key_to_key(key_str)
+        # Save to config
+        self._config.hotkeys["toggle_overlay"] = key_str
         # Clear focus so it stops capturing keys
         self._pause_hotkey.clearFocus()
 
@@ -537,6 +554,39 @@ class MainWindow(QMainWindow):
         if len(key_str) == 1:
             return keyboard.KeyCode.from_char(key_str)
         return keyboard.Key.space  # fallback
+
+    def _hotkey_str_to_qkeysequence(self, key_str: str) -> QKeySequence:
+        """Convert config hotkey string to QKeySequence for the picker widget."""
+        # Map config strings to Qt key names
+        key_map = {
+            "space": "Space",
+            "esc": "Escape",
+            "escape": "Escape",
+            "tab": "Tab",
+            "return": "Return",
+            "enter": "Return",
+            "backspace": "Backspace",
+            "delete": "Delete",
+            "home": "Home",
+            "end": "End",
+            "pgup": "PgUp",
+            "pgdown": "PgDown",
+            "up": "Up",
+            "down": "Down",
+            "left": "Left",
+            "right": "Right",
+        }
+        # Check special keys first
+        if key_str.lower() in key_map:
+            return QKeySequence(key_map[key_str.lower()])
+        # F-keys (f1-f12)
+        if key_str.lower().startswith("f") and key_str[1:].isdigit():
+            return QKeySequence(key_str.upper())
+        # Single character
+        if len(key_str) == 1:
+            return QKeySequence(key_str.upper())
+        # Fallback to space
+        return QKeySequence(Qt.Key.Key_Space)
 
     def _on_mode_changed(self, button_id: int):
         """Handle mode selection change."""
@@ -598,9 +648,9 @@ class MainWindow(QMainWindow):
         if self._mode == "inplace" and bounds and not self._paused:
             self._inplace_overlay.position_over_window(bounds)
 
-        # Process through OCR and translation
+        # Process through OCR and translation on worker thread (non-blocking)
         if not self._paused:
-            self._process_worker.process_frame(frame, self._config.ocr_confidence)
+            self._process_frame_requested.emit(frame, self._config.ocr_confidence)
 
     def _on_text_ready(self, translated: str):
         """Handle translated text (banner mode)."""
@@ -621,8 +671,7 @@ class MainWindow(QMainWindow):
         confidence = value / 100.0
         self._config.ocr_confidence = confidence
         self._confidence_label.setText(f"{confidence:.0%}")
-        if self._ocr:
-            self._ocr.confidence_threshold = confidence
+        # Worker reads confidence from each process_frame_slot call
 
     def _on_font_size_changed(self, value: int):
         self._config.font_size = value
@@ -652,5 +701,10 @@ class MainWindow(QMainWindow):
         """Clean up resources before closing."""
         self._stop_capture()
         self._keyboard_listener.stop()
+
+        # Stop worker thread gracefully
+        self._worker_thread.quit()
+        self._worker_thread.wait(5000)  # Wait up to 5 seconds
+
         self._banner_overlay.close()
         self._inplace_overlay.close()
