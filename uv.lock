@@ -262,7 +262,7 @@ wheels = [
 
 [[package]]
 name = "interpreter-v2"
-version = "2.5.0"
+version = "2.7.0"
 source = { editable = "." }
 dependencies = [
     { name = "ctranslate2" },
@@ -277,7 +277,7 @@ dependencies = [
     { name = "pillow" },
     { name = "pygetwindow", marker = "sys_platform == 'win32'" },
     { name = "pygobject", marker = "sys_platform == 'linux'" },
-    { name = "pynput", marker = "sys_platform != 'linux'" },
+    { name = "pynput" },
     { name = "pyobjc-framework-cocoa", marker = "sys_platform == 'darwin'" },
     { name = "pyobjc-framework-quartz", marker = "sys_platform == 'darwin'" },
     { name = "pyside6" },
@@ -309,7 +309,7 @@ requires-dist = [
     { name = "pillow", specifier = ">=10.0.0" },
     { name = "pygetwindow", marker = "sys_platform == 'win32'", specifier = ">=0.0.9" },
     { name = "pygobject", marker = "sys_platform == 'linux'", specifier = ">=3.42.0" },
-    { name = "pynput", marker = "sys_platform != 'linux'", specifier = ">=1.7.0" },
+    { name = "pynput", specifier = ">=1.7.0" },
     { name = "pyobjc-framework-cocoa", marker = "sys_platform == 'darwin'", specifier = ">=12.1" },
     { name = "pyobjc-framework-quartz", marker = "sys_platform == 'darwin'", specifier = ">=10.0" },
     { name = "pyside6", specifier = ">=6.6.0" },
@@ -567,11 +567,11 @@ name = "pynput"
 version = "1.8.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "evdev", marker = "(platform_machine != 'aarch64' and 'linux' in sys_platform) or (sys_platform != 'linux' and 'linux' in sys_platform)" },
+    { name = "evdev", marker = "'linux' in sys_platform" },
     { name = "pyobjc-framework-applicationservices", marker = "sys_platform == 'darwin'" },
     { name = "pyobjc-framework-quartz", marker = "sys_platform == 'darwin'" },
-    { name = "python-xlib", marker = "(platform_machine != 'aarch64' and 'linux' in sys_platform) or (sys_platform != 'linux' and 'linux' in sys_platform)" },
-    { name = "six", marker = "platform_machine != 'aarch64' or sys_platform != 'linux'" },
+    { name = "python-xlib", marker = "'linux' in sys_platform" },
+    { name = "six" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/f0/c3/dccf44c68225046df5324db0cc7d563a560635355b3e5f1d249468268a6f/pynput-1.8.1.tar.gz", hash = "sha256:70d7c8373ee98911004a7c938742242840a5628c004573d84ba849d4601df81e", size = 82289, upload-time = "2025-03-17T17:12:01.481Z" }
 wheels = [

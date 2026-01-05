@@ -1,7 +1,6 @@
 """Platform-agnostic keyboard listener.
 
-Uses pynput on macOS/Windows, X11 RECORD extension on Linux.
-This avoids the evdev dependency that pynput requires on Linux.
+Uses pynput on macOS/Windows, evdev on Linux (works on both X11 and Wayland).
 """
 
 import platform
@@ -72,21 +71,91 @@ class KeyCode:
 
 
 if _system == "Linux":
-    # Linux: Use X11 RECORD extension (no evdev dependency)
-    from Xlib import XK, X, display
-    from Xlib.ext import record
-    from Xlib.protocol import rq
+    # Linux: Use evdev for global hotkeys (works on both X11 and Wayland)
+    import evdev
+    from evdev import ecodes
+
+    # Map evdev keycodes to Key constants
+    _EVDEV_KEY_MAP = {
+        ecodes.KEY_SPACE: Key.space,
+        ecodes.KEY_ESC: Key.esc,
+        ecodes.KEY_TAB: Key.tab,
+        ecodes.KEY_ENTER: Key.enter,
+        ecodes.KEY_BACKSPACE: Key.backspace,
+        ecodes.KEY_DELETE: Key.delete,
+        ecodes.KEY_HOME: Key.home,
+        ecodes.KEY_END: Key.end,
+        ecodes.KEY_PAGEUP: Key.page_up,
+        ecodes.KEY_PAGEDOWN: Key.page_down,
+        ecodes.KEY_UP: Key.up,
+        ecodes.KEY_DOWN: Key.down,
+        ecodes.KEY_LEFT: Key.left,
+        ecodes.KEY_RIGHT: Key.right,
+        ecodes.KEY_F1: Key.f1,
+        ecodes.KEY_F2: Key.f2,
+        ecodes.KEY_F3: Key.f3,
+        ecodes.KEY_F4: Key.f4,
+        ecodes.KEY_F5: Key.f5,
+        ecodes.KEY_F6: Key.f6,
+        ecodes.KEY_F7: Key.f7,
+        ecodes.KEY_F8: Key.f8,
+        ecodes.KEY_F9: Key.f9,
+        ecodes.KEY_F10: Key.f10,
+        ecodes.KEY_F11: Key.f11,
+        ecodes.KEY_F12: Key.f12,
+    }
+
+    # Map evdev keycodes to characters
+    _EVDEV_CHAR_MAP = {
+        ecodes.KEY_A: "a",
+        ecodes.KEY_B: "b",
+        ecodes.KEY_C: "c",
+        ecodes.KEY_D: "d",
+        ecodes.KEY_E: "e",
+        ecodes.KEY_F: "f",
+        ecodes.KEY_G: "g",
+        ecodes.KEY_H: "h",
+        ecodes.KEY_I: "i",
+        ecodes.KEY_J: "j",
+        ecodes.KEY_K: "k",
+        ecodes.KEY_L: "l",
+        ecodes.KEY_M: "m",
+        ecodes.KEY_N: "n",
+        ecodes.KEY_O: "o",
+        ecodes.KEY_P: "p",
+        ecodes.KEY_Q: "q",
+        ecodes.KEY_R: "r",
+        ecodes.KEY_S: "s",
+        ecodes.KEY_T: "t",
+        ecodes.KEY_U: "u",
+        ecodes.KEY_V: "v",
+        ecodes.KEY_W: "w",
+        ecodes.KEY_X: "x",
+        ecodes.KEY_Y: "y",
+        ecodes.KEY_Z: "z",
+        ecodes.KEY_0: "0",
+        ecodes.KEY_1: "1",
+        ecodes.KEY_2: "2",
+        ecodes.KEY_3: "3",
+        ecodes.KEY_4: "4",
+        ecodes.KEY_5: "5",
+        ecodes.KEY_6: "6",
+        ecodes.KEY_7: "7",
+        ecodes.KEY_8: "8",
+        ecodes.KEY_9: "9",
+        ecodes.KEY_MINUS: "-",
+        ecodes.KEY_EQUAL: "=",
+        ecodes.KEY_GRAVE: "`",
+    }
 
     class Listener:
-        """Global keyboard listener using X11 RECORD extension."""
+        """Global keyboard listener using evdev (works on X11 and Wayland)."""
 
         def __init__(self, on_press: Callable[[Any], None]):
             self._on_press = on_press
             self._running = False
             self._thread: threading.Thread | None = None
-            self._record_display: display.Display | None = None
-            self._local_display: display.Display | None = None
-            self._context: int | None = None
+            self._devices: list[evdev.InputDevice] = []
 
         def start(self) -> None:
             """Start listening for keyboard events in a background thread."""
@@ -99,145 +168,75 @@ if _system == "Linux":
             try:
                 self._thread = threading.Thread(target=self._listen_loop, daemon=True)
                 self._thread.start()
-                logger.debug("keyboard listener thread started")
             except Exception as e:
-                logger.warning("keyboard shortcuts unavailable", err=str(e))
+                logger.warning("keyboard listener failed to start", err=str(e))
+
+        def _find_keyboards(self) -> list[evdev.InputDevice]:
+            """Find all keyboard devices."""
+            keyboards = []
+            try:
+                for path in evdev.list_devices():
+                    try:
+                        device = evdev.InputDevice(path)
+                        caps = device.capabilities()
+                        # Check if device has key events and typical keyboard keys
+                        if ecodes.EV_KEY in caps:
+                            keys = caps[ecodes.EV_KEY]
+                            # Check for space key as indicator of keyboard
+                            if ecodes.KEY_SPACE in keys:
+                                keyboards.append(device)
+                                logger.debug("keyboard found", device=device.name, path=device.path)
+                    except (PermissionError, OSError) as e:
+                        logger.debug("cannot access device", path=path, err=str(e))
+            except Exception as e:
+                logger.warning("failed to enumerate devices", err=str(e))
+            return keyboards
 
         def _listen_loop(self) -> None:
             """Background thread that captures keyboard events."""
-            try:
-                # Need two display connections for RECORD extension
-                self._record_display = display.Display()
-                self._local_display = display.Display()
-                logger.debug("keyboard listener X11 displays opened")
+            import select
 
-                # Check if RECORD extension is available
-                if not self._record_display.has_extension("RECORD"):
-                    logger.warning("x11 record extension not available")
+            try:
+                self._devices = self._find_keyboards()
+                if not self._devices:
+                    logger.warning("no keyboards found - hotkeys will not work (are you in the 'input' group?)")
                     return
 
-                logger.debug("keyboard listener RECORD extension available")
+                logger.debug("keyboard listener started", devices=len(self._devices))
 
-                # Create recording context for key events
-                self._context = self._record_display.record_create_context(
-                    0,  # datum_flags
-                    [record.AllClients],  # clients
-                    [
-                        {
-                            "core_requests": (0, 0),
-                            "core_replies": (0, 0),
-                            "ext_requests": (0, 0, 0, 0),
-                            "ext_replies": (0, 0, 0, 0),
-                            "delivered_events": (0, 0),
-                            "device_events": (X.KeyPress, X.KeyRelease),
-                            "errors": (0, 0),
-                            "client_started": False,
-                            "client_died": False,
-                        }
-                    ],
-                )
-
-                # Enable context and process events
-                self._record_display.record_enable_context(self._context, self._handle_event)
-
-                # This blocks until record_disable_context is called
-                self._record_display.record_free_context(self._context)
+                # Create a selector for all keyboard devices
+                while self._running:
+                    # Wait for events on any device (with timeout for clean shutdown)
+                    r, _, _ = select.select(self._devices, [], [], 0.5)
+                    for device in r:
+                        try:
+                            for event in device.read():
+                                if event.type == ecodes.EV_KEY and event.value == 1:  # Key down
+                                    key = self._evdev_to_key(event.code)
+                                    if key and self._on_press:
+                                        try:
+                                            self._on_press(key)
+                                        except Exception as e:
+                                            logger.error("on_press callback error", err=str(e))
+                        except OSError:
+                            # Device disconnected
+                            pass
 
             except Exception as e:
-                if self._running:  # Only log if not intentionally stopped
+                if self._running:
                     logger.error("keyboard listener error", err=str(e))
             finally:
                 self._cleanup()
 
-        def _handle_event(self, reply) -> None:
-            """Process recorded X11 events."""
-            if reply.category != record.FromServer:
-                return
-            if reply.client_swapped:
-                return
-            if not len(reply.data) or reply.data[0] < 2:
-                return
+        def _evdev_to_key(self, code: int) -> Any | None:
+            """Convert evdev keycode to Key or KeyCode object."""
+            # Check special keys first
+            if code in _EVDEV_KEY_MAP:
+                return _EVDEV_KEY_MAP[code]
 
-            data = reply.data
-            while len(data):
-                event, data = rq.EventField(None).parse_binary_value(data, self._record_display.display, None, None)
-
-                if event.type == X.KeyPress:
-                    # Get the keysym for this keycode
-                    keysym = self._local_display.keycode_to_keysym(
-                        event.detail,
-                        0,  # No modifiers
-                    )
-
-                    # Convert keysym to key object
-                    key = self._keysym_to_key(keysym)
-                    if key and self._on_press:
-                        try:
-                            self._on_press(key)
-                        except Exception as e:
-                            logger.error("on_press callback error", err=str(e))
-
-        def _keysym_to_key(self, keysym: int) -> Any | None:
-            """Convert X11 keysym to Key or KeyCode object."""
-            # Handle space specially (keysym 32 = 0x20)
-            if keysym == 0x20:
-                return Key.space
-
-            # Handle common ASCII characters (excluding space)
-            if 0x21 <= keysym <= 0x7E:
-                return KeyCode(chr(keysym))
-
-            # Handle special keys via XK mapping
-            keysym_name = XK.keysym_to_string(keysym)
-            if keysym_name:
-                # Single character names are the character itself
-                if len(keysym_name) == 1:
-                    return KeyCode(keysym_name)
-
-                name_lower = keysym_name.lower()
-
-                # Character keys with multi-char X11 names
-                char_keys = {
-                    "minus": "-",
-                    "equal": "=",
-                    "plus": "+",
-                    "grave": "`",
-                    "quoteleft": "`",
-                }
-                if name_lower in char_keys:
-                    return KeyCode(char_keys[name_lower])
-
-                # Special keys - return Key constant strings
-                special_keys = {
-                    "escape": Key.esc,
-                    "return": Key.enter,
-                    "space": Key.space,
-                    "tab": Key.tab,
-                    "backspace": Key.backspace,
-                    "delete": Key.delete,
-                    "home": Key.home,
-                    "end": Key.end,
-                    "prior": Key.page_up,
-                    "next": Key.page_down,
-                    "up": Key.up,
-                    "down": Key.down,
-                    "left": Key.left,
-                    "right": Key.right,
-                    "f1": Key.f1,
-                    "f2": Key.f2,
-                    "f3": Key.f3,
-                    "f4": Key.f4,
-                    "f5": Key.f5,
-                    "f6": Key.f6,
-                    "f7": Key.f7,
-                    "f8": Key.f8,
-                    "f9": Key.f9,
-                    "f10": Key.f10,
-                    "f11": Key.f11,
-                    "f12": Key.f12,
-                }
-                if name_lower in special_keys:
-                    return special_keys[name_lower]
+            # Check character keys
+            if code in _EVDEV_CHAR_MAP:
+                return KeyCode(_EVDEV_CHAR_MAP[code])
 
             return None
 
@@ -245,34 +244,19 @@ if _system == "Linux":
             """Stop listening for keyboard events."""
             self._running = False
 
-            if self._context and self._local_display:
-                try:
-                    self._local_display.record_disable_context(self._context)
-                    self._local_display.flush()
-                except Exception:
-                    pass
-
             if self._thread:
                 self._thread.join(timeout=1.0)
                 self._thread = None
 
         def _cleanup(self) -> None:
-            """Clean up X11 resources."""
-            if self._record_display:
+            """Clean up device handles."""
+            for device in self._devices:
                 try:
-                    self._record_display.close()
+                    device.close()
                 except Exception:
                     pass
-                self._record_display = None
-
-            if self._local_display:
-                try:
-                    self._local_display.close()
-                except Exception:
-                    pass
-                self._local_display = None
-
-            self._context = None
+            self._devices = []
+            logger.debug("keyboard listener stopped")
 
 else:
     # macOS/Windows: Use pynput
