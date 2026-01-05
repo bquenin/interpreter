@@ -151,9 +151,13 @@ class Translator:
                     str(self._model_path),
                     device="cuda",
                 )
+                # Test inference to verify CUDA actually works
+                # (loading may succeed but inference can fail if cuBLAS is missing)
+                self._translator.translate_batch([["テスト"]])
                 device = "cuda"
-        except Exception:
-            # GPU failed, will use CPU below
+        except Exception as e:
+            # GPU failed (load or inference), will use CPU below
+            logger.debug("CUDA failed, falling back to CPU", error=str(e))
             pass
 
         if device == "cpu":

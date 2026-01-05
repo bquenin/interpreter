@@ -1,5 +1,7 @@
 """Background workers for OCR and translation."""
 
+import queue
+import threading
 import time
 
 from PySide6.QtCore import QObject, Signal
@@ -14,41 +16,107 @@ logger = log.get_logger()
 class ProcessWorker(QObject):
     """Worker for OCR and translation processing.
 
-    Processes frames through OCR and translation pipeline.
-    Emits result signals for banner or inplace mode.
+    Uses Python threading (not QThread) to avoid conflicts between
+    ONNX runtime and windows-capture on Windows.
+
+    Frames are sent via queue, results emitted via Qt signals.
     """
 
     # Banner mode: single translated text
-    text_ready = Signal(str)  # translated text
+    text_ready = Signal(str)
 
     # Inplace mode: list of (text, bbox) regions
-    regions_ready = Signal(list)  # list of (translated_text, bbox)
+    regions_ready = Signal(list)
+
+    # Emitted when models are loaded and ready
+    models_ready = Signal()
+
+    # Emitted when model loading fails
+    models_failed = Signal(str)
 
     def __init__(self):
         super().__init__()
         self._ocr: OCR | None = None
         self._translator: Translator | None = None
         self._mode = "banner"
+        self._confidence_threshold = 0.6
 
-    def set_ocr(self, ocr: OCR | None):
-        """Set the OCR instance."""
-        self._ocr = ocr
-
-    def set_translator(self, translator: Translator | None):
-        """Set the translator instance."""
-        self._translator = translator
+        # Threading
+        self._frame_queue: queue.Queue = queue.Queue()
+        self._thread: threading.Thread | None = None
+        self._running = False
 
     def set_mode(self, mode: str):
         """Set the overlay mode (banner or inplace)."""
         self._mode = mode
 
-    def process_frame(self, frame, confidence_threshold: float = 0.6):
-        """Process a frame through OCR and translation.
+    def set_confidence_threshold(self, threshold: float):
+        """Set the OCR confidence threshold."""
+        self._confidence_threshold = threshold
 
-        Args:
-            frame: PIL Image to process
-            confidence_threshold: OCR confidence threshold
-        """
+    def start(self, ocr_confidence: float):
+        """Start the worker thread and load models."""
+        if self._thread is not None:
+            return
+
+        self._confidence_threshold = ocr_confidence
+        self._running = True
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+
+    def stop(self):
+        """Stop the worker thread."""
+        self._running = False
+        # Send None to unblock the queue
+        self._frame_queue.put(None)
+        if self._thread is not None:
+            self._thread.join(timeout=5.0)
+            self._thread = None
+
+    def process_frame(self, frame):
+        """Queue a frame for processing."""
+        if self._running:
+            # Clear any pending frames (only process latest)
+            try:
+                while True:
+                    self._frame_queue.get_nowait()
+            except queue.Empty:
+                pass
+            self._frame_queue.put(frame)
+
+    def _run(self):
+        """Worker thread main loop."""
+        # Load models
+        logger.debug("worker thread starting")
+        try:
+            self._ocr = OCR(confidence_threshold=self._confidence_threshold)
+            self._ocr.load()
+            logger.debug("OCR model loaded")
+
+            self._translator = Translator()
+            self._translator.load()
+            logger.debug("translation model loaded")
+
+            self.models_ready.emit()
+        except Exception as e:
+            logger.error("failed to initialize models", error=str(e))
+            self.models_failed.emit(str(e))
+            return
+
+        # Process frames
+        while self._running:
+            try:
+                frame = self._frame_queue.get(timeout=0.5)
+                if frame is None:
+                    break
+                self._process_frame(frame)
+            except queue.Empty:
+                continue
+
+        logger.debug("worker thread stopped")
+
+    def _process_frame(self, frame):
+        """Process a frame through OCR and translation."""
         if self._ocr is None:
             return
 
@@ -57,8 +125,8 @@ class ProcessWorker(QObject):
         translate_ms = 0
         was_cached = False
 
-        # Update OCR threshold from GUI setting
-        self._ocr.confidence_threshold = confidence_threshold
+        # Update OCR threshold
+        self._ocr.confidence_threshold = self._confidence_threshold
 
         # OCR
         try:
@@ -84,7 +152,6 @@ class ProcessWorker(QObject):
         # Translation
         translate_start = time.perf_counter()
         if self._mode == "inplace":
-            # Translate each region
             translated_regions = []
             all_cached = True
             for region in regions:
@@ -105,7 +172,6 @@ class ProcessWorker(QObject):
 
             self.regions_ready.emit(translated_regions)
         else:
-            # Banner mode: single text
             if self._translator:
                 try:
                     translated, was_cached = self._translator.translate(text)
