@@ -41,7 +41,8 @@ import tkinter as tk
 from tkinter import font as tkfont
 from typing import Any
 
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QPoint, QTimer
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QApplication
 
 from .. import log
@@ -272,8 +273,10 @@ class Overlay:
 
         self._banner_frame.bind("<Button-1>", self._start_drag)
         self._banner_frame.bind("<B1-Motion>", self._on_drag)
+        self._banner_frame.bind("<ButtonRelease-1>", self._end_drag)
         self._banner_label.bind("<Button-1>", self._start_drag)
         self._banner_label.bind("<B1-Motion>", self._on_drag)
+        self._banner_label.bind("<ButtonRelease-1>", self._end_drag)
 
         self._position_banner()
 
@@ -434,6 +437,33 @@ class Overlay:
         x = self._banner_root.winfo_x() + event.x - self._drag_start_x
         y = self._banner_root.winfo_y() + event.y - self._drag_start_y
         self._banner_root.geometry(f"+{x}+{y}")
+
+    def _end_drag(self, event):
+        """Handle end of banner drag - resize to match current screen."""
+        if not self._banner_root:
+            return
+
+        # Get banner position and size
+        x = self._banner_root.winfo_x()
+        y = self._banner_root.winfo_y()
+        width = self._banner_root.winfo_width()
+        height = self._banner_root.winfo_height()
+        center_x = x + width // 2
+        center_y = y + height // 2
+
+        # Find which screen the banner center is on
+        screen = QGuiApplication.screenAt(QPoint(center_x, center_y))
+        if not screen:
+            return
+
+        screen_geom = screen.geometry()
+        new_width = screen_geom.width()
+
+        # Resize banner to match screen width if changed
+        if new_width != width:
+            self._banner_label.config(wraplength=new_width - 60)
+            self._banner_root.geometry(f"{new_width}x{height}+{screen_geom.x()}+{y}")
+            self._banner_root.update_idletasks()
 
     def update_regions(self, regions: list[tuple[str, dict]]):
         """Update the displayed text regions (inplace mode)."""
