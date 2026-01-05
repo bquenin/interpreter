@@ -12,42 +12,17 @@ Offline screen translator for Japanese retro games. Captures text from any windo
 - **Optimized for retro games** - Uses MeikiOCR, trained specifically on Japanese game text
 - **Two overlay modes** - Banner (subtitle bar) or inplace (text over game)
 - **Translation caching** - Fuzzy matching avoids re-translating similar text
+- **Multi-display support** - Overlay appears on the same display as the game
 
 ## Requirements
 
-- Python 3.11+ (Python 3.14 not yet supported)
 - **Windows 10 version 1903+**, macOS, or Linux (X11/XWayland/Wayland)
 
-### Linux: Native Wayland Support (Optional)
+### Linux Notes
 
-For capturing native Wayland applications (not running through XWayland), install GStreamer with PipeWire support:
-
-**Ubuntu/Debian:**
-```bash
-sudo apt-get install gstreamer1.0-pipewire gir1.2-gstreamer-1.0
-```
-
-**Fedora:**
-```bash
-sudo dnf install gstreamer1-plugin-pipewire
-```
-
-**Arch Linux:**
-```bash
-sudo pacman -S gst-plugin-pipewire
-```
-
-Without these packages, the application still works but can only capture X11/XWayland windows.
-
-**Known limitations:**
-- Global hotkeys on native Wayland require `input` group membership:
-  ```bash
-  sudo usermod -aG input $USER
-  ```
-  Then log out and back in. Without this, use the GUI button to toggle the overlay.
-- Inplace overlay mode only works correctly with **fullscreen** native Wayland windows. For windowed mode, use Banner overlay or capture via X11/XWayland instead. (Wayland's security model prevents applications from knowing window positions.)
-
-**Tip:** To capture a fullscreen Wayland window, put the game in fullscreen mode *before* starting the capture in Interpreter.
+- **Global hotkeys** require `input` group membership. The installer will show instructions.
+- **Native Wayland capture** requires GStreamer PipeWire plugin. The installer will attempt to install it automatically.
+- **Inplace overlay** on Wayland only works with fullscreen windows (Wayland's security model prevents knowing window positions).
 
 ## Installation
 
@@ -67,17 +42,7 @@ Then run with `interpreter-v2`.
 
 ## Upgrading
 
-To update to the latest version, run the install script again:
-
-**macOS/Linux:**
-```bash
-curl -LsSf https://raw.githubusercontent.com/bquenin/interpreter/main/install.sh | bash
-```
-
-**Windows (PowerShell):**
-```powershell
-powershell -c "irm https://raw.githubusercontent.com/bquenin/interpreter/main/install.ps1 | iex"
-```
+To update to the latest version, run the installer again (see Installation above).
 
 ## Usage
 
@@ -87,14 +52,6 @@ interpreter-v2
 
 This opens the GUI where you can select a window to capture and configure all settings.
 
-## Hotkeys
-
-| Key | Action |
-|-----|--------|
-| `Space` | Toggle overlay on/off (configurable in GUI) |
-
-In banner mode, you can drag the overlay to reposition it.
-
 ## Overlay Modes
 
 ### Banner Mode (default)
@@ -102,10 +59,6 @@ A subtitle bar at the bottom of the screen displaying translated text. Draggable
 
 ### Inplace Mode
 Transparent overlay positioned over the game window. Translated text appears directly over the original Japanese text at OCR-detected positions. Click-through so you can interact with the game.
-
-## Configuration
-
-All settings are configured through the GUI and saved to `~/.interpreter/config.yml`.
 
 ## How It Works
 
@@ -121,11 +74,3 @@ Try adjusting the OCR confidence slider in the GUI. Lower values include more te
 
 ### Slow performance
 First run downloads models (~1.5GB). Subsequent runs use cached models from `~/.cache/huggingface/`.
-
-## What's New in v2
-
-- **Inplace overlay mode** - Text appears directly over game text
-- **Translation caching** - Fuzzy matching reduces redundant translations
-- **Improved OCR** - Punctuation excluded from confidence calculation
-- **Better window capture** - Excludes overlapping windows, auto-detects fullscreen
-- **Multi-display support** - Overlay appears on the same display as the game
