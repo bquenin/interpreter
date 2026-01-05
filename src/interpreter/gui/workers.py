@@ -31,6 +31,9 @@ class ProcessWorker(QObject):
     # Emitted when models are loaded and ready
     models_ready = Signal()
 
+    # Emitted when model loading fails
+    models_failed = Signal(str)  # error message
+
     def __init__(self):
         super().__init__()
         self._ocr: OCR | None = None
@@ -65,6 +68,7 @@ class ProcessWorker(QObject):
             self.models_ready.emit()
         except Exception as e:
             logger.error("failed to initialize models", error=str(e))
+            self.models_failed.emit(str(e))
 
     @Slot(object, float)
     def process_frame_slot(self, frame, confidence_threshold: float = 0.6):

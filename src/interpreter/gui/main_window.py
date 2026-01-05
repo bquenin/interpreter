@@ -75,6 +75,7 @@ class MainWindow(QMainWindow):
         self._process_worker.text_ready.connect(self._on_text_ready)
         self._process_worker.regions_ready.connect(self._on_regions_ready)
         self._process_worker.models_ready.connect(self._on_models_ready)
+        self._process_worker.models_failed.connect(self._on_models_failed)
 
         # Connect frame processing signal to worker slot
         self._process_frame_requested.connect(self._process_worker.process_frame_slot)
@@ -283,6 +284,10 @@ class MainWindow(QMainWindow):
         """Handle models loaded signal from worker thread."""
         self.statusBar().showMessage("Ready")
         logger.debug("models loaded on worker thread")
+
+    def _on_models_failed(self, error: str):
+        """Handle model loading failure from worker thread."""
+        self.statusBar().showMessage(f"Model loading failed: {error[:50]}")
 
     def _refresh_windows(self):
         """Refresh the window list."""
