@@ -32,6 +32,7 @@ def is_wayland_capture_available() -> bool:
     except ImportError:
         return False
 
+
 # Track when window became invalid for timing measurement
 _invalid_time: float = 0
 

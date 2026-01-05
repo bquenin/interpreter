@@ -101,9 +101,7 @@ class WaylandPortalCapture:
             raise RuntimeError("Wayland capture dependencies not available")
 
         self._bus = _dbus.SessionBus()
-        self._portal = self._bus.get_object(
-            "org.freedesktop.portal.Desktop", "/org/freedesktop/portal/desktop"
-        )
+        self._portal = self._bus.get_object("org.freedesktop.portal.Desktop", "/org/freedesktop/portal/desktop")
         self._session_path: str | None = None
         self._streams: list | None = None
         self._pipewire_fd: int | None = None
@@ -161,9 +159,7 @@ class WaylandPortalCapture:
         }
 
         try:
-            self._portal.CreateSession(
-                options, dbus_interface="org.freedesktop.portal.ScreenCast"
-            )
+            self._portal.CreateSession(options, dbus_interface="org.freedesktop.portal.ScreenCast")
             logger.debug("portal session creation requested")
         except Exception as e:
             logger.error("failed to create portal session", error=str(e))
@@ -316,9 +312,7 @@ class WaylandPortalCapture:
         """Close just the portal session (not the PipeWire fd)."""
         if self._session_path:
             try:
-                session = self._bus.get_object(
-                    "org.freedesktop.portal.Desktop", self._session_path
-                )
+                session = self._bus.get_object("org.freedesktop.portal.Desktop", self._session_path)
                 session.Close(dbus_interface="org.freedesktop.portal.Session")
                 logger.debug("portal session closed", session=self._session_path)
             except Exception:
@@ -378,7 +372,12 @@ class WaylandCaptureStream:
         self._running = False
         self._loop = None
         self._loop_thread = None
-        self.window_invalid = False
+        self._window_invalid_event = threading.Event()  # Thread-safe flag
+
+    @property
+    def window_invalid(self) -> bool:
+        """Check if the window/stream is no longer valid (thread-safe)."""
+        return self._window_invalid_event.is_set()
 
     def start(self) -> None:
         """Start the GStreamer pipeline for frame capture."""
@@ -399,7 +398,7 @@ class WaylandCaptureStream:
             self._pipeline = _Gst.parse_launch(pipeline_str)
         except Exception as e:
             logger.error("failed to create gstreamer pipeline", error=str(e))
-            self.window_invalid = True
+            self._window_invalid_event.set()
             return
 
         # Get appsink and connect signal
@@ -416,7 +415,7 @@ class WaylandCaptureStream:
         ret = self._pipeline.set_state(_Gst.State.PLAYING)
         if ret == _Gst.StateChangeReturn.FAILURE:
             logger.error("failed to start gstreamer pipeline")
-            self.window_invalid = True
+            self._window_invalid_event.set()
             return
 
         self._running = True
@@ -468,12 +467,12 @@ class WaylandCaptureStream:
         """Handle GStreamer error message."""
         err, debug = message.parse_error()
         logger.error("gstreamer error", error=str(err), debug=debug)
-        self.window_invalid = True
+        self._window_invalid_event.set()
 
     def _on_eos(self, bus, message) -> None:
         """Handle end-of-stream (window closed)."""
         logger.info("wayland capture stream ended (window closed)")
-        self.window_invalid = True
+        self._window_invalid_event.set()
 
     def get_frame(self) -> NDArray[np.uint8] | None:
         """Get the latest captured frame.
@@ -493,6 +492,11 @@ class WaylandCaptureStream:
         if self._loop:
             self._loop.quit()
             self._loop = None
+
+        # Wait for the GLib mainloop thread to finish
+        if self._loop_thread is not None:
+            self._loop_thread.join(timeout=2.0)
+            self._loop_thread = None
 
         if self._pipeline:
             self._pipeline.set_state(_Gst.State.NULL)

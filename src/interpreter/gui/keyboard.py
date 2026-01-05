@@ -160,9 +160,7 @@ if _system == "Linux":
 
             data = reply.data
             while len(data):
-                event, data = rq.EventField(None).parse_binary_value(
-                    data, self._record_display.display, None, None
-                )
+                event, data = rq.EventField(None).parse_binary_value(data, self._record_display.display, None, None)
 
                 if event.type == X.KeyPress:
                     # Get the keysym for this keycode
