@@ -16,7 +16,34 @@ Offline screen translator for Japanese retro games. Captures text from any windo
 ## Requirements
 
 - Python 3.11+ (Python 3.14 not yet supported)
-- **Windows 10 version 1903+**, macOS, or Linux (X11/XWayland)
+- **Windows 10 version 1903+**, macOS, or Linux (X11/XWayland/Wayland)
+
+### Linux: Native Wayland Support (Optional)
+
+For capturing native Wayland applications (not running through XWayland), install GStreamer with PipeWire support:
+
+**Ubuntu/Debian:**
+```bash
+sudo apt-get install gstreamer1.0-pipewire gir1.2-gstreamer-1.0
+```
+
+**Fedora:**
+```bash
+sudo dnf install gstreamer1-plugin-pipewire
+```
+
+**Arch Linux:**
+```bash
+sudo pacman -S gst-plugin-pipewire
+```
+
+Without these packages, the application still works but can only capture X11/XWayland windows.
+
+**Known limitations:**
+- Global hotkeys (e.g., Space to toggle overlay) only work when an X11/XWayland window is focused. When a native Wayland window has focus, use the GUI button to toggle the overlay instead.
+- Inplace overlay mode only works correctly with **fullscreen** native Wayland windows. For windowed mode, use Banner overlay or capture via X11/XWayland instead. (Wayland's security model prevents applications from knowing window positions.)
+
+**Tip:** To capture a fullscreen Wayland window, put the game in fullscreen mode *before* starting the capture in Interpreter.
 
 ## Installation
 

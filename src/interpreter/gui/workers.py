@@ -1,5 +1,7 @@
 """Background workers for OCR and translation."""
 
+import time
+
 from PySide6.QtCore import QObject, Signal
 
 from .. import log
@@ -50,17 +52,24 @@ class ProcessWorker(QObject):
         if self._ocr is None:
             return
 
+        frame_start = time.perf_counter()
+        ocr_ms = 0
+        translate_ms = 0
+        was_cached = False
+
         # Update OCR threshold from GUI setting
         self._ocr.confidence_threshold = confidence_threshold
 
         # OCR
         try:
+            ocr_start = time.perf_counter()
             if self._mode == "inplace":
                 regions = self._ocr.extract_text_regions(frame)
                 text = " ".join(r.text for r in regions if r.text)
             else:
                 text = self._ocr.extract_text(frame)
                 regions = []
+            ocr_ms = int((time.perf_counter() - ocr_start) * 1000)
         except Exception as e:
             logger.error("OCR error", error=str(e))
             return
@@ -73,30 +82,47 @@ class ProcessWorker(QObject):
             return
 
         # Translation
+        translate_start = time.perf_counter()
         if self._mode == "inplace":
             # Translate each region
             translated_regions = []
+            all_cached = True
             for region in regions:
                 if self._translator and region.text:
                     try:
-                        translated, _ = self._translator.translate(region.text)
+                        translated, cached = self._translator.translate(region.text)
+                        if not cached:
+                            all_cached = False
                     except Exception as e:
                         logger.warning("Translation error", error=str(e), text=region.text[:50])
                         translated = region.text
+                        all_cached = False
                 else:
                     translated = region.text
                 translated_regions.append((translated, region.bbox))
+            translate_ms = int((time.perf_counter() - translate_start) * 1000)
+            was_cached = all_cached and len(translated_regions) > 0
 
             self.regions_ready.emit(translated_regions)
         else:
             # Banner mode: single text
             if self._translator:
                 try:
-                    translated, _ = self._translator.translate(text)
+                    translated, was_cached = self._translator.translate(text)
                 except Exception as e:
                     logger.warning("Translation error", error=str(e), text=text[:50])
                     translated = f"[{text}]"
             else:
                 translated = text
+            translate_ms = int((time.perf_counter() - translate_start) * 1000)
 
             self.text_ready.emit(translated)
+
+        total_ms = int((time.perf_counter() - frame_start) * 1000)
+        translate_str = f"{translate_ms} (cached)" if was_cached else str(translate_ms)
+        logger.debug(
+            "frame processed",
+            ocr_ms=ocr_ms,
+            translate_ms=translate_str,
+            total_ms=total_ms,
+        )

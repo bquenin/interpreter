@@ -1,5 +1,6 @@
 """Platform-agnostic screen capture interface."""
 
+import os
 import platform
 import time
 
@@ -9,6 +10,27 @@ from numpy.typing import NDArray
 from .. import log
 
 logger = log.get_logger()
+
+
+def is_wayland_capture_available() -> bool:
+    """Check if Wayland portal capture is available.
+
+    Returns:
+        True if running on Wayland with portal support and required dependencies.
+    """
+    if platform.system() != "Linux":
+        return False
+
+    # Must have WAYLAND_DISPLAY set
+    if not os.environ.get("WAYLAND_DISPLAY"):
+        return False
+
+    try:
+        from .linux_wayland import is_wayland_available
+
+        return is_wayland_available()
+    except ImportError:
+        return False
 
 # Track when window became invalid for timing measurement
 _invalid_time: float = 0
@@ -45,7 +67,7 @@ elif _system == "Windows":
 
     CaptureStream = WindowsCaptureStream
 elif _system == "Linux":
-    from .linux import (
+    from .linux_x11 import (
         LinuxCaptureStream,
         _get_window_bounds,
         capture_window,

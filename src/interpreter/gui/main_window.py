@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import log
-from ..capture import WindowCapture
+from ..capture import WindowCapture, is_wayland_capture_available
 from ..capture.convert import bgra_to_rgb_pil
 from ..config import Config
 from ..ocr import OCR
@@ -58,6 +58,9 @@ class MainWindow(QMainWindow):
         self._mode = config.overlay_mode
         self._windows_list: list[dict] = []
         self._paused = False
+        self._wayland_available = is_wayland_capture_available()
+        self._wayland_portal = None  # WaylandPortalCapture instance
+        self._wayland_stream = None  # WaylandCaptureStream instance
 
         # Components
         self._capture: WindowCapture | None = None
@@ -105,6 +108,7 @@ class MainWindow(QMainWindow):
 
         self._window_combo = QComboBox()
         self._window_combo.setMinimumWidth(250)
+        self._window_combo.activated.connect(self._on_window_selected)
         window_layout.addWidget(self._window_combo, 1)
 
         self._start_btn = QPushButton("Start Capture")
@@ -290,6 +294,11 @@ class MainWindow(QMainWindow):
             if self._config.window_title and self._config.window_title.lower() in win.get("title", "").lower():
                 selected_idx = i
 
+        # Add Wayland option if available
+        if self._wayland_available:
+            self._window_combo.insertSeparator(self._window_combo.count())
+            self._window_combo.addItem("Select Wayland window...")
+
         if selected_idx >= 0:
             self._window_combo.setCurrentIndex(selected_idx)
 
@@ -303,6 +312,14 @@ class MainWindow(QMainWindow):
     def _start_capture(self):
         """Start capturing the selected window."""
         idx = self._window_combo.currentIndex()
+
+        # Check if Wayland option is selected
+        if self._wayland_available:
+            wayland_idx = len(self._windows_list) + 1  # +1 for separator
+            if idx == wayland_idx:
+                self._start_wayland_capture()
+                return
+
         if idx < 0 or idx >= len(self._windows_list):
             self.statusBar().showMessage("No window selected")
             return
@@ -347,6 +364,78 @@ class MainWindow(QMainWindow):
         # Show overlay
         self._show_overlay()
 
+    def _on_window_selected(self, index: int):
+        """Handle window selection change - auto-start Wayland capture if selected."""
+        if not self._wayland_available or self._capturing:
+            return
+
+        # Check if Wayland option is selected (after separator)
+        wayland_idx = len(self._windows_list) + 1  # +1 for separator
+        if index == wayland_idx:
+            self._start_wayland_capture()
+
+    def _start_wayland_capture(self):
+        """Start Wayland capture using xdg-desktop-portal."""
+        from ..capture.linux_wayland import WaylandPortalCapture
+
+        self.statusBar().showMessage("Select a window...")
+        self._start_btn.setEnabled(False)
+
+        try:
+            self._wayland_portal = WaylandPortalCapture()
+            self._wayland_portal.select_window(self._on_wayland_window_selected)
+        except Exception as e:
+            logger.error("failed to start wayland portal", error=str(e))
+            self.statusBar().showMessage("Wayland capture not available")
+            self._start_btn.setEnabled(True)
+
+    def _on_wayland_window_selected(self, success: bool):
+        """Handle Wayland window selection result."""
+        from ..capture.linux_wayland import WaylandCaptureStream
+
+        self._start_btn.setEnabled(True)
+
+        if not success:
+            self.statusBar().showMessage("Window selection cancelled")
+            if self._wayland_portal:
+                self._wayland_portal.close()
+                self._wayland_portal = None
+            return
+
+        # Get PipeWire stream info
+        stream_info = self._wayland_portal.get_stream_info()
+        if not stream_info:
+            self.statusBar().showMessage("Failed to get stream info")
+            self._wayland_portal.close()
+            self._wayland_portal = None
+            return
+
+        fd, node_id = stream_info
+
+        try:
+            self._wayland_stream = WaylandCaptureStream(fd, node_id)
+            self._wayland_stream.start()
+        except Exception as e:
+            logger.error("failed to start wayland stream", error=str(e))
+            self.statusBar().showMessage("Failed to start capture")
+            self._wayland_portal.close()
+            self._wayland_portal = None
+            return
+
+        # Start processing timer
+        self._process_timer.setInterval(PROCESS_INTERVAL_MS)
+        self._process_timer.start()
+
+        self._capturing = True
+        self._paused = False
+        self._start_btn.setText("Stop Capture")
+        self._pause_btn.setEnabled(True)
+        self._pause_btn.setText("Hide")
+        self.statusBar().showMessage("Capturing Wayland window...")
+
+        # Show overlay
+        self._show_overlay()
+
     def _stop_capture(self):
         """Stop capturing."""
         self._process_timer.stop()
@@ -354,6 +443,14 @@ class MainWindow(QMainWindow):
         if self._capture:
             self._capture.stop_stream()
             self._capture = None
+
+        # Stop Wayland capture if active
+        if self._wayland_stream:
+            self._wayland_stream.stop()
+            self._wayland_stream = None
+        if self._wayland_portal:
+            self._wayland_portal.close()
+            self._wayland_portal = None
 
         self._capturing = False
         self._paused = False
@@ -464,16 +561,28 @@ class MainWindow(QMainWindow):
 
     def _capture_and_process(self):
         """Capture a frame and process it through OCR and translation."""
-        if self._capture is None:
-            return
+        frame = None
+        bounds = {}
 
-        # Get latest frame from background capture stream
-        frame = self._capture.get_frame()
+        # Get frame from active capture source
+        if self._wayland_stream:
+            # Wayland capture via PipeWire
+            frame = self._wayland_stream.get_frame()
+            # Check if window was closed
+            if self._wayland_stream.window_invalid:
+                logger.info("wayland window closed, stopping capture")
+                self._stop_capture()
+                return
+            # Note: Wayland doesn't provide window position, so bounds stays empty.
+            # Inplace mode only works correctly with fullscreen Wayland windows.
+        elif self._capture:
+            # X11/XWayland capture
+            frame = self._capture.get_frame()
+            bounds = self._capture.bounds or {}
+
         if frame is None:
             return
 
-        # Update bounds
-        bounds = self._capture.bounds or {}
         self._last_frame = frame
         self._last_bounds = bounds
 
@@ -485,7 +594,7 @@ class MainWindow(QMainWindow):
         pixmap = QPixmap.fromImage(qimg)
         self._preview_label.setPixmap(pixmap)
 
-        # Update inplace overlay position if window moved
+        # Update inplace overlay position if window moved (X11 only - Wayland doesn't have bounds)
         if self._mode == "inplace" and bounds and not self._paused:
             self._inplace_overlay.position_over_window(bounds)
 

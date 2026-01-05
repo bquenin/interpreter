@@ -12,9 +12,9 @@ GRAY='\033[0;90m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-# Determine total steps (Linux has extra desktop entry step)
+# Determine total steps (Linux has extra steps)
 if [[ "$(uname)" == "Linux" ]]; then
-    TOTAL_STEPS=4
+    TOTAL_STEPS=5
 else
     TOTAL_STEPS=3
 fi
@@ -66,9 +66,37 @@ if [ -d "$TOOL_DIR" ]; then
     interpreter-v2 --list-windows > /dev/null 2>&1 || true
 fi
 
+# Install Wayland dependencies (Linux only)
+if [[ "$(uname)" == "Linux" ]]; then
+    echo -e "${YELLOW}[4/${TOTAL_STEPS}] Checking Wayland capture dependencies...${NC}"
+
+    # Skip if not running on Wayland
+    if [ -z "$WAYLAND_DISPLAY" ]; then
+        echo -e "${GRAY}     Not running on Wayland, skipping${NC}"
+    # Skip if GStreamer PipeWire plugin already installed
+    elif gst-inspect-1.0 pipewiresrc > /dev/null 2>&1; then
+        echo -e "${GREEN}     GStreamer PipeWire plugin already installed${NC}"
+    # Need to install - detect package manager
+    elif command -v apt-get &> /dev/null; then
+        echo -e "${GRAY}     Installing gstreamer1.0-pipewire...${NC}"
+        sudo apt-get install -y gstreamer1.0-pipewire gir1.2-gstreamer-1.0 2>/dev/null || \
+            echo -e "${YELLOW}     Could not install automatically. Run: sudo apt-get install gstreamer1.0-pipewire gir1.2-gstreamer-1.0${NC}"
+    elif command -v dnf &> /dev/null; then
+        echo -e "${GRAY}     Installing gstreamer1-plugin-pipewire...${NC}"
+        sudo dnf install -y gstreamer1-plugin-pipewire 2>/dev/null || \
+            echo -e "${YELLOW}     Could not install automatically. Run: sudo dnf install gstreamer1-plugin-pipewire${NC}"
+    elif command -v pacman &> /dev/null; then
+        echo -e "${GRAY}     Installing gst-plugin-pipewire...${NC}"
+        sudo pacman -S --noconfirm gst-plugin-pipewire 2>/dev/null || \
+            echo -e "${YELLOW}     Could not install automatically. Run: sudo pacman -S gst-plugin-pipewire${NC}"
+    else
+        echo -e "${YELLOW}     Please install GStreamer PipeWire plugin for native Wayland capture${NC}"
+    fi
+fi
+
 # Install desktop entry and icon (Linux only)
 if [[ "$(uname)" == "Linux" ]]; then
-    echo -e "${YELLOW}[4/${TOTAL_STEPS}] Installing desktop entry...${NC}"
+    echo -e "${YELLOW}[5/${TOTAL_STEPS}] Installing desktop entry...${NC}"
 
     # Find the installed icon
     ICON_SRC=$(find "$TOOL_DIR/lib" -name "icon.png" -path "*/resources/icons/*" 2>/dev/null | head -1)
