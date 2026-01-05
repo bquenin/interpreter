@@ -1,6 +1,5 @@
 """Background workers for OCR and translation."""
 
-import queue
 import threading
 import time
 
@@ -13,13 +12,48 @@ from ..translate import Translator
 logger = log.get_logger()
 
 
+class FrameBuffer:
+    """Thread-safe 'latest frame' buffer with signaling."""
+
+    def __init__(self):
+        self._frame = None
+        self._lock = threading.Lock()
+        self._condition = threading.Condition(self._lock)
+        self._closed = False
+
+    def put(self, frame):
+        """Store new frame and signal worker."""
+        with self._condition:
+            self._frame = frame
+            self._condition.notify()
+
+    def get(self, timeout=None):
+        """Wait for and retrieve frame. Returns None on timeout or close."""
+        with self._condition:
+            if self._condition.wait_for(
+                lambda: self._frame is not None or self._closed, timeout
+            ):
+                if self._closed:
+                    return None
+                frame = self._frame
+                self._frame = None
+                return frame
+            return None
+
+    def close(self):
+        """Signal worker to stop waiting."""
+        with self._condition:
+            self._closed = True
+            self._condition.notify()
+
+
 class ProcessWorker(QObject):
     """Worker for OCR and translation processing.
 
     Uses Python threading (not QThread) to avoid conflicts between
     ONNX runtime and windows-capture on Windows.
 
-    Frames are sent via queue, results emitted via Qt signals.
+    Frames are sent via FrameBuffer, results emitted via Qt signals.
     """
 
     # Banner mode: single translated text
@@ -42,7 +76,7 @@ class ProcessWorker(QObject):
         self._confidence_threshold = 0.6
 
         # Threading
-        self._frame_queue: queue.Queue = queue.Queue()
+        self._frame_buffer = FrameBuffer()
         self._thread: threading.Thread | None = None
         self._running = False
 
@@ -67,26 +101,18 @@ class ProcessWorker(QObject):
     def stop(self):
         """Stop the worker thread."""
         self._running = False
-        # Send None to unblock the queue
-        self._frame_queue.put(None)
+        self._frame_buffer.close()
         if self._thread is not None:
             self._thread.join(timeout=5.0)
             self._thread = None
 
     def process_frame(self, frame):
-        """Queue a frame for processing."""
+        """Send a frame for processing (non-blocking)."""
         if self._running:
-            # Clear any pending frames (only process latest)
-            try:
-                while True:
-                    self._frame_queue.get_nowait()
-            except queue.Empty:
-                pass
-            self._frame_queue.put(frame)
+            self._frame_buffer.put(frame)
 
     def _run(self):
         """Worker thread main loop."""
-        # Load models
         logger.debug("worker thread starting")
         try:
             self._ocr = OCR(confidence_threshold=self._confidence_threshold)
@@ -105,13 +131,9 @@ class ProcessWorker(QObject):
 
         # Process frames
         while self._running:
-            try:
-                frame = self._frame_queue.get(timeout=0.5)
-                if frame is None:
-                    break
+            frame = self._frame_buffer.get(timeout=0.5)
+            if frame is not None:
                 self._process_frame(frame)
-            except queue.Empty:
-                continue
 
         logger.debug("worker thread stopped")
 
