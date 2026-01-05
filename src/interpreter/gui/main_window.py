@@ -191,15 +191,16 @@ class MainWindow(QMainWindow):
         self._pause_btn.setEnabled(False)
         overlay_layout.addWidget(self._pause_btn)
 
-        # Hotkey picker for pause
-        self._pause_hotkey = QKeySequenceEdit(QKeySequence(Qt.Key.Key_Space))
+        # Hotkey picker for pause - load from config
+        hotkey_str = self._config.hotkeys.get("toggle_overlay", "space")
+        self._pause_hotkey = QKeySequenceEdit(self._hotkey_str_to_qkeysequence(hotkey_str))
         self._pause_hotkey.setFixedWidth(80)
         self._pause_hotkey.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         self._pause_hotkey.keySequenceChanged.connect(self._on_pause_hotkey_changed)
         overlay_layout.addWidget(self._pause_hotkey)
 
-        # Global hotkey listener
-        self._current_hotkey = keyboard.Key.space
+        # Global hotkey listener - load from config
+        self._current_hotkey = self._qt_key_to_key(hotkey_str)
         self._keyboard_listener = keyboard.Listener(on_press=self._on_key_press)
         self._keyboard_listener.start()
         self.hotkey_pressed.connect(self._toggle_pause)
@@ -504,6 +505,8 @@ class MainWindow(QMainWindow):
         # Convert Qt key sequence to keyboard key
         key_str = key_sequence.toString().lower()
         self._current_hotkey = self._qt_key_to_key(key_str)
+        # Save to config
+        self._config.hotkeys["toggle_overlay"] = key_str
         # Clear focus so it stops capturing keys
         self._pause_hotkey.clearFocus()
 
@@ -546,6 +549,39 @@ class MainWindow(QMainWindow):
         if len(key_str) == 1:
             return keyboard.KeyCode.from_char(key_str)
         return keyboard.Key.space  # fallback
+
+    def _hotkey_str_to_qkeysequence(self, key_str: str) -> QKeySequence:
+        """Convert config hotkey string to QKeySequence for the picker widget."""
+        # Map config strings to Qt key names
+        key_map = {
+            "space": "Space",
+            "esc": "Escape",
+            "escape": "Escape",
+            "tab": "Tab",
+            "return": "Return",
+            "enter": "Return",
+            "backspace": "Backspace",
+            "delete": "Delete",
+            "home": "Home",
+            "end": "End",
+            "pgup": "PgUp",
+            "pgdown": "PgDown",
+            "up": "Up",
+            "down": "Down",
+            "left": "Left",
+            "right": "Right",
+        }
+        # Check special keys first
+        if key_str.lower() in key_map:
+            return QKeySequence(key_map[key_str.lower()])
+        # F-keys (f1-f12)
+        if key_str.lower().startswith("f") and key_str[1:].isdigit():
+            return QKeySequence(key_str.upper())
+        # Single character
+        if len(key_str) == 1:
+            return QKeySequence(key_str.upper())
+        # Fallback to space
+        return QKeySequence(Qt.Key.Key_Space)
 
     def _on_mode_changed(self, button_id: int):
         """Handle mode selection change."""
