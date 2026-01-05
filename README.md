@@ -39,7 +39,9 @@ sudo pacman -S gst-plugin-pipewire
 
 Without these packages, the application still works but can only capture X11/XWayland windows.
 
-**Known limitation:** Global hotkeys (e.g., Space to toggle overlay) only work when an X11/XWayland window is focused. When a native Wayland window has focus, use the GUI button to toggle the overlay instead.
+**Known limitations:**
+- Global hotkeys (e.g., Space to toggle overlay) only work when an X11/XWayland window is focused. When a native Wayland window has focus, use the GUI button to toggle the overlay instead.
+- Inplace overlay mode only works correctly with **fullscreen** native Wayland windows. For windowed mode, use Banner overlay or capture via X11/XWayland instead. (Wayland's security model prevents applications from knowing window positions.)
 
 ## Installation
 

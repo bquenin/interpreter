@@ -573,6 +573,8 @@ class MainWindow(QMainWindow):
                 logger.info("wayland window closed, stopping capture")
                 self._stop_capture()
                 return
+            # Note: Wayland doesn't provide window position, so bounds stays empty.
+            # Inplace mode only works correctly with fullscreen Wayland windows.
         elif self._capture:
             # X11/XWayland capture
             frame = self._capture.get_frame()

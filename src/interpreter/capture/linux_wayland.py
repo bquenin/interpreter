@@ -14,7 +14,7 @@ import os
 import re
 import threading
 import uuid
-from typing import Callable
+from collections.abc import Callable
 
 import numpy as np
 from numpy.typing import NDArray
@@ -39,9 +39,8 @@ def _ensure_imports():
 
     try:
         import dbus
-        from dbus.mainloop.glib import DBusGMainLoop
-
         import gi
+        from dbus.mainloop.glib import DBusGMainLoop
 
         gi.require_version("Gst", "1.0")
         from gi.repository import GLib, Gst
@@ -144,7 +143,7 @@ class WaylandPortalCapture:
 
     def _create_session(self) -> None:
         """Step 1: Create a screencast session."""
-        session_path, session_token = self._new_session_path()
+        _session_path, session_token = self._new_session_path()
         request_path, request_token = self._new_request_path()
 
         # Register response handler
