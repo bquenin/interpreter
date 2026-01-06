@@ -630,7 +630,6 @@ class MainWindow(QMainWindow):
 
         # Process through OCR and translation (on worker thread)
         if not self._paused:
-            self._process_worker.set_confidence_threshold(self._config.ocr_confidence)
             self._process_worker.submit_frame(frame)
 
     def _on_text_ready(self, translated: str):
@@ -652,7 +651,7 @@ class MainWindow(QMainWindow):
         confidence = value / 100.0
         self._config.ocr_confidence = confidence
         self._confidence_label.setText(f"{confidence:.0%}")
-        # Worker reads confidence from each submit_frame call
+        self._process_worker.set_confidence_threshold(confidence)
 
     def _on_font_size_changed(self, value: int):
         self._config.font_size = value
