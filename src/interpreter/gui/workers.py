@@ -102,9 +102,7 @@ class ProcessWorker(QObject):
         """Stop the worker thread."""
         self._running = False
         self._frame_buffer.close()
-        if self._thread is not None:
-            self._thread.join(timeout=5.0)
-            self._thread = None
+        self._thread = None
 
     def submit_frame(self, frame):
         """Send a frame for processing (non-blocking)."""
