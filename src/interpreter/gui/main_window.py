@@ -23,9 +23,7 @@ from .. import log
 from ..capture import WindowCapture, is_wayland_capture_available
 from ..capture.convert import bgra_to_rgb_pil
 from ..config import Config
-from ..ocr import OCR
 from ..overlay import BannerOverlay, InplaceOverlay
-from ..translate import Translator
 from . import keyboard
 from .workers import ProcessWorker
 
@@ -64,13 +62,13 @@ class MainWindow(QMainWindow):
 
         # Components
         self._capture: WindowCapture | None = None
-        self._ocr: OCR | None = None
-        self._translator: Translator | None = None
 
-        # Worker for OCR/translation
+        # Worker for OCR/translation (uses Python threading internally)
         self._process_worker = ProcessWorker()
         self._process_worker.text_ready.connect(self._on_text_ready)
         self._process_worker.regions_ready.connect(self._on_regions_ready)
+        self._process_worker.models_ready.connect(self._on_models_ready)
+        self._process_worker.models_failed.connect(self._on_models_failed)
 
         # Overlays
         self._banner_overlay = BannerOverlay(
@@ -257,23 +255,19 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage("Idle")
 
     def _load_models(self):
-        """Load OCR and translation models."""
+        """Start worker thread and load OCR/translation models."""
         self.statusBar().showMessage("Loading models...")
-        self.repaint()
+        self._process_worker.set_mode(self._mode)
+        self._process_worker.start(self._config.ocr_confidence)
 
-        # Load OCR
-        self._ocr = OCR(confidence_threshold=self._config.ocr_confidence)
-        self._ocr.load()
-
-        # Load translator
-        self._translator = Translator()
-        self._translator.load()
-
-        self._process_worker.set_ocr(self._ocr)
-        self._process_worker.set_translator(self._translator)
-        self._process_worker.set_mode(self._mode)  # Sync mode from config
-
+    def _on_models_ready(self):
+        """Handle models loaded signal from worker thread."""
         self.statusBar().showMessage("Ready")
+        logger.debug("models loaded")
+
+    def _on_models_failed(self, error: str):
+        """Handle model loading failure from worker thread."""
+        self.statusBar().showMessage(f"Model loading failed: {error[:50]}")
 
     def _refresh_windows(self):
         """Refresh the window list."""
@@ -634,9 +628,9 @@ class MainWindow(QMainWindow):
         if self._mode == "inplace" and bounds and not self._paused:
             self._inplace_overlay.position_over_window(bounds)
 
-        # Process through OCR and translation
+        # Process through OCR and translation (on worker thread)
         if not self._paused:
-            self._process_worker.process_frame(frame, self._config.ocr_confidence)
+            self._process_worker.submit_frame(frame)
 
     def _on_text_ready(self, translated: str):
         """Handle translated text (banner mode)."""
@@ -657,7 +651,7 @@ class MainWindow(QMainWindow):
         confidence = value / 100.0
         self._config.ocr_confidence = confidence
         self._confidence_label.setText(f"{confidence:.0%}")
-        # Worker reads confidence from each process_frame call
+        self._process_worker.set_confidence_threshold(confidence)
 
     def _on_font_size_changed(self, value: int):
         self._config.font_size = value
@@ -687,6 +681,6 @@ class MainWindow(QMainWindow):
         """Clean up resources before closing."""
         self._stop_capture()
         self._keyboard_listener.stop()
-
+        self._process_worker.stop()
         self._banner_overlay.close()
         self._inplace_overlay.close()
