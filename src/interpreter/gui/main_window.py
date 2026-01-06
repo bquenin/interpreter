@@ -695,6 +695,8 @@ class MainWindow(QMainWindow):
     def _on_snap_changed(self, state: int):
         self._config.banner_snap_to_screen = state == Qt.CheckState.Checked.value
         self._banner_overlay._snap_to_screen = self._config.banner_snap_to_screen
+        if self._config.banner_snap_to_screen:
+            self._banner_overlay._snap_to_current_screen()
 
     def get_banner_position(self) -> tuple[int, int]:
         """Get current banner overlay position."""

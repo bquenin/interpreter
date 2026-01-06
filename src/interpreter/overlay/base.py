@@ -18,6 +18,9 @@ BANNER_BOTTOM_MARGIN = 50
 BANNER_HORIZONTAL_PADDING = 60
 BANNER_VERTICAL_PADDING = 30
 
+# Qt maximum widget size (not exposed in PySide6, defined as (1 << 24) - 1 in C++)
+QWIDGETSIZE_MAX = 16777215
+
 
 class BannerOverlayBase(QWidget):
     """Banner-style overlay at bottom of screen.
@@ -89,11 +92,13 @@ class BannerOverlayBase(QWidget):
     def set_text(self, text: str):
         """Update the displayed text."""
         self._label.setText(text)
+        self._resize_to_fit()
 
     def set_font_size(self, size: int):
         """Update the font size."""
         self._font_size = size
         self._update_label_style()
+        self._resize_to_fit()
 
     def set_colors(self, font_color: str, background_color: str):
         """Update the colors."""
@@ -107,9 +112,32 @@ class BannerOverlayBase(QWidget):
         return self._font_size
 
     def set_position(self, x: int, y: int):
-        """Move banner to specific position."""
+        """Move banner to specific position and resize to match screen."""
         logger.debug("qt set_position", x=x, y=y)
-        self.move(x, y)
+
+        # Find which screen this position is on
+        # Use x,y directly since widget may not be at correct position yet
+        screen = QApplication.screenAt(QPoint(x, y))
+        if screen is None:
+            screen = QApplication.primaryScreen()
+
+        screen_geom = screen.geometry()
+        screen_width = screen_geom.width()
+
+        logger.debug(
+            "set_position screen detection",
+            screen_x=screen_geom.x(),
+            screen_width=screen_width,
+            current_width=self.width(),
+        )
+
+        # Reset constraints and set geometry atomically
+        self.setMinimumSize(0, 0)
+        self.setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX)
+
+        # Snap X to screen left edge, keep Y as requested
+        new_x = screen_geom.x()
+        self.setGeometry(new_x, y, screen_width, self.height())
 
     def get_position(self) -> tuple[int, int]:
         """Get current position (x, y)."""
@@ -117,13 +145,69 @@ class BannerOverlayBase(QWidget):
         logger.debug("qt get_position", x=pos[0], y=pos[1])
         return pos
 
-    # Snap to screen (Linux-only for now, stub for API compatibility)
+    # Snap to screen
     _snap_to_screen: bool = True
+
+    def _resize_to_fit(self, keep_bottom_fixed: bool = True):
+        """Resize banner height to fit current text content.
+
+        Args:
+            keep_bottom_fixed: If True, grow/shrink upward keeping bottom edge fixed.
+                              If False, only resize without moving.
+        """
+        current_width = self.width()
+        current_y = self.y()
+        current_height = self.height()
+
+        # Calculate required height from label + layout margins
+        label_width = current_width - 40  # Account for layout margins (20px each side)
+
+        # Use heightForWidth for accurate word-wrapped height calculation
+        label_height = self._label.heightForWidth(label_width)
+        if label_height < 0:
+            # Fallback if heightForWidth not supported
+            label_height = self._label.sizeHint().height()
+        new_height = label_height + 20  # Account for layout margins (10px top/bottom)
+
+        # Skip resize if height hasn't changed
+        if new_height == current_height:
+            return
+
+        logger.debug(
+            "_resize_to_fit",
+            current_width=current_width,
+            current_height=current_height,
+            label_width=label_width,
+            label_height=label_height,
+            new_height=new_height,
+        )
+
+        # Reset size constraints to allow shrinking
+        self.setMinimumSize(0, 0)
+        self.setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX)
+        self._label.setMinimumSize(0, 0)
+        self._label.setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX)
+
+        # Set label width constraint for proper word wrapping
+        self._label.setFixedWidth(label_width)
+
+        # Apply final size
+        self.setFixedSize(current_width, new_height)
+
+        # Keep bottom edge fixed (grow/shrink upward) if requested
+        if keep_bottom_fixed:
+            new_y = current_y + current_height - new_height
+            self.move(self.x(), new_y)
 
     # Dragging support
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            logger.debug(
+                "mousePressEvent",
+                drag_pos=str(self._drag_pos),
+                geometry=f"{self.x()},{self.y()} {self.width()}x{self.height()}",
+            )
             event.accept()
 
     def mouseMoveEvent(self, event):
@@ -132,7 +216,89 @@ class BannerOverlayBase(QWidget):
             event.accept()
 
     def mouseReleaseEvent(self, event):
-        self._drag_pos = None
+        logger.debug(
+            "mouseReleaseEvent",
+            had_drag_pos=self._drag_pos is not None,
+            geometry=f"{self.x()},{self.y()} {self.width()}x{self.height()}",
+        )
+        if self._drag_pos is not None:
+            self._drag_pos = None
+            self._snap_to_current_screen()
+
+    def _snap_to_current_screen(self):
+        """Snap banner to current screen bounds after drag."""
+        if not self._snap_to_screen:
+            return
+
+        # Find which screen the banner center is on
+        center = self.frameGeometry().center()
+        screen = QApplication.screenAt(center)
+        if screen is None:
+            screen = QApplication.primaryScreen()
+
+        screen_geom = screen.geometry()
+        current_y = self.y()
+
+        logger.debug(
+            "snap_to_current_screen BEFORE",
+            x=self.x(),
+            y=self.y(),
+            width=self.width(),
+            height=self.height(),
+            screen_x=screen_geom.x(),
+            screen_y=screen_geom.y(),
+            screen_width=screen_geom.width(),
+            screen_height=screen_geom.height(),
+        )
+
+        # Calculate new dimensions
+        new_width = screen_geom.width()
+        new_x = screen_geom.x()
+
+        # Check if we're moving to a different screen (cross-DPI transition)
+        current_screen = QApplication.screenAt(self.frameGeometry().center())
+        is_cross_screen = current_screen is None or current_screen != screen
+
+        # Hide during cross-screen transition to avoid DPI scaling flash
+        was_visible = self.isVisible()
+        if is_cross_screen and was_visible:
+            self.hide()
+
+        # Reset ALL size constraints
+        self.setMinimumSize(0, 0)
+        self.setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX)
+        self._label.setMinimumSize(0, 0)
+        self._label.setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX)
+
+        # Move and resize width
+        self.move(new_x, current_y)
+        self.resize(new_width, self.height())
+
+        # Update label width for new screen
+        label_width = new_width - 40
+        self._label.setFixedWidth(label_width)
+
+        # Force immediate height recalculation
+        self._resize_to_fit(keep_bottom_fixed=False)
+
+        # Clamp Y to screen bounds after height is calculated
+        new_y = max(
+            screen_geom.y(),
+            min(current_y, screen_geom.y() + screen_geom.height() - self.height())
+        )
+        self.move(new_x, new_y)
+
+        # Show again if was visible
+        if is_cross_screen and was_visible:
+            self.show()
+
+        logger.debug(
+            "snap_to_current_screen AFTER",
+            x=self.x(),
+            y=self.y(),
+            width=self.width(),
+            height=self.height(),
+        )
 
 
 class InplaceOverlayBase(QWidget):
