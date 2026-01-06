@@ -34,6 +34,9 @@ class Config:
         background_color: str = "#404040",
         hotkeys: dict | None = None,
         config_path: str | None = None,
+        banner_x: int | None = None,
+        banner_y: int | None = None,
+        banner_snap_to_screen: bool = True,
     ):
         self.window_title = window_title
         self.ocr_confidence = ocr_confidence
@@ -43,6 +46,9 @@ class Config:
         self.background_color = background_color
         self.hotkeys = hotkeys if hotkeys is not None else self.DEFAULT_HOTKEYS.copy()
         self.config_path = config_path
+        self.banner_x = banner_x
+        self.banner_y = banner_y
+        self.banner_snap_to_screen = banner_snap_to_screen
 
     @classmethod
     def load(cls, config_path: str | None = None) -> "Config":
@@ -87,6 +93,9 @@ class Config:
                 background_color=data.get("background_color", "#404040"),
                 hotkeys=hotkeys,
                 config_path=config_path,
+                banner_x=data.get("banner_x"),
+                banner_y=data.get("banner_y"),
+                banner_snap_to_screen=data.get("banner_snap_to_screen", True),
             )
 
         # No config file found - create default in home directory
@@ -170,6 +179,12 @@ hotkeys:
             "background_color": str(self.background_color),
             "hotkeys": {str(k): str(v) for k, v in self.hotkeys.items()},
         }
+        # Only save banner position if it was set (user has moved the banner)
+        if self.banner_x is not None:
+            data["banner_x"] = int(self.banner_x)
+        if self.banner_y is not None:
+            data["banner_y"] = int(self.banner_y)
+        data["banner_snap_to_screen"] = bool(self.banner_snap_to_screen)
 
         with open(config_path, "w", encoding="utf-8") as f:
             yaml.dump(data, f, default_flow_style=False, allow_unicode=True)
