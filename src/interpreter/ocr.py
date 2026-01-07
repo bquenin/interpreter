@@ -7,8 +7,13 @@ from numpy.typing import NDArray
 
 from . import log
 from .capture.convert import bgra_to_rgb
+from .models import load_with_retry
 
 logger = log.get_logger()
+
+# MeikiOCR HuggingFace repositories (used for cache cleanup on failure)
+MEIKI_DET_REPO = "rtr46/meiki.text.detect.v0"
+MEIKI_REC_REPO = "rtr46/meiki.txt.recognition.v0"
 
 # Detection thresholds
 DEFAULT_CONFIDENCE_THRESHOLD = 0.6  # Minimum avg confidence per line (0.0-1.0)
@@ -59,15 +64,27 @@ class OCR:
         self._confidence_threshold = value
 
     def load(self) -> None:
-        """Load the MeikiOCR model."""
+        """Load the MeikiOCR model.
+
+        Raises:
+            ModelLoadError: If model fails to load after recovery attempts.
+        """
         if self._model is not None:
             return
 
         logger.info("loading meikiocr")
-        from meikiocr import MeikiOCR
 
-        self._model = MeikiOCR()
-        logger.info("meikiocr ready")
+        def _do_load():
+            from meikiocr import MeikiOCR
+
+            self._model = MeikiOCR()
+            logger.info("meikiocr ready")
+
+        load_with_retry(
+            load_fn=_do_load,
+            repo_ids=[MEIKI_DET_REPO, MEIKI_REC_REPO],
+            model_name="OCR model (MeikiOCR)",
+        )
 
     def _run_ocr_and_filter(self, image: NDArray[np.uint8]) -> list[dict]:
         """Run OCR and filter results by confidence threshold.

@@ -13,40 +13,83 @@ from huggingface_hub import snapshot_download
 from huggingface_hub.utils import LocalEntryNotFoundError
 
 from . import log
+from .models import delete_model_cache, load_with_retry
 
 logger = log.get_logger()
 
 # Official HuggingFace repository for Sugoi V4
 SUGOI_REPO_ID = "entai2965/sugoi-v4-ja-en-ctranslate2"
 
+# Required files that must exist for the model to work
+REQUIRED_MODEL_FILES = [
+    "model.bin",
+    "spm/spm.ja.nopretok.model",
+]
+
 # Translation cache defaults
 DEFAULT_CACHE_SIZE = 200  # Max cached translations
 DEFAULT_SIMILARITY_THRESHOLD = 0.9  # Fuzzy match threshold for cache lookup
 
 
-def _get_sugoi_model_path() -> Path:
+def _validate_model_files(model_path: Path) -> bool:
+    """Check if all required model files exist.
+
+    Args:
+        model_path: Path to the model directory.
+
+    Returns:
+        True if all required files exist, False otherwise.
+    """
+    for file_path in REQUIRED_MODEL_FILES:
+        if not (model_path / file_path).exists():
+            logger.warning("missing model file", file=file_path)
+            return False
+    return True
+
+
+def _get_sugoi_model_path(force_download: bool = False) -> Path:
     """Get path to Sugoi V4 translation model, downloading if needed.
 
     Downloads from official HuggingFace source on first use.
     Model is cached in standard HuggingFace cache (~/.cache/huggingface/).
 
+    Args:
+        force_download: If True, skip cache and download fresh.
+
     Returns:
         Path to the model directory.
-    """
-    # First try to load from cache (no network request)
-    try:
-        model_path = snapshot_download(
-            repo_id=SUGOI_REPO_ID,
-            local_files_only=True,
-        )
-        return Path(model_path)
-    except LocalEntryNotFoundError:
-        pass
 
-    # Not cached, download from HuggingFace
+    Raises:
+        RuntimeError: If model files are missing after download.
+    """
+    if not force_download:
+        # First try to load from cache (no network request)
+        try:
+            model_path = snapshot_download(
+                repo_id=SUGOI_REPO_ID,
+                local_files_only=True,
+            )
+            model_path = Path(model_path)
+            # Validate that required files exist
+            if _validate_model_files(model_path):
+                return model_path
+            # Files missing, need to re-download
+            logger.warning("cached model incomplete, will re-download")
+            delete_model_cache(SUGOI_REPO_ID)
+        except LocalEntryNotFoundError:
+            pass
+
+    # Download from HuggingFace
     logger.info("downloading sugoi v4 model", size="~1.1GB")
-    model_path = snapshot_download(repo_id=SUGOI_REPO_ID)
-    return Path(model_path)
+    model_path = Path(snapshot_download(repo_id=SUGOI_REPO_ID))
+
+    # Validate download completed successfully
+    if not _validate_model_files(model_path):
+        raise RuntimeError(
+            f"Model download incomplete. Required files missing from {model_path}"
+        )
+
+    return model_path
 
 
 def text_similarity(a: str, b: str) -> float:
@@ -129,50 +172,60 @@ class Translator:
         self._cache = TranslationCache(cache_size, similarity_threshold)
 
     def load(self) -> None:
-        """Load the translation model, downloading if needed."""
+        """Load the translation model, downloading if needed.
+
+        Raises:
+            ModelLoadError: If model fails to load after recovery attempts.
+        """
         if self._translator is not None:
             return
 
         logger.info("loading sugoi v4")
 
-        import ctranslate2
-        import sentencepiece as spm
+        def _do_load():
+            import ctranslate2
+            import sentencepiece as spm
 
-        # Get model path (downloads from HuggingFace if needed)
-        self._model_path = _get_sugoi_model_path()
+            # Get model path (downloads from HuggingFace if needed)
+            self._model_path = _get_sugoi_model_path()
 
-        # Load CTranslate2 model with GPU if available, fallback to CPU
-        device = "cpu"
-        try:
-            cuda_types = ctranslate2.get_supported_compute_types("cuda")
-            if cuda_types:
-                # Try to load with GPU
+            # Load CTranslate2 model with GPU if available, fallback to CPU
+            device = "cpu"
+            try:
+                cuda_types = ctranslate2.get_supported_compute_types("cuda")
+                if cuda_types:
+                    # Try to load with GPU
+                    self._translator = ctranslate2.Translator(
+                        str(self._model_path),
+                        device="cuda",
+                    )
+                    # Test inference to verify CUDA actually works
+                    # (loading may succeed but inference can fail if cuBLAS is missing)
+                    self._translator.translate_batch([["テスト"]])
+                    device = "cuda"
+            except Exception as e:
+                # GPU failed (load or inference), will use CPU below
+                logger.debug("CUDA failed, falling back to CPU", error=str(e))
+
+            if device == "cpu":
                 self._translator = ctranslate2.Translator(
                     str(self._model_path),
-                    device="cuda",
+                    device="cpu",
                 )
-                # Test inference to verify CUDA actually works
-                # (loading may succeed but inference can fail if cuBLAS is missing)
-                self._translator.translate_batch([["テスト"]])
-                device = "cuda"
-        except Exception as e:
-            # GPU failed (load or inference), will use CPU below
-            logger.debug("CUDA failed, falling back to CPU", error=str(e))
-            pass
 
-        if device == "cpu":
-            self._translator = ctranslate2.Translator(
-                str(self._model_path),
-                device="cpu",
-            )
+            # Load SentencePiece tokenizer
+            tokenizer_path = self._model_path / "spm" / "spm.ja.nopretok.model"
+            self._tokenizer = spm.SentencePieceProcessor()
+            self._tokenizer.Load(str(tokenizer_path))
 
-        # Load SentencePiece tokenizer
-        tokenizer_path = self._model_path / "spm" / "spm.ja.nopretok.model"
-        self._tokenizer = spm.SentencePieceProcessor()
-        self._tokenizer.Load(str(tokenizer_path))
+            device_info = "GPU" if device == "cuda" else "CPU"
+            logger.info("sugoi v4 ready", device=device_info)
 
-        device_info = "GPU" if device == "cuda" else "CPU"
-        logger.info("sugoi v4 ready", device=device_info)
+        load_with_retry(
+            load_fn=_do_load,
+            repo_ids=[SUGOI_REPO_ID],
+            model_name="translation model (Sugoi V4)",
+        )
 
     def translate(self, text: str) -> tuple[str, bool]:
         """Translate Japanese text to English.

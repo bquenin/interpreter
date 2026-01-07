@@ -119,6 +119,7 @@ class MainWindow(QMainWindow):
         window_layout.addWidget(self._window_combo, 1)
 
         self._start_btn = QPushButton("Start Capture")
+        self._start_btn.setEnabled(False)  # Disabled until models are loaded
         self._start_btn.clicked.connect(self._toggle_capture)
         window_layout.addWidget(self._start_btn)
 
@@ -277,12 +278,16 @@ class MainWindow(QMainWindow):
 
     def _on_models_ready(self):
         """Handle models loaded signal from worker thread."""
+        self._start_btn.setEnabled(True)
         self.statusBar().showMessage("Ready")
         logger.debug("models loaded")
 
     def _on_models_failed(self, error: str):
         """Handle model loading failure from worker thread."""
-        self.statusBar().showMessage(f"Model loading failed: {error[:50]}")
+        self._start_btn.setEnabled(False)
+        self._start_btn.setText("Models Failed")
+        self.statusBar().showMessage(f"Model loading failed: {error[:100]}")
+        logger.error("model loading failed", error=error)
 
     def _refresh_windows(self):
         """Refresh the window list."""
