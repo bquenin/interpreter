@@ -60,6 +60,8 @@ class MainWindow(QMainWindow):
         self._wayland_available = is_wayland_capture_available()
         self._wayland_portal = None  # WaylandPortalCapture instance
         self._wayland_stream = None  # WaylandCaptureStream instance
+        self._fixing_ocr = False  # Track if we're re-downloading OCR model
+        self._fixing_translation = False  # Track if we're re-downloading translation model
 
         # Components
         self._capture: WindowCapture | None = None
@@ -70,6 +72,8 @@ class MainWindow(QMainWindow):
         self._process_worker.regions_ready.connect(self._on_regions_ready)
         self._process_worker.models_ready.connect(self._on_models_ready)
         self._process_worker.models_failed.connect(self._on_models_failed)
+        self._process_worker.ocr_status.connect(self._on_ocr_status)
+        self._process_worker.translation_status.connect(self._on_translation_status)
 
         # Overlays
         self._banner_overlay = BannerOverlay(
@@ -108,6 +112,33 @@ class MainWindow(QMainWindow):
         central = QWidget()
         self.setCentralWidget(central)
         layout = QVBoxLayout(central)
+
+        # Models Section
+        models_group = QGroupBox("Models")
+        models_layout = QGridLayout(models_group)
+
+        # OCR model row
+        models_layout.addWidget(QLabel("OCR:"), 0, 0)
+        models_layout.addWidget(QLabel("MeikiOCR"), 0, 1)
+        self._ocr_status_label = QLabel("Loading...")
+        models_layout.addWidget(self._ocr_status_label, 0, 2)
+
+        # Translation model row
+        models_layout.addWidget(QLabel("Translation:"), 1, 0)
+        models_layout.addWidget(QLabel("Sugoi V4"), 1, 1)
+        self._translation_status_label = QLabel("Loading...")
+        models_layout.addWidget(self._translation_status_label, 1, 2)
+
+        # Fix Models button (hidden by default)
+        self._fix_models_btn = QPushButton("Fix Models")
+        self._fix_models_btn.clicked.connect(self._on_fix_models)
+        self._fix_models_btn.setVisible(False)
+        models_layout.addWidget(self._fix_models_btn, 2, 0, 1, 3, Qt.AlignRight)
+
+        # Set column stretch so status is right-aligned
+        models_layout.setColumnStretch(1, 1)
+
+        layout.addWidget(models_group)
 
         # Window Selection
         window_group = QGroupBox("Window Selection")
@@ -285,9 +316,86 @@ class MainWindow(QMainWindow):
     def _on_models_failed(self, error: str):
         """Handle model loading failure from worker thread."""
         self._start_btn.setEnabled(False)
-        self._start_btn.setText("Models Failed")
+        self._fix_models_btn.setVisible(True)
         self.statusBar().showMessage(f"Model loading failed: {error[:100]}")
         logger.error("model loading failed", error=error)
+
+    def _on_ocr_status(self, status: str):
+        """Handle OCR model status change."""
+        # Show "Downloading..." instead of "Loading..." when fixing
+        if status == "loading" and self._fixing_ocr:
+            status = "downloading"
+        if status == "ready":
+            self._fixing_ocr = False
+        self._update_status_label(self._ocr_status_label, status)
+        self._update_fix_button_visibility()
+
+    def _on_translation_status(self, status: str):
+        """Handle translation model status change."""
+        # Show "Downloading..." instead of "Loading..." when fixing
+        if status == "loading" and self._fixing_translation:
+            status = "downloading"
+        if status == "ready":
+            self._fixing_translation = False
+        self._update_status_label(self._translation_status_label, status)
+        self._update_fix_button_visibility()
+
+    def _update_status_label(self, label: QLabel, status: str):
+        """Update a model status label with appropriate text and style."""
+        if status == "loading":
+            label.setText("Loading...")
+            label.setStyleSheet("")
+        elif status == "downloading":
+            label.setText("Downloading...")
+            label.setStyleSheet("")
+        elif status == "ready":
+            label.setText("Ready")
+            label.setStyleSheet("color: green;")
+        elif status == "error":
+            label.setText("Error")
+            label.setStyleSheet("color: red;")
+
+    def _update_fix_button_visibility(self):
+        """Show/hide the Fix Models button based on model status."""
+        has_error = (
+            self._ocr_status_label.text() == "Error"
+            or self._translation_status_label.text() == "Error"
+        )
+        self._fix_models_btn.setVisible(has_error)
+
+    def _on_fix_models(self):
+        """Handle Fix Models button click."""
+        from ..models import delete_model_cache
+
+        # Track which models we're fixing (to show "Downloading..." instead of "Loading...")
+        self._fixing_ocr = False
+        self._fixing_translation = False
+
+        # Delete caches for failed models
+        failed = self._process_worker.get_failed_models()
+        if "ocr" in failed:
+            delete_model_cache("rtr46/meiki.text.detect.v0")
+            delete_model_cache("rtr46/meiki.txt.recognition.v0")
+            self._fixing_ocr = True
+        if "translation" in failed:
+            delete_model_cache("entai2965/sugoi-v4-ja-en-ctranslate2")
+            self._fixing_translation = True
+
+        # Hide the button while fixing
+        self._fix_models_btn.setVisible(False)
+        self.statusBar().showMessage("Downloading models...")
+
+        # Stop and restart the worker to reload models
+        self._process_worker.stop()
+        self._process_worker = ProcessWorker()
+        self._process_worker.text_ready.connect(self._on_text_ready)
+        self._process_worker.regions_ready.connect(self._on_regions_ready)
+        self._process_worker.models_ready.connect(self._on_models_ready)
+        self._process_worker.models_failed.connect(self._on_models_failed)
+        self._process_worker.ocr_status.connect(self._on_ocr_status)
+        self._process_worker.translation_status.connect(self._on_translation_status)
+        self._process_worker.set_mode(self._mode)
+        self._process_worker.start(self._config.ocr_confidence)
 
     def _refresh_windows(self):
         """Refresh the window list."""

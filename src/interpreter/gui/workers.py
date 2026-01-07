@@ -68,12 +68,20 @@ class ProcessWorker(QObject):
     # Emitted when model loading fails
     models_failed = Signal(str)
 
+    # Per-model status signals: status can be "loading", "downloading", "ready", "error"
+    ocr_status = Signal(str)
+    translation_status = Signal(str)
+
     def __init__(self):
         super().__init__()
         self._ocr: OCR | None = None
         self._translator: Translator | None = None
         self._mode = "banner"
         self._confidence_threshold = 0.6
+
+        # Track which models failed (for "Fix Models" button)
+        self._ocr_failed = False
+        self._translation_failed = False
 
         # Threading
         self._frame_buffer = FrameBuffer()
@@ -109,29 +117,61 @@ class ProcessWorker(QObject):
         if self._running:
             self._frame_buffer.put(frame)
 
+    def has_failed_models(self) -> bool:
+        """Check if any models failed to load."""
+        return self._ocr_failed or self._translation_failed
+
+    def get_failed_models(self) -> list[str]:
+        """Get list of model types that failed to load."""
+        failed = []
+        if self._ocr_failed:
+            failed.append("ocr")
+        if self._translation_failed:
+            failed.append("translation")
+        return failed
+
     def _run(self):
         """Worker thread main loop."""
         logger.debug("worker thread starting")
+
+        # Load OCR model
+        self.ocr_status.emit("loading")
         try:
             self._ocr = OCR(confidence_threshold=self._confidence_threshold)
             self._ocr.load()
+            self._ocr_failed = False
+            self.ocr_status.emit("ready")
             logger.debug("OCR model loaded")
+        except Exception as e:
+            self._ocr_failed = True
+            self.ocr_status.emit("error")
+            logger.error("failed to load OCR model", error=str(e))
 
+        # Load translation model
+        self.translation_status.emit("loading")
+        try:
             self._translator = Translator()
             self._translator.load()
+            self._translation_failed = False
+            self.translation_status.emit("ready")
             logger.debug("translation model loaded")
-
-            self.models_ready.emit()
         except Exception as e:
-            logger.error("failed to initialize models", error=str(e))
-            self.models_failed.emit(str(e))
-            return
+            self._translation_failed = True
+            self.translation_status.emit("error")
+            logger.error("failed to load translation model", error=str(e))
 
-        # Process frames
-        while self._running:
-            frame = self._frame_buffer.get(timeout=0.5)
-            if frame is not None:
-                self._process_frame(frame)
+        # Emit overall status
+        if self._ocr_failed or self._translation_failed:
+            self.models_failed.emit("One or more models failed to load")
+        else:
+            self.models_ready.emit()
+
+        # Only process frames if both models loaded successfully
+        if not self._ocr_failed and not self._translation_failed:
+            while self._running:
+                frame = self._frame_buffer.get(timeout=0.5)
+                if frame is not None:
+                    self._process_frame(frame)
 
         logger.debug("worker thread stopped")
 
