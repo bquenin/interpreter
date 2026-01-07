@@ -13,15 +13,38 @@ from huggingface_hub import snapshot_download
 from huggingface_hub.utils import LocalEntryNotFoundError
 
 from . import log
+from .models import ModelLoadError
 
 logger = log.get_logger()
 
 # Official HuggingFace repository for Sugoi V4
 SUGOI_REPO_ID = "entai2965/sugoi-v4-ja-en-ctranslate2"
 
+# Required files that must exist for the model to work
+REQUIRED_MODEL_FILES = [
+    "model.bin",
+    "spm/spm.ja.nopretok.model",
+]
+
 # Translation cache defaults
 DEFAULT_CACHE_SIZE = 200  # Max cached translations
 DEFAULT_SIMILARITY_THRESHOLD = 0.9  # Fuzzy match threshold for cache lookup
+
+
+def _validate_model_files(model_path: Path) -> bool:
+    """Check if all required model files exist.
+
+    Args:
+        model_path: Path to the model directory.
+
+    Returns:
+        True if all required files exist, False otherwise.
+    """
+    for file_path in REQUIRED_MODEL_FILES:
+        if not (model_path / file_path).exists():
+            logger.warning("missing model file", file=file_path)
+            return False
+    return True
 
 
 def _get_sugoi_model_path() -> Path:
@@ -32,6 +55,9 @@ def _get_sugoi_model_path() -> Path:
 
     Returns:
         Path to the model directory.
+
+    Raises:
+        ModelLoadError: If model files are missing or corrupted.
     """
     # First try to load from cache (no network request)
     try:
@@ -39,14 +65,28 @@ def _get_sugoi_model_path() -> Path:
             repo_id=SUGOI_REPO_ID,
             local_files_only=True,
         )
-        return Path(model_path)
+        model_path = Path(model_path)
+        # Validate that required files exist
+        if _validate_model_files(model_path):
+            return model_path
+        # Files missing - raise error (UI will show "Fix Models" button)
+        raise ModelLoadError(
+            "Translation model cache is corrupted. Click 'Fix Models' to repair."
+        )
     except LocalEntryNotFoundError:
         pass
 
     # Not cached, download from HuggingFace
     logger.info("downloading sugoi v4 model", size="~1.1GB")
-    model_path = snapshot_download(repo_id=SUGOI_REPO_ID)
-    return Path(model_path)
+    model_path = Path(snapshot_download(repo_id=SUGOI_REPO_ID))
+
+    # Validate download completed successfully
+    if not _validate_model_files(model_path):
+        raise ModelLoadError(
+            "Translation model download incomplete. Click 'Fix Models' to retry."
+        )
+
+    return model_path
 
 
 def text_similarity(a: str, b: str) -> float:
@@ -129,7 +169,11 @@ class Translator:
         self._cache = TranslationCache(cache_size, similarity_threshold)
 
     def load(self) -> None:
-        """Load the translation model, downloading if needed."""
+        """Load the translation model, downloading if needed.
+
+        Raises:
+            ModelLoadError: If model fails to load.
+        """
         if self._translator is not None:
             return
 
@@ -158,7 +202,6 @@ class Translator:
         except Exception as e:
             # GPU failed (load or inference), will use CPU below
             logger.debug("CUDA failed, falling back to CPU", error=str(e))
-            pass
 
         if device == "cpu":
             self._translator = ctranslate2.Translator(

@@ -59,7 +59,11 @@ class OCR:
         self._confidence_threshold = value
 
     def load(self) -> None:
-        """Load the MeikiOCR model."""
+        """Load the MeikiOCR model.
+
+        Raises:
+            Exception: If model fails to load.
+        """
         if self._model is not None:
             return
 
