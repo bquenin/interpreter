@@ -465,24 +465,18 @@ class WindowsCaptureStream:
     Throttled to 4 FPS to avoid wasteful high-frequency capture.
     """
 
-    def __init__(self, window_title: str):
+    def __init__(self, window_id: int):
         """Initialize the capture stream.
 
         Args:
-            window_title: Partial title of the window to capture.
+            window_id: The window handle (HWND) to capture.
         """
-        self._window_title = window_title
+        self._window_id = window_id
         self._latest_frame: NDArray[np.uint8] | None = None
         self._frame_lock = threading.Lock()
         self._capture = None
         self._running = False
         self._last_frame_time: float = 0.0  # For 4 FPS throttling
-
-        # Store window ID for monitor detection
-        self._window_id: int | None = None
-        window = find_window_by_title(window_title)
-        if window:
-            self._window_id = window["id"]
 
     def start(self):
         """Start the capture stream in background.
@@ -513,22 +507,23 @@ class WindowsCaptureStream:
         self._last_frame_time = 0.0  # Reset throttling
         self._first_frame_logged = False  # Track if we've logged first frame
 
-        # Log capture configuration (window title already logged by WindowCapture)
+        # Log capture configuration
         from .. import log
 
         logger = log.get_logger()
-        window_style = get_window_style_flags(self._window_id) if self._window_id else "unknown"
+        window_style = get_window_style_flags(self._window_id)
         logger.info(
-            "capture config",
+            "capture started (hwnd)",
+            hwnd=hex(self._window_id),
             draw_border=draw_border,
             window_style=window_style,
         )
 
-        # Create capture instance
+        # Create capture instance using HWND (more reliable than window_name for dynamic titles)
         self._capture = WindowsCapture(
             cursor_capture=False,
             draw_border=draw_border,
-            window_name=self._window_title,
+            window_hwnd=self._window_id,
         )
 
         # Reference to self for use in callback
@@ -562,7 +557,7 @@ class WindowsCaptureStream:
                     from .. import log
 
                     log.get_logger().info(
-                        "capture started",
+                        "first frame received",
                         resolution=f"{frame.width}x{frame.height}",
                         fullscreen=is_fullscreen,
                     )
@@ -620,7 +615,7 @@ class WindowsCaptureStream:
             if not error_msg:
                 # windows-capture sometimes throws empty exceptions
                 raise RuntimeError(
-                    f"Failed to start screen capture for '{self._window_title}'. "
+                    f"Failed to start screen capture for window {hex(self._window_id)}. "
                     f"This can happen if the window uses exclusive fullscreen or a video driver "
                     f"that bypasses Windows Desktop Window Manager (DWM).\n\n"
                     f"Troubleshooting tips:\n"
@@ -630,7 +625,7 @@ class WindowsCaptureStream:
                     f"  - Try running interpreter-v2 as Administrator"
                 ) from e
             else:
-                raise RuntimeError(f"Failed to start screen capture for '{self._window_title}': {error_msg}") from e
+                raise RuntimeError(f"Failed to start screen capture for window {hex(self._window_id)}: {error_msg}") from e
 
         # Wait for first frame to arrive (up to 5 seconds)
         for _ in range(100):
