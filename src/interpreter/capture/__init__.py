@@ -249,8 +249,8 @@ class WindowCapture:
 
         # Create platform-specific stream
         if _system == "Windows":
-            # Windows uses exact window title for capture
-            self._stream = CaptureStream(self._actual_title)
+            # Windows uses HWND for reliable capture (immune to dynamic titles)
+            self._stream = CaptureStream(self._window_id)
         elif _system == "Linux":
             # Linux uses background thread with configurable interval
             self._stream = CaptureStream(self._window_id, self._capture_interval)
