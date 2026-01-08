@@ -274,7 +274,7 @@ wheels = [
 
 [[package]]
 name = "interpreter-v2"
-version = "2.12.0"
+version = "2.13.0"
 source = { editable = "." }
 dependencies = [
     { name = "ctranslate2" },
@@ -300,7 +300,7 @@ dependencies = [
     { name = "sentencepiece" },
     { name = "structlog" },
     { name = "tqdm" },
-    { name = "windows-capture", marker = "sys_platform == 'win32'" },
+    { name = "windows-capture-interpreter", marker = "sys_platform == 'win32'" },
 ]
 
 [package.dev-dependencies]
@@ -333,7 +333,7 @@ requires-dist = [
     { name = "sentencepiece" },
     { name = "structlog", specifier = ">=24.0.0" },
     { name = "tqdm" },
-    { name = "windows-capture", marker = "sys_platform == 'win32'", url = "https://github.com/bquenin/windows-capture/releases/download/v1.5.1/windows_capture-1.5.1-cp39-abi3-win_amd64.whl" },
+    { name = "windows-capture-interpreter", marker = "sys_platform == 'win32'", specifier = ">=1.5.1" },
 ]
 
 [package.metadata.requires-dev]
@@ -931,19 +931,13 @@ wheels = [
 ]
 
 [[package]]
-name = "windows-capture"
+name = "windows-capture-interpreter"
 version = "1.5.1"
-source = { url = "https://github.com/bquenin/windows-capture/releases/download/v1.5.1/windows_capture-1.5.1-cp39-abi3-win_amd64.whl" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux')" },
     { name = "opencv-python", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux')" },
 ]
 wheels = [
-    { url = "https://github.com/bquenin/windows-capture/releases/download/v1.5.1/windows_capture-1.5.1-cp39-abi3-win_amd64.whl", hash = "sha256:1adb63dba039c14be74b290dd47a3717368c8c7df78dda06f42b5c2a5acf68bb" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "numpy" },
-    { name = "opencv-python" },
+    { url = "https://files.pythonhosted.org/packages/a2/cd/96b3f51d910225f964c8079330446dc632bc4b2a98e5a5d4acd3cc465a70/windows_capture_interpreter-1.5.1-cp39-abi3-win_amd64.whl", hash = "sha256:b8b897b016181d495f907320c7eece57d92e5033c06cfb89a08e7d01ecbb0fed", size = 215627, upload-time = "2026-01-08T08:27:23.155Z" },
 ]
