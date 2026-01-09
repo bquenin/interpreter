@@ -25,6 +25,15 @@ from ..capture import WindowCapture, is_wayland_capture_available
 from ..capture.convert import bgra_to_rgb_pil
 from ..config import Config
 from ..overlay import BannerOverlay, InplaceOverlay
+from ..permissions import (
+    check_accessibility,
+    check_screen_recording,
+    is_macos,
+    open_accessibility_settings,
+    open_screen_recording_settings,
+    request_accessibility,
+    request_screen_recording,
+)
 from . import keyboard
 from .workers import ProcessWorker
 
@@ -139,6 +148,10 @@ class MainWindow(QMainWindow):
         models_layout.setColumnStretch(1, 1)
 
         layout.addWidget(models_group)
+
+        # macOS Permissions Section (only shown on macOS)
+        if is_macos():
+            self._setup_permissions_ui(layout)
 
         # Window Selection
         window_group = QGroupBox("Window Selection")
@@ -301,6 +314,82 @@ class MainWindow(QMainWindow):
         # Status bar
         self.statusBar().showMessage("Idle")
 
+    def _setup_permissions_ui(self, layout: QVBoxLayout):
+        """Set up macOS permissions section."""
+        permissions_group = QGroupBox("macOS Permissions")
+        permissions_layout = QGridLayout(permissions_group)
+
+        # Screen Recording row
+        permissions_layout.addWidget(QLabel("Screen Recording"), 0, 0)
+        self._screen_recording_status = QLabel()
+        permissions_layout.addWidget(self._screen_recording_status, 0, 1)
+        self._screen_recording_btn = QPushButton("Grant")
+        self._screen_recording_btn.setFixedWidth(80)
+        self._screen_recording_btn.clicked.connect(self._on_request_screen_recording)
+        permissions_layout.addWidget(self._screen_recording_btn, 0, 2)
+
+        # Accessibility row (required for global hotkeys)
+        permissions_layout.addWidget(QLabel("Accessibility"), 1, 0)
+        self._accessibility_status = QLabel()
+        permissions_layout.addWidget(self._accessibility_status, 1, 1)
+        self._accessibility_btn = QPushButton("Grant")
+        self._accessibility_btn.setFixedWidth(80)
+        self._accessibility_btn.clicked.connect(self._on_request_accessibility)
+        permissions_layout.addWidget(self._accessibility_btn, 1, 2)
+
+        # Set column stretch
+        permissions_layout.setColumnStretch(0, 1)
+
+        layout.addWidget(permissions_group)
+
+        # Initial permission check
+        self._update_permissions_status()
+
+    def _update_permissions_status(self):
+        """Update the permission status indicators."""
+        if not is_macos():
+            return
+
+        # Screen Recording
+        if check_screen_recording():
+            self._screen_recording_status.setText("✓ Granted")
+            self._screen_recording_status.setStyleSheet("color: green;")
+            self._screen_recording_btn.setVisible(False)
+        else:
+            self._screen_recording_status.setText("✗ Required")
+            self._screen_recording_status.setStyleSheet("color: red;")
+            self._screen_recording_btn.setVisible(True)
+
+        # Accessibility
+        if check_accessibility():
+            self._accessibility_status.setText("✓ Granted")
+            self._accessibility_status.setStyleSheet("color: green;")
+            self._accessibility_btn.setVisible(False)
+        else:
+            self._accessibility_status.setText("✗ Required")
+            self._accessibility_status.setStyleSheet("color: red;")
+            self._accessibility_btn.setVisible(True)
+
+    def _on_request_screen_recording(self):
+        """Handle Screen Recording grant button click."""
+        # Try to request permission (triggers system dialog if first time)
+        if not request_screen_recording():
+            # Already denied, open System Settings
+            open_screen_recording_settings()
+
+        # Update status after a short delay (permission may take a moment to register)
+        QTimer.singleShot(500, self._update_permissions_status)
+
+    def _on_request_accessibility(self):
+        """Handle Accessibility grant button click."""
+        # Try to request permission (triggers system dialog)
+        if not request_accessibility():
+            # Already denied, open System Settings
+            open_accessibility_settings()
+
+        # Update status after a short delay
+        QTimer.singleShot(500, self._update_permissions_status)
+
     def _load_models(self):
         """Start worker thread and load OCR/translation models."""
         self.statusBar().showMessage("Loading models...")
@@ -357,10 +446,7 @@ class MainWindow(QMainWindow):
 
     def _update_fix_button_visibility(self):
         """Show/hide the Fix Models button based on model status."""
-        has_error = (
-            self._ocr_status_label.text() == "Error"
-            or self._translation_status_label.text() == "Error"
-        )
+        has_error = self._ocr_status_label.text() == "Error" or self._translation_status_label.text() == "Error"
         self._fix_models_btn.setVisible(has_error)
 
     def _on_fix_models(self):
