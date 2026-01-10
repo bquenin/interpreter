@@ -162,21 +162,16 @@ class MainWindow(QMainWindow):
         window_layout = QHBoxLayout(window_group)
 
         if self._is_wayland_session:
-            # Wayland: single button to open portal picker
-            self._select_window_btn = QPushButton("Select Window to Capture")
+            # Wayland: single toggle button for capture
+            self._select_window_btn = QPushButton("Start Capture")
             self._select_window_btn.setEnabled(False)  # Disabled until models are loaded
-            self._select_window_btn.clicked.connect(self._start_wayland_capture)
+            self._select_window_btn.clicked.connect(self._toggle_wayland_capture)
             window_layout.addWidget(self._select_window_btn, 1)
-
-            self._stop_btn = QPushButton("Stop Capture")
-            self._stop_btn.clicked.connect(self._stop_capture)
-            self._stop_btn.setEnabled(False)
-            self._stop_btn.hide()
-            window_layout.addWidget(self._stop_btn)
 
             # Not used in Wayland mode
             self._window_combo = None
             self._start_btn = None
+            self._stop_btn = None
         else:
             # X11: dropdown + start/refresh buttons
             self._window_combo = QComboBox()
@@ -609,6 +604,13 @@ class MainWindow(QMainWindow):
         # Not used in Wayland mode
         pass
 
+    def _toggle_wayland_capture(self):
+        """Toggle Wayland capture on/off."""
+        if self._capturing:
+            self._stop_capture()
+        else:
+            self._start_wayland_capture()
+
     def _start_wayland_capture(self):
         """Start Wayland capture using xdg-desktop-portal."""
         from ..capture.linux_wayland import WaylandCaptureStream, WaylandPortalCapture
@@ -652,12 +654,10 @@ class MainWindow(QMainWindow):
             self._pause_btn.setText("Hide")
             self.statusBar().showMessage("Capturing Wayland window...")
 
-            # Update UI for Wayland capture
+            # Update button to show stop action
             if self._select_window_btn:
-                self._select_window_btn.hide()
-            if self._stop_btn:
-                self._stop_btn.show()
-                self._stop_btn.setEnabled(True)
+                self._select_window_btn.setText("Stop Capture")
+                self._select_window_btn.setEnabled(True)
 
             # Show overlay
             self._show_overlay()
@@ -695,11 +695,8 @@ class MainWindow(QMainWindow):
 
         # Update UI based on session type
         if self._is_wayland_session:
-            if self._stop_btn:
-                self._stop_btn.hide()
-                self._stop_btn.setEnabled(False)
             if self._select_window_btn:
-                self._select_window_btn.show()
+                self._select_window_btn.setText("Start Capture")
                 self._select_window_btn.setEnabled(True)
         else:
             if self._start_btn:
