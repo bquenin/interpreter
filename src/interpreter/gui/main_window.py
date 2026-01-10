@@ -1,5 +1,7 @@
 """Main application window with settings and controls."""
 
+import os
+
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QImage, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
@@ -21,7 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import log
-from ..capture import WindowCapture, is_wayland_capture_available
+from ..capture import WindowCapture
 from ..capture.convert import bgra_to_rgb_pil
 from ..config import Config
 from ..overlay import BannerOverlay, InplaceOverlay
@@ -66,9 +68,11 @@ class MainWindow(QMainWindow):
         self._mode = config.overlay_mode
         self._windows_list: list[dict] = []
         self._paused = False
-        self._wayland_available = is_wayland_capture_available()
+        # Detect session type: Wayland or X11-only
+        self._is_wayland_session = bool(os.environ.get("WAYLAND_DISPLAY"))
         self._wayland_portal = None  # WaylandPortalCapture instance
         self._wayland_stream = None  # WaylandCaptureStream instance
+        self._wayland_selecting = False  # Guard against re-entry during portal flow
         self._fixing_ocr = False  # Track if we're re-downloading OCR model
         self._fixing_translation = False  # Track if we're re-downloading translation model
 
@@ -157,19 +161,41 @@ class MainWindow(QMainWindow):
         window_group = QGroupBox("Window Selection")
         window_layout = QHBoxLayout(window_group)
 
-        self._window_combo = QComboBox()
-        self._window_combo.setMinimumWidth(250)
-        self._window_combo.activated.connect(self._on_window_selected)
-        window_layout.addWidget(self._window_combo, 1)
+        if self._is_wayland_session:
+            # Wayland: single button to open portal picker
+            self._select_window_btn = QPushButton("Select Window to Capture")
+            self._select_window_btn.setEnabled(False)  # Disabled until models are loaded
+            self._select_window_btn.clicked.connect(self._start_wayland_capture)
+            window_layout.addWidget(self._select_window_btn, 1)
 
-        self._start_btn = QPushButton("Start Capture")
-        self._start_btn.setEnabled(False)  # Disabled until models are loaded
-        self._start_btn.clicked.connect(self._toggle_capture)
-        window_layout.addWidget(self._start_btn)
+            self._stop_btn = QPushButton("Stop Capture")
+            self._stop_btn.clicked.connect(self._stop_capture)
+            self._stop_btn.setEnabled(False)
+            self._stop_btn.hide()
+            window_layout.addWidget(self._stop_btn)
 
-        refresh_btn = QPushButton("Refresh List")
-        refresh_btn.clicked.connect(self._refresh_windows)
-        window_layout.addWidget(refresh_btn)
+            # Not used in Wayland mode
+            self._window_combo = None
+            self._start_btn = None
+        else:
+            # X11: dropdown + start/refresh buttons
+            self._window_combo = QComboBox()
+            self._window_combo.setMinimumWidth(250)
+            self._window_combo.activated.connect(self._on_window_selected)
+            window_layout.addWidget(self._window_combo, 1)
+
+            self._start_btn = QPushButton("Start Capture")
+            self._start_btn.setEnabled(False)  # Disabled until models are loaded
+            self._start_btn.clicked.connect(self._toggle_capture)
+            window_layout.addWidget(self._start_btn)
+
+            refresh_btn = QPushButton("Refresh List")
+            refresh_btn.clicked.connect(self._refresh_windows)
+            window_layout.addWidget(refresh_btn)
+
+            # Not used in X11 mode
+            self._select_window_btn = None
+            self._stop_btn = None
 
         layout.addWidget(window_group)
 
@@ -398,13 +424,21 @@ class MainWindow(QMainWindow):
 
     def _on_models_ready(self):
         """Handle models loaded signal from worker thread."""
-        self._start_btn.setEnabled(True)
+        # Enable the appropriate capture button
+        if self._start_btn:
+            self._start_btn.setEnabled(True)
+        if self._select_window_btn:
+            self._select_window_btn.setEnabled(True)
         self.statusBar().showMessage("Ready")
         logger.debug("models loaded")
 
     def _on_models_failed(self, error: str):
         """Handle model loading failure from worker thread."""
-        self._start_btn.setEnabled(False)
+        # Disable the appropriate capture button
+        if self._start_btn:
+            self._start_btn.setEnabled(False)
+        if self._select_window_btn:
+            self._select_window_btn.setEnabled(False)
         self._fix_models_btn.setVisible(True)
         self.statusBar().showMessage(f"Model loading failed: {error[:100]}")
         logger.error("model loading failed", error=error)
@@ -484,11 +518,14 @@ class MainWindow(QMainWindow):
         self._process_worker.start(self._config.ocr_confidence)
 
     def _refresh_windows(self):
-        """Refresh the window list."""
-        self._windows_list = WindowCapture.list_windows()
-        self._window_combo.clear()
+        """Refresh the window list (X11 only)."""
+        if self._is_wayland_session or self._window_combo is None:
+            return
 
+        self._window_combo.clear()
+        self._windows_list = WindowCapture.list_windows()
         selected_idx = -1
+
         for i, win in enumerate(self._windows_list):
             title = win.get("title", "Unknown")
             bounds = win.get("bounds", {})
@@ -503,11 +540,6 @@ class MainWindow(QMainWindow):
             if self._config.window_title and self._config.window_title.lower() in win.get("title", "").lower():
                 selected_idx = i
 
-        # Add Wayland option if available
-        if self._wayland_available:
-            self._window_combo.insertSeparator(self._window_combo.count())
-            self._window_combo.addItem("Select Wayland window...")
-
         if selected_idx >= 0:
             self._window_combo.setCurrentIndex(selected_idx)
 
@@ -520,15 +552,13 @@ class MainWindow(QMainWindow):
 
     def _start_capture(self):
         """Start capturing the selected window."""
+        # Wayland session: always use portal capture
+        if self._is_wayland_session:
+            self._start_wayland_capture()
+            return
+
+        # X11 session: use selected window from list
         idx = self._window_combo.currentIndex()
-
-        # Check if Wayland option is selected
-        if self._wayland_available:
-            wayland_idx = len(self._windows_list) + 1  # +1 for separator
-            if idx == wayland_idx:
-                self._start_wayland_capture()
-                return
-
         if idx < 0 or idx >= len(self._windows_list):
             self.statusBar().showMessage("No window selected")
             return
@@ -562,7 +592,8 @@ class MainWindow(QMainWindow):
 
         self._capturing = True
         self._paused = False
-        self._start_btn.setText("Stop Capture")
+        if self._start_btn:
+            self._start_btn.setText("Stop Capture")
         self._pause_btn.setEnabled(True)
         self._pause_btn.setText("Hide")
         self.statusBar().showMessage(f"Capturing '{title[:40]}...'")
@@ -574,76 +605,72 @@ class MainWindow(QMainWindow):
         self._show_overlay()
 
     def _on_window_selected(self, index: int):
-        """Handle window selection change - auto-start Wayland capture if selected."""
-        if not self._wayland_available or self._capturing:
-            return
-
-        # Check if Wayland option is selected (after separator)
-        wayland_idx = len(self._windows_list) + 1  # +1 for separator
-        if index == wayland_idx:
-            self._start_wayland_capture()
+        """Handle window selection change (X11 only)."""
+        # Not used in Wayland mode
+        pass
 
     def _start_wayland_capture(self):
         """Start Wayland capture using xdg-desktop-portal."""
-        from ..capture.linux_wayland import WaylandPortalCapture
+        from ..capture.linux_wayland import WaylandCaptureStream, WaylandPortalCapture
+
+        # Guard against re-entry (portal releases GIL, allowing Qt events to process)
+        if self._wayland_selecting:
+            return
+        self._wayland_selecting = True
 
         self.statusBar().showMessage("Select a window...")
-        self._start_btn.setEnabled(False)
+        if self._select_window_btn:
+            self._select_window_btn.setEnabled(False)
 
         try:
             self._wayland_portal = WaylandPortalCapture()
-            self._wayland_portal.select_window(self._on_wayland_window_selected)
+
+            # Synchronous API (pipewire-capture 0.2.0) - returns stream info directly
+            stream_info = self._wayland_portal.select_window()
+            self._wayland_selecting = False
+
+            if not stream_info:
+                self.statusBar().showMessage("Window selection cancelled")
+                if self._select_window_btn:
+                    self._select_window_btn.setEnabled(True)
+                self._wayland_portal.close()
+                self._wayland_portal = None
+                return
+
+            fd, node_id, width, height = stream_info
+
+            self._wayland_stream = WaylandCaptureStream(fd, node_id, width, height)
+            self._wayland_stream.start()
+
+            # Start processing timer
+            self._process_timer.setInterval(PROCESS_INTERVAL_MS)
+            self._process_timer.start()
+
+            self._capturing = True
+            self._paused = False
+            self._pause_btn.setEnabled(True)
+            self._pause_btn.setText("Hide")
+            self.statusBar().showMessage("Capturing Wayland window...")
+
+            # Update UI for Wayland capture
+            if self._select_window_btn:
+                self._select_window_btn.hide()
+            if self._stop_btn:
+                self._stop_btn.show()
+                self._stop_btn.setEnabled(True)
+
+            # Show overlay
+            self._show_overlay()
+
         except Exception as e:
-            logger.error("failed to start wayland portal", error=str(e))
-            self.statusBar().showMessage("Wayland capture not available")
-            self._start_btn.setEnabled(True)
-
-    def _on_wayland_window_selected(self, success: bool):
-        """Handle Wayland window selection result."""
-        from ..capture.linux_wayland import WaylandCaptureStream
-
-        self._start_btn.setEnabled(True)
-
-        if not success:
-            self.statusBar().showMessage("Window selection cancelled")
+            logger.error("failed to start wayland capture", error=str(e))
+            self.statusBar().showMessage("Wayland capture failed")
+            if self._select_window_btn:
+                self._select_window_btn.setEnabled(True)
+            self._wayland_selecting = False
             if self._wayland_portal:
                 self._wayland_portal.close()
                 self._wayland_portal = None
-            return
-
-        # Get PipeWire stream info
-        stream_info = self._wayland_portal.get_stream_info()
-        if not stream_info:
-            self.statusBar().showMessage("Failed to get stream info")
-            self._wayland_portal.close()
-            self._wayland_portal = None
-            return
-
-        fd, node_id = stream_info
-
-        try:
-            self._wayland_stream = WaylandCaptureStream(fd, node_id)
-            self._wayland_stream.start()
-        except Exception as e:
-            logger.error("failed to start wayland stream", error=str(e))
-            self.statusBar().showMessage("Failed to start capture")
-            self._wayland_portal.close()
-            self._wayland_portal = None
-            return
-
-        # Start processing timer
-        self._process_timer.setInterval(PROCESS_INTERVAL_MS)
-        self._process_timer.start()
-
-        self._capturing = True
-        self._paused = False
-        self._start_btn.setText("Stop Capture")
-        self._pause_btn.setEnabled(True)
-        self._pause_btn.setText("Hide")
-        self.statusBar().showMessage("Capturing Wayland window...")
-
-        # Show overlay
-        self._show_overlay()
 
     def _stop_capture(self):
         """Stop capturing."""
@@ -663,9 +690,20 @@ class MainWindow(QMainWindow):
 
         self._capturing = False
         self._paused = False
-        self._start_btn.setText("Start Capture")
         self._pause_btn.setEnabled(False)
         self.statusBar().showMessage("Ready")
+
+        # Update UI based on session type
+        if self._is_wayland_session:
+            if self._stop_btn:
+                self._stop_btn.hide()
+                self._stop_btn.setEnabled(False)
+            if self._select_window_btn:
+                self._select_window_btn.show()
+                self._select_window_btn.setEnabled(True)
+        else:
+            if self._start_btn:
+                self._start_btn.setText("Start Capture")
 
         # Clear preview
         self._preview_label.clear()
