@@ -59,7 +59,7 @@ class WaylandPortalCapture:
     def __init__(self):
         """Initialize the portal capture handler."""
         self._portal = PortalCapture()
-        self._stream_info: tuple[int, int, int, int] | None = None
+        self._session = None  # PortalSession from select_window()
 
     def select_window(self) -> tuple[int, int, int, int] | None:
         """Show the system window picker and return stream info.
@@ -72,19 +72,19 @@ class WaylandPortalCapture:
         Raises:
             Exception: If the portal flow fails.
         """
-        # New synchronous API in pipewire-capture 0.2.0
-        self._stream_info = self._portal.select_window()
+        # API changed in pipewire-capture 0.2.4 - returns PortalSession object
+        self._session = self._portal.select_window()
 
-        if self._stream_info:
-            _fd, node_id, width, height = self._stream_info
+        if self._session:
             logger.info(
                 "window selected via portal",
-                node_id=node_id,
-                width=width,
-                height=height,
+                node_id=self._session.node_id,
+                width=self._session.width,
+                height=self._session.height,
             )
+            return (self._session.fd, self._session.node_id, self._session.width, self._session.height)
 
-        return self._stream_info
+        return None
 
     def get_stream_info(self) -> tuple[int, int, int, int] | None:
         """Get the PipeWire stream info after successful window selection.
@@ -92,12 +92,16 @@ class WaylandPortalCapture:
         Returns:
             Tuple of (fd, node_id, width, height) or None if no stream is available.
         """
-        return self._stream_info
+        if self._session:
+            return (self._session.fd, self._session.node_id, self._session.width, self._session.height)
+        return None
 
     def close(self) -> None:
         """Close the portal session and release resources."""
         logger.debug("closing portal capture")
-        self._stream_info = None
+        if self._session:
+            self._session.close()
+            self._session = None
         self._portal = None
 
 

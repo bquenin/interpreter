@@ -39,7 +39,7 @@ dependencies = [
     # Linux only - window capture (X11 fallback)
     "python-xlib>=0.33; sys_platform == 'linux'",
     # Linux only - window capture (Wayland via PipeWire portal)
-    "pipewire-capture>=0.2.3; sys_platform == 'linux'",
+    "pipewire-capture>=0.2.4; sys_platform == 'linux'",
     # GPU acceleration (CUDA 12) - Windows and Linux
     "nvidia-cublas-cu12; sys_platform == 'win32' or sys_platform == 'linux'",
     "nvidia-cudnn-cu12; sys_platform == 'win32' or sys_platform == 'linux'",
