@@ -4,6 +4,7 @@ On Linux:
 - Window bounds are in logical pixels (same as macOS)
 - Qt handles both X11 and native Wayland
 - Dragging requires startSystemMove() on Wayland
+- Stay-on-top behavior varies by compositor
 """
 
 from PySide6.QtCore import Qt
@@ -11,7 +12,18 @@ from PySide6.QtCore import Qt
 from .base import BannerOverlayBase, InplaceOverlayBase
 
 
-class BannerOverlay(BannerOverlayBase):
+class _LinuxOverlayMixin:
+    """Mixin for Linux-specific window setup."""
+
+    def _setup_window(self):
+        """Configure window flags for overlay behavior on Linux."""
+        super()._setup_window()
+        # Try multiple hints to help with stay-on-top on various compositors
+        # X11DoNotAcceptFocus helps on some X11/XWayland setups
+        self.setAttribute(Qt.WidgetAttribute.WA_X11DoNotAcceptFocus, True)
+
+
+class BannerOverlay(_LinuxOverlayMixin, BannerOverlayBase):
     """Linux banner overlay.
 
     On Wayland, window dragging requires compositor cooperation via startSystemMove().
@@ -32,7 +44,7 @@ class BannerOverlay(BannerOverlayBase):
         event.accept()
 
 
-class InplaceOverlay(InplaceOverlayBase):
+class InplaceOverlay(_LinuxOverlayMixin, InplaceOverlayBase):
     """Linux inplace overlay.
 
     Window bounds are in logical pixels (same as macOS), no conversion needed.
