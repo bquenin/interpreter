@@ -63,8 +63,9 @@ class BannerOverlayBase(QWidget):
 
         self.setStyleSheet(f"background-color: {self._background_color};")
 
-        # Default size - can be moved freely
-        self.resize(800, BANNER_HEIGHT)
+        # Use full screen width
+        screen = QApplication.primaryScreen().geometry()
+        self.resize(screen.width(), BANNER_HEIGHT)
         self._move_to_bottom()
 
     def _setup_ui(self):
@@ -84,9 +85,9 @@ class BannerOverlayBase(QWidget):
         self._label.setStyleSheet(f"color: {self._font_color}; background: transparent;")
 
     def _move_to_bottom(self):
-        """Position at bottom center of screen."""
+        """Position at bottom of screen, full width."""
         screen = QApplication.primaryScreen().geometry()
-        x = (screen.width() - self.width()) // 2
+        x = 0
         y = screen.height() - self.height() - BANNER_BOTTOM_MARGIN
         self.move(x, y)
 
