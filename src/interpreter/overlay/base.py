@@ -49,11 +49,13 @@ class BannerOverlayBase(QWidget):
     def _setup_window(self):
         """Configure window flags for overlay behavior."""
         # BypassWindowManagerHint - window manager won't manage this window at all
-        # This means: no taskbar, no alt-tab, no constraints, full positioning control
+        # This gives us: no constraints, full positioning control, stays on top
         flags = (
             Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.BypassWindowManagerHint
             | Qt.WindowType.WindowStaysOnTopHint
+            | Qt.WindowType.WindowDoesNotAcceptFocus
+            | Qt.WindowType.Tool
         )
 
         self.setWindowFlags(flags)
