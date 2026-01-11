@@ -21,7 +21,7 @@ from .base import BannerOverlayBase, InplaceOverlayBase
 class BannerOverlay(BannerOverlayBase):
     """Linux banner overlay using Qt.
 
-    Uses the same implementation as macOS/Windows base class.
+    On Wayland, window dragging requires compositor cooperation via startSystemMove().
     """
 
     def _setup_window(self):
@@ -29,6 +29,26 @@ class BannerOverlay(BannerOverlayBase):
         super()._setup_window()
         # On some Linux compositors, this hint helps with layering
         self.setAttribute(Qt.WidgetAttribute.WA_X11NetWmWindowTypeNotification, True)
+
+    def mousePressEvent(self, event):
+        """Start window drag using compositor's interactive move.
+
+        On Wayland, applications cannot arbitrarily reposition windows.
+        We must ask the compositor to perform the move via startSystemMove().
+        """
+        if event.button() == Qt.MouseButton.LeftButton:
+            # Use system move - works on both X11 and Wayland
+            self.windowHandle().startSystemMove()
+            event.accept()
+
+    def mouseMoveEvent(self, event):
+        """No-op on Linux - compositor handles the move."""
+        event.accept()
+
+    def mouseReleaseEvent(self, event):
+        """Handle end of drag - snap to screen bounds."""
+        self._snap_to_current_screen()
+        event.accept()
 
 
 class InplaceOverlay(InplaceOverlayBase):
