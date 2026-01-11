@@ -18,8 +18,15 @@ class _LinuxOverlayMixin:
     def _setup_window(self):
         """Configure window flags for overlay behavior on Linux."""
         super()._setup_window()
-        # Try multiple hints to help with stay-on-top on various compositors
-        # X11DoNotAcceptFocus helps on some X11/XWayland setups
+
+        # On GNOME Wayland, try BypassWindowManagerHint to avoid compositor control
+        # This makes the window unmanaged - it won't appear in alt-tab, etc.
+        # but should stay on top of other windows
+        flags = self.windowFlags()
+        flags |= Qt.WindowType.BypassWindowManagerHint
+        flags |= Qt.WindowType.WindowStaysOnTopHint
+        self.setWindowFlags(flags)
+
         self.setAttribute(Qt.WidgetAttribute.WA_X11DoNotAcceptFocus, True)
 
 
