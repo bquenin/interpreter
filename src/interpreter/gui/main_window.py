@@ -243,6 +243,13 @@ class MainWindow(QMainWindow):
         mode_layout.addWidget(self._inplace_btn)
         overlay_layout.addWidget(mode_container)
 
+        # Wayland limitation warning (only shown on Wayland)
+        if os.environ.get("WAYLAND_DISPLAY"):
+            wayland_warning = QLabel("<a href='#' style='color: #ffa500;'>Wayland limits</a>")
+            wayland_warning.setToolTip("Click for details about inplace mode on Wayland")
+            wayland_warning.linkActivated.connect(self._show_wayland_warning)
+            overlay_layout.addWidget(wayland_warning)
+
         overlay_layout.addStretch()
 
         self._pause_btn = QPushButton("Hide")
@@ -810,21 +817,22 @@ class MainWindow(QMainWindow):
         """Handle mode selection change."""
         self._mode = "banner" if button_id == 0 else "inplace"
 
-        # Warn about inplace mode limitations on Wayland
-        if self._mode == "inplace" and os.environ.get("WAYLAND_DISPLAY"):
-            QMessageBox.warning(
-                self,
-                "Inplace Mode on Wayland",
-                "Inplace mode only works correctly with fullscreen games on Wayland.\n\n"
-                "For windowed games, the text labels may appear in the wrong position "
-                "because Wayland doesn't expose window coordinates.",
-            )
-
         self._process_worker.set_mode(self._mode)
         self._config.overlay_mode = self._mode
 
         if self._capturing and not self._paused:
             self._show_overlay()
+
+    def _show_wayland_warning(self):
+        """Show warning about inplace mode limitations on Wayland."""
+        QMessageBox.information(
+            self,
+            "Inplace Mode on Wayland",
+            "Inplace mode only works correctly with fullscreen games on Wayland.\n\n"
+            "For windowed games, the text labels may appear in the wrong position "
+            "because Wayland doesn't expose window coordinates.\n\n"
+            "This is a Wayland security limitation, not a bug.",
+        )
 
     def _show_overlay(self):
         """Show the appropriate overlay."""
