@@ -48,15 +48,14 @@ class BannerOverlayBase(QWidget):
 
     def _setup_window(self):
         """Configure window flags for overlay behavior."""
+        # Minimal flags - just frameless and stay on top
+        # Tool/WindowDoesNotAcceptFocus can cause window manager to constrain movement
         flags = (
             Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.WindowStaysOnTopHint
-            | Qt.WindowType.WindowDoesNotAcceptFocus
-            | Qt.WindowType.Tool  # Hides from taskbar
         )
 
         self.setWindowFlags(flags)
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
 
         self.setStyleSheet(f"background-color: {self._background_color};")
