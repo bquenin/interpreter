@@ -245,7 +245,7 @@ class MainWindow(QMainWindow):
 
         # Wayland limitation warning (only shown on Wayland)
         if os.environ.get("WAYLAND_DISPLAY"):
-            wayland_warning = QLabel("<a href='#' style='color: #ffa500;'>Wayland limits</a>")
+            wayland_warning = QLabel("<a href='#' style='color: #ffa500;'>⚠️ Wayland limitations</a>")
             wayland_warning.setToolTip("Click for details about inplace mode on Wayland")
             wayland_warning.linkActivated.connect(self._show_wayland_warning)
             overlay_layout.addWidget(wayland_warning)
