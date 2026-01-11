@@ -206,6 +206,7 @@ class InplaceOverlayBase(QWidget):
         """Configure window flags for transparent, click-through overlay."""
         flags = (
             Qt.WindowType.FramelessWindowHint
+            | Qt.WindowType.BypassWindowManagerHint
             | Qt.WindowType.WindowStaysOnTopHint
             | Qt.WindowType.WindowTransparentForInput
             | Qt.WindowType.Tool
