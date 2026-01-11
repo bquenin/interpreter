@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import log
-from ..capture import WindowCapture
+from ..capture import Capture, WindowCapture
 from ..capture.convert import bgra_to_rgb_pil
 from ..config import Config
 from ..overlay import BannerOverlay, InplaceOverlay
@@ -76,7 +76,7 @@ class MainWindow(QMainWindow):
         self._fixing_translation = False  # Track if we're re-downloading translation model
 
         # Components - unified capture interface (WindowCapture or WaylandCaptureStream)
-        self._capture = None
+        self._capture: Capture | None = None
 
         # Worker for OCR/translation (uses Python threading internally)
         self._process_worker = ProcessWorker()
