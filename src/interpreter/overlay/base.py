@@ -112,38 +112,12 @@ class BannerOverlayBase(QWidget):
         return self._font_size
 
     def set_position(self, x: int, y: int):
-        """Move banner to specific position and resize to match screen."""
-        logger.debug("qt set_position", x=x, y=y)
-
-        # Find which screen this position is on
-        # Use x,y directly since widget may not be at correct position yet
-        screen = QApplication.screenAt(QPoint(x, y))
-        if screen is None:
-            screen = QApplication.primaryScreen()
-
-        screen_geom = screen.geometry()
-        screen_width = screen_geom.width()
-
-        logger.debug(
-            "set_position screen detection",
-            screen_x=screen_geom.x(),
-            screen_width=screen_width,
-            current_width=self.width(),
-        )
-
-        # Reset constraints and set geometry atomically
-        self.setMinimumSize(0, 0)
-        self.setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX)
-
-        # Snap X to screen left edge, keep Y as requested
-        new_x = screen_geom.x()
-        self.setGeometry(new_x, y, screen_width, self.height())
+        """Move banner to specific position."""
+        self.move(x, y)
 
     def get_position(self) -> tuple[int, int]:
         """Get current position (x, y)."""
-        pos = (self.x(), self.y())
-        logger.debug("qt get_position", x=pos[0], y=pos[1])
-        return pos
+        return (self.x(), self.y())
 
     def _resize_to_fit(self):
         """Resize banner height to fit current text content."""
