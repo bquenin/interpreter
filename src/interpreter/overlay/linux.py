@@ -1,57 +1,21 @@
 """Linux-specific overlay implementations using Qt.
 
 On Linux:
+- App forces Qt to use X11/XWayland (QT_QPA_PLATFORM=xcb) for reliable stay-on-top
 - Window bounds are in logical pixels (same as macOS)
-- Qt handles both X11 and native Wayland
-- Dragging requires startSystemMove() on Wayland
-- Stay-on-top behavior varies by compositor
+- No platform-specific overrides needed
 """
-
-from PySide6.QtCore import Qt
 
 from .base import BannerOverlayBase, InplaceOverlayBase
 
 
-class _LinuxOverlayMixin:
-    """Mixin for Linux-specific window setup."""
+class BannerOverlay(BannerOverlayBase):
+    """Linux banner overlay - no platform-specific overrides needed."""
 
-    def _setup_window(self):
-        """Configure window flags for overlay behavior on Linux."""
-        super()._setup_window()
-
-        # On GNOME Wayland, try BypassWindowManagerHint to avoid compositor control
-        # This makes the window unmanaged - it won't appear in alt-tab, etc.
-        # but should stay on top of other windows
-        flags = self.windowFlags()
-        flags |= Qt.WindowType.BypassWindowManagerHint
-        flags |= Qt.WindowType.WindowStaysOnTopHint
-        self.setWindowFlags(flags)
-
-        self.setAttribute(Qt.WidgetAttribute.WA_X11DoNotAcceptFocus, True)
+    pass
 
 
-class BannerOverlay(_LinuxOverlayMixin, BannerOverlayBase):
-    """Linux banner overlay.
-
-    On Wayland, window dragging requires compositor cooperation via startSystemMove().
-    """
-
-    def mousePressEvent(self, event):
-        """Start window drag using compositor's interactive move."""
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.windowHandle().startSystemMove()
-            event.accept()
-
-    def mouseMoveEvent(self, event):
-        """No-op - compositor handles the move."""
-        event.accept()
-
-    def mouseReleaseEvent(self, event):
-        """No-op - drag ends when compositor says so."""
-        event.accept()
-
-
-class InplaceOverlay(_LinuxOverlayMixin, InplaceOverlayBase):
+class InplaceOverlay(InplaceOverlayBase):
     """Linux inplace overlay.
 
     Window bounds are in logical pixels (same as macOS), no conversion needed.
