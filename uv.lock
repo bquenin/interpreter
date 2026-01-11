@@ -313,7 +313,7 @@ requires-dist = [
     { name = "onnxruntime" },
     { name = "opencv-python" },
     { name = "pillow", specifier = ">=10.0.0" },
-    { name = "pipewire-capture", marker = "sys_platform == 'linux'", specifier = ">=0.2.4" },
+    { name = "pipewire-capture", marker = "sys_platform == 'linux'", specifier = ">=0.2.5" },
     { name = "pygetwindow", marker = "sys_platform == 'win32'", specifier = ">=0.0.9" },
     { name = "pynput", marker = "sys_platform == 'darwin' or sys_platform == 'win32'", specifier = ">=1.7.0" },
     { name = "pyobjc-framework-cocoa", marker = "sys_platform == 'darwin'", specifier = ">=12.1" },
@@ -531,14 +531,14 @@ wheels = [
 
 [[package]]
 name = "pipewire-capture"
-version = "0.2.4"
+version = "0.2.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy", marker = "sys_platform != 'darwin'" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1b/83/d8c0127efa60ddca3dbe839e4063a3af6a4e3595a85281e24ec4c81f6c60/pipewire_capture-0.2.4-cp39-abi3-manylinux_2_34_aarch64.whl", hash = "sha256:7d0d616ed086e343df55be44292bdeee29ea331afa75e411f29a82c2b62e88e8", size = 1830812, upload-time = "2026-01-10T22:31:30.238Z" },
-    { url = "https://files.pythonhosted.org/packages/20/14/4e5893df32ed2f0367387e98ba9da05cf0c3c083e2e8abedda987e890767/pipewire_capture-0.2.4-cp39-abi3-manylinux_2_34_x86_64.whl", hash = "sha256:6c7696c835d4315a2f7db2dd2ed694b96ebc4a54723498c8f91746679ae215f7", size = 1829151, upload-time = "2026-01-10T22:31:32.033Z" },
+    { url = "https://files.pythonhosted.org/packages/18/48/48288741961c61a229f61e4b5323c55b1a4ffa574a68c47061ac6d55621b/pipewire_capture-0.2.5-cp39-abi3-manylinux_2_34_aarch64.whl", hash = "sha256:9ca11ab8fa6a9e49fb7ad35d4020f11a8875a78292c87408b66509bb366223c7", size = 1847084, upload-time = "2026-01-11T04:40:58.512Z" },
+    { url = "https://files.pythonhosted.org/packages/b9/06/e790dc096166616b6a01068e2cc8df10d9f1655201b92e250416e28a7bcc/pipewire_capture-0.2.5-cp39-abi3-manylinux_2_34_x86_64.whl", hash = "sha256:60ad8a13a17f52826ef9d3e86692c5c4c14010166b8af422a71170675dac8b25", size = 1846832, upload-time = "2026-01-11T04:41:00.847Z" },
 ]
 
 [[package]]
