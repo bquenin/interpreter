@@ -6,6 +6,13 @@ import platform
 import sys
 from pathlib import Path
 
+# On Linux, force Qt to use X11/XWayland instead of native Wayland.
+# This gives us proper stay-on-top behavior for overlay windows.
+# Native Wayland compositors (especially GNOME) don't respect WindowStaysOnTopHint.
+# Must be set BEFORE importing Qt.
+if platform.system() == "Linux" and "QT_QPA_PLATFORM" not in os.environ:
+    os.environ["QT_QPA_PLATFORM"] = "xcb"
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication

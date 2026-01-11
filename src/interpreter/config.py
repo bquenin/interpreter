@@ -36,7 +36,6 @@ class Config:
         config_path: str | None = None,
         banner_x: int | None = None,
         banner_y: int | None = None,
-        banner_snap_to_screen: bool = True,
     ):
         self.window_title = window_title
         self.ocr_confidence = ocr_confidence
@@ -48,7 +47,6 @@ class Config:
         self.config_path = config_path
         self.banner_x = banner_x
         self.banner_y = banner_y
-        self.banner_snap_to_screen = banner_snap_to_screen
 
     @classmethod
     def load(cls, config_path: str | None = None) -> "Config":
@@ -95,7 +93,6 @@ class Config:
                 config_path=config_path,
                 banner_x=data.get("banner_x"),
                 banner_y=data.get("banner_y"),
-                banner_snap_to_screen=data.get("banner_snap_to_screen", True),
             )
 
         # No config file found - create default in home directory
@@ -184,7 +181,6 @@ hotkeys:
             data["banner_x"] = int(self.banner_x)
         if self.banner_y is not None:
             data["banner_y"] = int(self.banner_y)
-        data["banner_snap_to_screen"] = bool(self.banner_snap_to_screen)
 
         with open(config_path, "w", encoding="utf-8") as f:
             yaml.dump(data, f, default_flow_style=False, allow_unicode=True)

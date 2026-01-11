@@ -6,7 +6,6 @@ from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QImage, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
     QButtonGroup,
-    QCheckBox,
     QColorDialog,
     QComboBox,
     QFrame,
@@ -16,6 +15,7 @@ from PySide6.QtWidgets import (
     QKeySequenceEdit,
     QLabel,
     QMainWindow,
+    QMessageBox,
     QPushButton,
     QSlider,
     QVBoxLayout,
@@ -105,9 +105,6 @@ class MainWindow(QMainWindow):
         if config.banner_x is not None and config.banner_y is not None:
             logger.debug("restoring banner position", x=config.banner_x, y=config.banner_y)
             self._banner_overlay.set_position(config.banner_x, config.banner_y)
-
-        # Apply snap to screen setting
-        self._banner_overlay._snap_to_screen = config.banner_snap_to_screen
 
         # Main processing timer (fixed 2 FPS)
         self._process_timer = QTimer()
@@ -246,6 +243,13 @@ class MainWindow(QMainWindow):
         mode_layout.addWidget(self._inplace_btn)
         overlay_layout.addWidget(mode_container)
 
+        # Wayland limitation warning (only shown on Wayland)
+        if os.environ.get("WAYLAND_DISPLAY"):
+            wayland_warning = QLabel("<a href='#' style='color: #ffa500;'>⚠️ Wayland limitations</a>")
+            wayland_warning.setToolTip("Click for details about inplace mode on Wayland")
+            wayland_warning.linkActivated.connect(self._show_wayland_warning)
+            overlay_layout.addWidget(wayland_warning)
+
         overlay_layout.addStretch()
 
         self._pause_btn = QPushButton("Hide")
@@ -305,12 +309,6 @@ class MainWindow(QMainWindow):
         self._bg_color_btn.setStyleSheet(f"background-color: {self._config.background_color};")
         self._bg_color_btn.clicked.connect(self._pick_bg_color)
         settings_layout.addWidget(self._bg_color_btn, 3, 1)
-
-        # Banner snap to screen
-        self._snap_checkbox = QCheckBox("Snap banner to screen edges")
-        self._snap_checkbox.setChecked(self._config.banner_snap_to_screen)
-        self._snap_checkbox.stateChanged.connect(self._on_snap_changed)
-        settings_layout.addWidget(self._snap_checkbox, 4, 0, 1, 2)
 
         layout.addWidget(settings_group)
 
@@ -825,6 +823,17 @@ class MainWindow(QMainWindow):
         if self._capturing and not self._paused:
             self._show_overlay()
 
+    def _show_wayland_warning(self):
+        """Show warning about inplace mode limitations on Wayland."""
+        QMessageBox.information(
+            self,
+            "Inplace Mode on Wayland",
+            "Inplace mode only works correctly with fullscreen games on Wayland.\n\n"
+            "For windowed games, the text labels may appear in the wrong position "
+            "because Wayland doesn't expose window coordinates.\n\n"
+            "This is a Wayland security limitation, not a bug.",
+        )
+
     def _show_overlay(self):
         """Show the appropriate overlay."""
         if self._mode == "banner":
@@ -919,12 +928,6 @@ class MainWindow(QMainWindow):
             self._bg_color_btn.setStyleSheet(f"background-color: {hex_color};")
             self._banner_overlay.set_colors(self._config.font_color, hex_color)
             self._inplace_overlay.set_colors(self._config.font_color, hex_color)
-
-    def _on_snap_changed(self, state: int):
-        self._config.banner_snap_to_screen = state == Qt.CheckState.Checked.value
-        self._banner_overlay._snap_to_screen = self._config.banner_snap_to_screen
-        if self._config.banner_snap_to_screen:
-            self._banner_overlay._snap_to_current_screen()
 
     def get_banner_position(self) -> tuple[int, int]:
         """Get current banner overlay position."""

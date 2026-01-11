@@ -3,7 +3,7 @@
 Imports the correct platform-specific overlay implementation.
 - macOS: Uses macos.py (CGWindowBounds returns points)
 - Windows: Uses windows.py (bounds in physical pixels, Win32 click-through)
-- Linux: Uses linux.py (Tkinter-based for better X11/Wayland compatibility)
+- Linux: Uses linux.py (Qt-based, evaluating native Wayland support)
 """
 
 import platform
