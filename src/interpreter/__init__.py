@@ -5,6 +5,14 @@ MeikiOCR, translates using Sugoi V4, and displays subtitles in a
 transparent overlay.
 """
 
+import faulthandler
+import signal
+
+# Enable faulthandler to dump thread stacks on SIGUSR1 (Unix only)
+# Usage: kill -USR1 <pid>  (find pid with: pgrep -f interpreter)
+if hasattr(signal, "SIGUSR1"):
+    faulthandler.register(signal.SIGUSR1, all_threads=True)
+
 from importlib.metadata import version
 
 __version__ = version("interpreter-v2")

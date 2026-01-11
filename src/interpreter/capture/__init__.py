@@ -12,27 +12,6 @@ from .. import log
 logger = log.get_logger()
 
 
-def is_wayland_capture_available() -> bool:
-    """Check if Wayland portal capture is available.
-
-    Returns:
-        True if running on Wayland with portal support and required dependencies.
-    """
-    if platform.system() != "Linux":
-        return False
-
-    # Must have WAYLAND_DISPLAY set
-    if not os.environ.get("WAYLAND_DISPLAY"):
-        return False
-
-    try:
-        from .linux_wayland import is_wayland_available
-
-        return is_wayland_available()
-    except ImportError:
-        return False
-
-
 # Track when window became invalid for timing measurement
 _invalid_time: float = 0
 
@@ -68,16 +47,38 @@ elif _system == "Windows":
 
     CaptureStream = WindowsCaptureStream
 elif _system == "Linux":
-    from .linux_x11 import (
-        LinuxCaptureStream,
-        _get_window_bounds,
-        capture_window,
-        find_window_by_title,
-        get_content_offset,
-        get_window_list,
-    )
+    # Detect session type: Wayland or X11
+    _is_wayland_session = bool(os.environ.get("WAYLAND_DISPLAY"))
 
-    CaptureStream = LinuxCaptureStream
+    if _is_wayland_session:
+        # Wayland session: use pipewire-capture
+        # Import stubs for window enumeration (portal handles selection instead)
+        from .linux_wayland import (
+            WaylandCaptureStream,
+            _get_window_bounds,
+            find_window_by_title,
+            get_content_offset,
+            get_window_list,
+        )
+
+        CaptureStream = WaylandCaptureStream
+
+        def capture_window(window_id: int):
+            """Stub - Wayland uses portal-based capture instead."""
+            return None
+
+    else:
+        # X11-only session: use python-xlib
+        from .linux_x11 import (
+            LinuxCaptureStream,
+            _get_window_bounds,
+            capture_window,
+            find_window_by_title,
+            get_content_offset,
+            get_window_list,
+        )
+
+        CaptureStream = LinuxCaptureStream
 
     def is_window_foreground(window_id: int) -> bool:
         # TODO: Implement for Linux if needed
