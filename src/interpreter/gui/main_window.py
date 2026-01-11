@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QKeySequenceEdit,
     QLabel,
     QMainWindow,
+    QMessageBox,
     QPushButton,
     QSlider,
     QVBoxLayout,
@@ -808,6 +809,16 @@ class MainWindow(QMainWindow):
     def _on_mode_changed(self, button_id: int):
         """Handle mode selection change."""
         self._mode = "banner" if button_id == 0 else "inplace"
+
+        # Warn about inplace mode limitations on Wayland
+        if self._mode == "inplace" and os.environ.get("WAYLAND_DISPLAY"):
+            QMessageBox.warning(
+                self,
+                "Inplace Mode on Wayland",
+                "Inplace mode only works correctly with fullscreen games on Wayland.\n\n"
+                "For windowed games, the text labels may appear in the wrong position "
+                "because Wayland doesn't expose window coordinates.",
+            )
 
         self._process_worker.set_mode(self._mode)
         self._config.overlay_mode = self._mode
