@@ -3,11 +3,53 @@
 import os
 import platform
 import time
+from typing import Protocol
 
 import numpy as np
 from numpy.typing import NDArray
 
 from .. import log
+
+
+class Capture(Protocol):
+    """Unified interface for all capture implementations.
+
+    Both WindowCapture (X11/macOS/Windows) and WaylandCaptureStream
+    conform to this protocol, allowing platform-agnostic usage.
+    """
+
+    def get_frame(self) -> NDArray[np.uint8] | None:
+        """Get the latest captured frame.
+
+        Returns:
+            Numpy array (H, W, 4) in BGRA format, or None if no frame available.
+        """
+        ...
+
+    @property
+    def bounds(self) -> dict | None:
+        """Get window bounds (x, y, width, height).
+
+        Returns None on Wayland where window positions aren't exposed.
+        """
+        ...
+
+    @property
+    def window_invalid(self) -> bool:
+        """Check if capture target is no longer valid (e.g., window closed)."""
+        ...
+
+    def get_content_offset(self) -> tuple[int, int]:
+        """Get the offset of content area within the window.
+
+        Returns:
+            Tuple of (x_offset, y_offset) in pixels. Always (0, 0) on Wayland.
+        """
+        ...
+
+    def stop(self) -> None:
+        """Stop capture and release resources."""
+        ...
 
 logger = log.get_logger()
 
@@ -324,3 +366,21 @@ class WindowCapture:
         if self._stream is not None:
             self._stream.stop()
             self._stream = None
+
+    @property
+    def window_invalid(self) -> bool:
+        """Check if capture target is no longer valid.
+
+        Delegates to the underlying stream's window_invalid property.
+        Returns False if no stream is active.
+        """
+        if self._stream is None:
+            return False
+        return getattr(self._stream, "window_invalid", False)
+
+    def stop(self) -> None:
+        """Stop capture and release resources.
+
+        Alias for stop_stream() to conform to Capture protocol.
+        """
+        self.stop_stream()

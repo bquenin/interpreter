@@ -70,14 +70,13 @@ class MainWindow(QMainWindow):
         self._paused = False
         # Detect session type: Wayland or X11-only
         self._is_wayland_session = bool(os.environ.get("WAYLAND_DISPLAY"))
-        self._wayland_portal = None  # WaylandPortalCapture instance
-        self._wayland_stream = None  # WaylandCaptureStream instance
+        self._wayland_portal = None  # WaylandPortalCapture instance (for managing portal session lifecycle)
         self._wayland_selecting = False  # Guard against re-entry during portal flow
         self._fixing_ocr = False  # Track if we're re-downloading OCR model
         self._fixing_translation = False  # Track if we're re-downloading translation model
 
-        # Components
-        self._capture: WindowCapture | None = None
+        # Components - unified capture interface (WindowCapture or WaylandCaptureStream)
+        self._capture = None
 
         # Worker for OCR/translation (uses Python threading internally)
         self._process_worker = ProcessWorker()
@@ -641,8 +640,9 @@ class MainWindow(QMainWindow):
 
             fd, node_id, width, height = stream_info
 
-            self._wayland_stream = WaylandCaptureStream(fd, node_id, width, height)
-            self._wayland_stream.start()
+            # Use unified capture interface
+            self._capture = WaylandCaptureStream(fd, node_id, width, height)
+            self._capture.start()
 
             # Start processing timer
             self._process_timer.setInterval(PROCESS_INTERVAL_MS)
@@ -676,14 +676,12 @@ class MainWindow(QMainWindow):
         """Stop capturing."""
         self._process_timer.stop()
 
+        # Stop capture using unified interface
         if self._capture:
-            self._capture.stop_stream()
+            self._capture.stop()
             self._capture = None
 
-        # Stop Wayland capture if active
-        if self._wayland_stream:
-            self._wayland_stream.stop()
-            self._wayland_stream = None
+        # Close Wayland portal session if active
         if self._wayland_portal:
             self._wayland_portal.close()
             self._wayland_portal = None
@@ -840,24 +838,20 @@ class MainWindow(QMainWindow):
 
     def _capture_and_process(self):
         """Capture a frame and process it through OCR and translation."""
-        frame = None
-        bounds = {}
+        if not self._capture:
+            return
 
-        # Get frame from active capture source
-        if self._wayland_stream:
-            # Wayland capture via PipeWire
-            frame = self._wayland_stream.get_frame()
-            # Check if window was closed
-            if self._wayland_stream.window_invalid:
-                logger.info("wayland window closed, stopping capture")
-                self._stop_capture()
-                return
-            # Note: Wayland doesn't provide window position, so bounds stays empty.
-            # Inplace mode only works correctly with fullscreen Wayland windows.
-        elif self._capture:
-            # X11/XWayland capture
-            frame = self._capture.get_frame()
-            bounds = self._capture.bounds or {}
+        # Get frame using unified capture interface
+        frame = self._capture.get_frame()
+
+        # Check if window was closed
+        if self._capture.window_invalid:
+            logger.info("window closed, stopping capture")
+            self._stop_capture()
+            return
+
+        # Get bounds (None on Wayland, dict on X11/Windows/macOS)
+        bounds = self._capture.bounds or {}
 
         if frame is None:
             return
