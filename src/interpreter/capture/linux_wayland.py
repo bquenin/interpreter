@@ -142,6 +142,15 @@ class WaylandCaptureStream:
         return self._stream.get_frame()
 
     @property
+    def bounds(self) -> dict | None:
+        """Get window bounds.
+
+        Returns:
+            None - Wayland doesn't expose window positions.
+        """
+        return None
+
+    @property
     def window_invalid(self) -> bool:
         """Check if the captured window has been closed.
 
@@ -149,6 +158,14 @@ class WaylandCaptureStream:
             True if the window/stream is no longer valid.
         """
         return self._stream.window_invalid
+
+    def get_content_offset(self) -> tuple[int, int]:
+        """Get content offset within window.
+
+        Returns:
+            Always (0, 0) - Wayland capture doesn't need offset adjustment.
+        """
+        return (0, 0)
 
     def stop(self) -> None:
         """Stop the capture stream and release resources."""
