@@ -12,6 +12,24 @@ from ..translate import Translator
 logger = log.get_logger()
 
 
+def contains_japanese(text: str) -> bool:
+    """Check if text contains Japanese characters."""
+    for char in text:
+        code = ord(char)
+        # Hiragana: U+3040-U+309F
+        # Katakana: U+30A0-U+30FF
+        # CJK (Kanji): U+4E00-U+9FFF
+        # Half-width Katakana: U+FF65-U+FF9F
+        if (
+            0x3040 <= code <= 0x309F  # Hiragana
+            or 0x30A0 <= code <= 0x30FF  # Katakana
+            or 0x4E00 <= code <= 0x9FFF  # Kanji
+            or 0xFF65 <= code <= 0xFF9F  # Half-width Katakana
+        ):
+            return True
+    return False
+
+
 class FrameBuffer:
     """Thread-safe 'latest frame' buffer with signaling."""
 
@@ -30,9 +48,7 @@ class FrameBuffer:
     def get(self, timeout=None):
         """Wait for and retrieve frame. Returns None on timeout or close."""
         with self._condition:
-            if self._condition.wait_for(
-                lambda: self._frame is not None or self._closed, timeout
-            ):
+            if self._condition.wait_for(lambda: self._frame is not None or self._closed, timeout):
                 if self._closed:
                     return None
                 frame = self._frame
@@ -209,6 +225,12 @@ class ProcessWorker(QObject):
                 self.text_ready.emit("")
             return
 
+        # Skip translation for non-Japanese text (banner mode)
+        if self._mode != "inplace" and not contains_japanese(text):
+            logger.debug("skipping translation - no Japanese characters detected")
+            self.text_ready.emit("")
+            return
+
         # Translation
         translate_start = time.perf_counter()
         if self._mode == "inplace":
@@ -216,6 +238,13 @@ class ProcessWorker(QObject):
             all_cached = True
             for region in regions:
                 if self._translator and region.text:
+                    # Skip non-Japanese regions
+                    if not contains_japanese(region.text):
+                        logger.debug(
+                            "skipping region - no Japanese characters",
+                            text=region.text[:30],
+                        )
+                        continue
                     try:
                         translated, cached = self._translator.translate(region.text)
                         if not cached:
@@ -225,7 +254,7 @@ class ProcessWorker(QObject):
                         translated = region.text
                         all_cached = False
                 else:
-                    translated = region.text
+                    continue
                 translated_regions.append((translated, region.bbox))
             translate_ms = int((time.perf_counter() - translate_start) * 1000)
             was_cached = all_cached and len(translated_regions) > 0
