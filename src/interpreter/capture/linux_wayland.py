@@ -12,7 +12,7 @@ Nobara, Steam Deck, and Arch Linux.
 import numpy as np
 from numpy.typing import NDArray
 from pipewire_capture import CaptureStream as PwCaptureStream
-from pipewire_capture import PortalCapture, is_available
+from pipewire_capture import PortalCapture, init_logging, is_available
 
 from .. import log
 
@@ -26,6 +26,16 @@ def is_wayland_available() -> bool:
         True if running on Wayland with portal support, False otherwise.
     """
     return is_available()
+
+
+def configure_logging(debug: bool) -> None:
+    """Configure pipewire-capture logging level.
+
+    Args:
+        debug: If True, enable debug logging in pipewire-capture.
+    """
+    if debug:
+        init_logging("debug")
 
 
 def get_window_list() -> list[dict]:
