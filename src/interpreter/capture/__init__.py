@@ -71,6 +71,7 @@ if _system == "Darwin":
     )
 
     CaptureStream = MacOSCaptureStream
+    _is_wayland_session = False
 
     def is_window_foreground(window_id: int) -> bool:
         # TODO: Implement for macOS if needed
@@ -88,6 +89,7 @@ elif _system == "Windows":
     )
 
     CaptureStream = WindowsCaptureStream
+    _is_wayland_session = False
 elif _system == "Linux":
     # Detect session type: check if PipeWire portal is available (works on gamescope/Steam Deck)
     from pipewire_capture import is_available as _pipewire_available
