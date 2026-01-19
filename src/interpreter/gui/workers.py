@@ -6,9 +6,10 @@ import time
 from PySide6.QtCore import QObject, Signal
 
 from .. import log
+from ..backends.base import OCRBackend, TranslationBackend
+from ..backends.ocr.meiki import MeikiOCRBackend
+from ..backends.translation.sugoi import SugoiTranslationBackend
 from ..config import OverlayMode
-from ..ocr import OCR
-from ..translate import Translator
 
 logger = log.get_logger()
 
@@ -89,10 +90,27 @@ class ProcessWorker(QObject):
     ocr_status = Signal(str)
     translation_status = Signal(str)
 
-    def __init__(self):
+    def __init__(
+        self,
+        ocr_backend: type[OCRBackend] | None = None,
+        translation_backend: type[TranslationBackend] | None = None,
+    ):
+        """Initialize the process worker.
+
+        Args:
+            ocr_backend: OCR backend class to use. Defaults to MeikiOCRBackend.
+            translation_backend: Translation backend class to use. Defaults to SugoiTranslationBackend.
+        """
         super().__init__()
-        self._ocr: OCR | None = None
-        self._translator: Translator | None = None
+
+        # Store backend classes (instantiated in worker thread)
+        self._ocr_backend_class = ocr_backend or MeikiOCRBackend
+        self._translation_backend_class = translation_backend or SugoiTranslationBackend
+
+        # Backend instances (created in worker thread)
+        self._ocr: OCRBackend | None = None
+        self._translator: TranslationBackend | None = None
+
         self._mode = OverlayMode.BANNER
         self._confidence_threshold = 0.6
 
@@ -104,6 +122,28 @@ class ProcessWorker(QObject):
         self._frame_buffer = FrameBuffer()
         self._thread: threading.Thread | None = None
         self._running = False
+
+        # Translation cache for tracking cache hits (backends handle actual caching)
+        self._last_translations: dict[str, str] = {}
+
+    def set_backends(
+        self,
+        ocr_backend: type[OCRBackend] | None = None,
+        translation_backend: type[TranslationBackend] | None = None,
+    ):
+        """Set the backend classes to use.
+
+        Note: This should be called before start(). If called while running,
+        the change will take effect on next start().
+
+        Args:
+            ocr_backend: OCR backend class to use.
+            translation_backend: Translation backend class to use.
+        """
+        if ocr_backend is not None:
+            self._ocr_backend_class = ocr_backend
+        if translation_backend is not None:
+            self._translation_backend_class = translation_backend
 
     def set_mode(self, mode: OverlayMode):
         """Set the overlay mode."""
@@ -154,11 +194,11 @@ class ProcessWorker(QObject):
         # Load OCR model
         self.ocr_status.emit("loading")
         try:
-            self._ocr = OCR(confidence_threshold=self._confidence_threshold)
+            self._ocr = self._ocr_backend_class(confidence_threshold=self._confidence_threshold)
             self._ocr.load()
             self._ocr_failed = False
             self.ocr_status.emit("ready")
-            logger.debug("OCR model loaded")
+            logger.debug("OCR model loaded", backend=self._ocr_backend_class.__name__)
         except Exception as e:
             self._ocr_failed = True
             self.ocr_status.emit("error")
@@ -167,11 +207,11 @@ class ProcessWorker(QObject):
         # Load translation model
         self.translation_status.emit("loading")
         try:
-            self._translator = Translator()
+            self._translator = self._translation_backend_class()
             self._translator.load()
             self._translation_failed = False
             self.translation_status.emit("ready")
-            logger.debug("translation model loaded")
+            logger.debug("translation model loaded", backend=self._translation_backend_class.__name__)
         except Exception as e:
             self._translation_failed = True
             self.translation_status.emit("error")
@@ -247,8 +287,13 @@ class ProcessWorker(QObject):
                         )
                         continue
                     try:
-                        translated, cached = self._translator.translate(region.text)
-                        if not cached:
+                        # Check our local cache first
+                        cached = region.text in self._last_translations
+                        if cached:
+                            translated = self._last_translations[region.text]
+                        else:
+                            translated = self._translator.translate(region.text)
+                            self._last_translations[region.text] = translated
                             all_cached = False
                     except Exception as e:
                         logger.warning("Translation error", error=str(e), text=region.text[:50])
@@ -264,7 +309,13 @@ class ProcessWorker(QObject):
         else:
             if self._translator:
                 try:
-                    translated, was_cached = self._translator.translate(text)
+                    # Check our local cache first
+                    was_cached = text in self._last_translations
+                    if was_cached:
+                        translated = self._last_translations[text]
+                    else:
+                        translated = self._translator.translate(text)
+                        self._last_translations[text] = translated
                 except Exception as e:
                     logger.warning("Translation error", error=str(e), text=text[:50])
                     translated = f"[{text}]"
@@ -282,3 +333,10 @@ class ProcessWorker(QObject):
             translate_ms=translate_str,
             total_ms=total_ms,
         )
+
+        # Limit cache size
+        if len(self._last_translations) > 200:
+            # Remove oldest entries
+            keys = list(self._last_translations.keys())
+            for key in keys[:100]:
+                del self._last_translations[key]
