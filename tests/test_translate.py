@@ -17,7 +17,7 @@ class TestGetShortPath:
 
         test_path = Path("/home/user/models/test.bin")
 
-        with patch("interpreter.translate.sys.platform", "linux"):
+        with patch("interpreter.backends.translation.sugoi.sys.platform", "linux"):
             result = _get_short_path(test_path)
 
         assert result == str(test_path)
@@ -28,7 +28,7 @@ class TestGetShortPath:
 
         test_path = Path("/Users/Álvaro/models/test.bin")
 
-        with patch("interpreter.translate.sys.platform", "darwin"):
+        with patch("interpreter.backends.translation.sugoi.sys.platform", "darwin"):
             result = _get_short_path(test_path)
 
         assert result == str(test_path)
@@ -50,7 +50,7 @@ class TestGetShortPath:
 
         with (
             patch.dict("sys.modules", {"ctypes": mock_ctypes}),
-            patch("interpreter.translate.sys.platform", "win32"),
+            patch("interpreter.backends.translation.sugoi.sys.platform", "win32"),
         ):
             result = _get_short_path(test_path)
 
@@ -71,7 +71,7 @@ class TestGetShortPath:
 
         with (
             patch.dict("sys.modules", {"ctypes": mock_ctypes}),
-            patch("interpreter.translate.sys.platform", "win32"),
+            patch("interpreter.backends.translation.sugoi.sys.platform", "win32"),
         ):
             result = _get_short_path(test_path)
 

@@ -190,6 +190,7 @@ class BackendRegistry:
 
 # Global registry instance
 _registry = BackendRegistry()
+_initialized = False
 
 
 def get_registry() -> BackendRegistry:
@@ -198,4 +199,65 @@ def get_registry() -> BackendRegistry:
     Returns:
         The global BackendRegistry instance.
     """
+    global _initialized
+    if not _initialized:
+        _initialize_registry()
+        _initialized = True
     return _registry
+
+
+def _initialize_registry() -> None:
+    """Initialize the registry with all available backends."""
+    from .ocr.meiki import MeikiOCRBackend
+    from .ocr.tesseract import TesseractOCRBackend
+    from .translation.opus_mt import OpusMTTranslationBackend
+    from .translation.sugoi import SugoiTranslationBackend
+
+    # Register OCR backends
+    _registry.register_ocr_backend(MeikiOCRBackend)
+    _registry.register_ocr_backend(TesseractOCRBackend)
+
+    # Register translation backends
+    _registry.register_translation_backend(SugoiTranslationBackend)
+
+    # Register OPUS-MT backends for each supported language pair
+    for source, target in OpusMTTranslationBackend.get_supported_pairs():
+        # Create a unique backend class for each language pair
+        # This allows the registry to track each pair separately
+        _registry.register_translation_backend(
+            _create_opus_mt_backend_class(source, target)
+        )
+
+
+def _create_opus_mt_backend_class(
+    source: Language, target: Language
+) -> type["OpusMTTranslationBackend"]:
+    """Create a unique OPUS-MT backend class for a specific language pair.
+
+    This is needed because the registry tracks backends by class, and we need
+    a separate entry for each language pair.
+
+    Args:
+        source: Source language.
+        target: Target language.
+
+    Returns:
+        A new backend class for this specific language pair.
+    """
+    from .translation.opus_mt import OpusMTTranslationBackend
+
+    class SpecificOpusMTBackend(OpusMTTranslationBackend):
+        """OPUS-MT backend for a specific language pair."""
+
+        def __init__(self):
+            super().__init__(source, target)
+
+        @classmethod
+        def get_info(cls):
+            return OpusMTTranslationBackend.get_info_for_pair(source, target)
+
+    # Give it a unique name for debugging
+    SpecificOpusMTBackend.__name__ = f"OpusMT_{source.value}_{target.value}"
+    SpecificOpusMTBackend.__qualname__ = f"OpusMT_{source.value}_{target.value}"
+
+    return SpecificOpusMTBackend
