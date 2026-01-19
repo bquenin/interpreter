@@ -114,19 +114,29 @@ def _is_normal_window(disp: display.Display, window) -> bool:
 def _enumerate_windows(disp: display.Display) -> list[dict]:
     """Enumerate top-level application windows.
 
-    Only returns direct children of the root window that are normal
-    application windows (not dialogs, tooltips, etc.).
+    Uses _NET_CLIENT_LIST (EWMH standard) to get managed windows,
+    which works correctly with reparenting window managers like KDE/KWin.
+    Falls back to root.query_tree() for minimal window managers.
     """
     root = disp.screen().root
     windows = []
 
+    # Try _NET_CLIENT_LIST first (works with reparenting WMs like KDE)
     try:
-        children = root.query_tree().children
+        net_client_list = disp.intern_atom("_NET_CLIENT_LIST")
+        prop = root.get_full_property(net_client_list, Xatom.WINDOW)
+        if prop is not None and prop.value is not None:
+            window_ids = prop.value
+        else:
+            # Fallback: direct children of root (for minimal WMs without EWMH)
+            window_ids = [child.id for child in root.query_tree().children]
     except BadWindow:
         return windows
 
-    for child in children:
+    for wid in window_ids:
         try:
+            child = disp.create_resource_object("window", wid)
+
             # Get window attributes
             attrs = child.get_attributes()
             if attrs.map_state != X.IsViewable:
