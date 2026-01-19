@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import log
-from ..capture import Capture, WindowCapture
+from ..capture import Capture, WindowCapture, _is_wayland_session
 from ..capture.convert import bgra_to_rgb_pil
 from ..config import Config, OverlayMode
 from ..overlay import BannerOverlay, InplaceOverlay
@@ -69,8 +69,8 @@ class MainWindow(QMainWindow):
         self._mode = config.overlay_mode
         self._windows_list: list[dict] = []
         self._paused = False
-        # Detect session type: Wayland or X11-only
-        self._is_wayland_session = bool(os.environ.get("WAYLAND_DISPLAY"))
+        # Wayland session detection (from capture module, uses D-Bus portal check)
+        self._is_wayland_session = _is_wayland_session
         self._wayland_portal = None  # WaylandPortalCapture instance (for managing portal session lifecycle)
         self._wayland_selecting = False  # Guard against re-entry during portal flow
         self._fixing_ocr = False  # Track if we're re-downloading OCR model
@@ -257,7 +257,7 @@ class MainWindow(QMainWindow):
         overlay_layout.addWidget(self._mode_hotkey)
 
         # Wayland limitation warning (only shown on Wayland)
-        if os.environ.get("WAYLAND_DISPLAY"):
+        if self._is_wayland_session:
             wayland_warning = QLabel("<a href='#' style='color: #ffa500;'>⚠️ Wayland limitations</a>")
             wayland_warning.setToolTip("Click for details about inplace mode on Wayland")
             wayland_warning.linkActivated.connect(self._show_wayland_warning)

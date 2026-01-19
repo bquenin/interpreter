@@ -138,7 +138,9 @@ def run():
     log.configure(level="DEBUG" if args.debug else "INFO")
 
     # Configure pipewire-capture logging on Wayland (must be after log.configure)
-    if platform.system() == "Linux" and os.environ.get("WAYLAND_DISPLAY"):
+    from ..capture import _is_wayland_session
+
+    if _is_wayland_session:
         from ..capture.linux_wayland import configure_logging as configure_wayland_logging
 
         configure_wayland_logging(args.debug)
