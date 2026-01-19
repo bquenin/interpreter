@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (
 from .. import log
 from ..capture import Capture, WindowCapture
 from ..capture.convert import bgra_to_rgb_pil
-from ..config import Config
+from ..config import Config, OverlayMode
 from ..overlay import BannerOverlay, InplaceOverlay
 from ..permissions import (
     check_accessibility,
@@ -53,8 +53,9 @@ PROCESS_INTERVAL_MS = 500
 class MainWindow(QMainWindow):
     """Main application window."""
 
-    # Signal for thread-safe hotkey handling
+    # Signals for thread-safe hotkey handling
     hotkey_pressed = Signal()
+    mode_switch_pressed = Signal()
 
     def __init__(self, config: Config):
         super().__init__()
@@ -202,12 +203,12 @@ class MainWindow(QMainWindow):
 
         self._banner_btn = QPushButton("Banner")
         self._banner_btn.setCheckable(True)
-        self._banner_btn.setChecked(self._mode == "banner")
+        self._banner_btn.setChecked(self._mode == OverlayMode.BANNER)
         self._mode_group.addButton(self._banner_btn, 0)
 
         self._inplace_btn = QPushButton("Inplace")
         self._inplace_btn.setCheckable(True)
-        self._inplace_btn.setChecked(self._mode == "inplace")
+        self._inplace_btn.setChecked(self._mode == OverlayMode.INPLACE)
         self._mode_group.addButton(self._inplace_btn, 1)
 
         # Style as segmented control (dark mode friendly)
@@ -243,6 +244,14 @@ class MainWindow(QMainWindow):
         mode_layout.addWidget(self._inplace_btn)
         overlay_layout.addWidget(mode_container)
 
+        # Mode switch hotkey picker (next to mode buttons)
+        mode_switch_str = self._config.hotkeys.get("switch_mode", "m")
+        self._mode_hotkey = QKeySequenceEdit(self._hotkey_str_to_qkeysequence(mode_switch_str))
+        self._mode_hotkey.setFixedWidth(80)
+        self._mode_hotkey.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
+        self._mode_hotkey.keySequenceChanged.connect(self._on_mode_hotkey_changed)
+        overlay_layout.addWidget(self._mode_hotkey)
+
         # Wayland limitation warning (only shown on Wayland)
         if os.environ.get("WAYLAND_DISPLAY"):
             wayland_warning = QLabel("<a href='#' style='color: #ffa500;'>⚠️ Wayland limitations</a>")
@@ -270,6 +279,10 @@ class MainWindow(QMainWindow):
         self._keyboard_listener = keyboard.Listener(on_press=self._on_key_press)
         self._keyboard_listener.start()
         self.hotkey_pressed.connect(self._toggle_pause)
+
+        # Mode switch hotkey (UI picker is above, near mode buttons)
+        self._mode_switch_hotkey = self._qt_key_to_key(mode_switch_str)
+        self.mode_switch_pressed.connect(self._toggle_mode)
 
         layout.addWidget(overlay_group)
 
@@ -727,12 +740,19 @@ class MainWindow(QMainWindow):
             self._pause_btn.setText("Hide")
             self._show_overlay()
 
+    def _toggle_mode(self):
+        """Toggle between banner and inplace mode via hotkey."""
+        new_mode_id = 0 if self._mode == OverlayMode.INPLACE else 1
+        [self._banner_btn, self._inplace_btn][new_mode_id].setChecked(True)
+        self._on_mode_changed(new_mode_id)
+
     def _on_key_press(self, key):
         """Handle global key press (called from keyboard listener thread)."""
-        # Compare the pressed key with our hotkey
-        logger.debug("hotkey check", pressed=key, hotkey=self._current_hotkey, match=(key == self._current_hotkey))
+        # Compare the pressed key with our hotkeys
         if key == self._current_hotkey:
             self.hotkey_pressed.emit()
+        elif key == self._mode_switch_hotkey:
+            self.mode_switch_pressed.emit()
 
     def _on_pause_hotkey_changed(self, key_sequence: QKeySequence):
         """Update pause hotkey when changed in UI."""
@@ -745,6 +765,15 @@ class MainWindow(QMainWindow):
         self._config.hotkeys["toggle_overlay"] = key_str
         # Clear focus so it stops capturing keys
         self._pause_hotkey.clearFocus()
+
+    def _on_mode_hotkey_changed(self, key_sequence: QKeySequence):
+        """Update mode switch hotkey when changed in UI."""
+        if key_sequence.isEmpty():
+            return
+        key_str = key_sequence.toString().lower()
+        self._mode_switch_hotkey = self._qt_key_to_key(key_str)
+        self._config.hotkeys["switch_mode"] = key_str
+        self._mode_hotkey.clearFocus()
 
     def _qt_key_to_key(self, key_str: str):
         """Convert Qt key string to keyboard module key."""
@@ -821,7 +850,7 @@ class MainWindow(QMainWindow):
 
     def _on_mode_changed(self, button_id: int):
         """Handle mode selection change."""
-        self._mode = "banner" if button_id == 0 else "inplace"
+        self._mode = OverlayMode.BANNER if button_id == 0 else OverlayMode.INPLACE
 
         self._process_worker.set_mode(self._mode)
         self._config.overlay_mode = self._mode
@@ -842,7 +871,7 @@ class MainWindow(QMainWindow):
 
     def _show_overlay(self):
         """Show the appropriate overlay."""
-        if self._mode == "banner":
+        if self._mode == OverlayMode.BANNER:
             self._inplace_overlay.hide()
             self._banner_overlay.show()
         else:
@@ -883,7 +912,7 @@ class MainWindow(QMainWindow):
         self._preview_label.setPixmap(pixmap)
 
         # Update inplace overlay position if window moved (X11 only - Wayland doesn't have bounds)
-        if self._mode == "inplace" and bounds and not self._paused:
+        if self._mode == OverlayMode.INPLACE and bounds and not self._paused:
             self._inplace_overlay.position_over_window(bounds)
 
         # Process through OCR and translation (on worker thread)

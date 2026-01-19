@@ -6,6 +6,7 @@ import time
 from PySide6.QtCore import QObject, Signal
 
 from .. import log
+from ..config import OverlayMode
 from ..ocr import OCR
 from ..translate import Translator
 
@@ -92,7 +93,7 @@ class ProcessWorker(QObject):
         super().__init__()
         self._ocr: OCR | None = None
         self._translator: Translator | None = None
-        self._mode = "banner"
+        self._mode = OverlayMode.BANNER
         self._confidence_threshold = 0.6
 
         # Track which models failed (for "Fix Models" button)
@@ -104,8 +105,8 @@ class ProcessWorker(QObject):
         self._thread: threading.Thread | None = None
         self._running = False
 
-    def set_mode(self, mode: str):
-        """Set the overlay mode (banner or inplace)."""
+    def set_mode(self, mode: OverlayMode):
+        """Set the overlay mode."""
         self._mode = mode
 
     def set_confidence_threshold(self, threshold: float):
@@ -207,7 +208,7 @@ class ProcessWorker(QObject):
         # OCR
         try:
             ocr_start = time.perf_counter()
-            if self._mode == "inplace":
+            if self._mode == OverlayMode.INPLACE:
                 regions = self._ocr.extract_text_regions(frame)
                 text = " ".join(r.text for r in regions if r.text)
             else:
@@ -219,21 +220,21 @@ class ProcessWorker(QObject):
             return
 
         if not text:
-            if self._mode == "inplace":
+            if self._mode == OverlayMode.INPLACE:
                 self.regions_ready.emit([])
             else:
                 self.text_ready.emit("")
             return
 
         # Skip translation for non-Japanese text (banner mode)
-        if self._mode != "inplace" and not contains_japanese(text):
+        if self._mode != OverlayMode.INPLACE and not contains_japanese(text):
             logger.debug("skipping translation - no Japanese characters detected")
             self.text_ready.emit("")
             return
 
         # Translation
         translate_start = time.perf_counter()
-        if self._mode == "inplace":
+        if self._mode == OverlayMode.INPLACE:
             translated_regions = []
             all_cached = True
             for region in regions:
