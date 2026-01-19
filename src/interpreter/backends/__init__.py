@@ -8,6 +8,7 @@ from .base import (
     TranslationBackend,
     TranslationBackendInfo,
 )
+from .model_manager import ModelManager, ModelStatus, get_model_manager
 from .registry import BackendRegistry, get_registry
 
 __all__ = [
@@ -19,4 +20,7 @@ __all__ = [
     "TranslationBackendInfo",
     "BackendRegistry",
     "get_registry",
+    "ModelManager",
+    "ModelStatus",
+    "get_model_manager",
 ]

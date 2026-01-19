@@ -77,6 +77,7 @@ class OCRBackendInfo:
     model_size_mb: int
     license: str
     description: str = ""
+    huggingface_repos: list[str] = field(default_factory=list)  # Some OCR backends use multiple HF models
 
 
 @dataclass

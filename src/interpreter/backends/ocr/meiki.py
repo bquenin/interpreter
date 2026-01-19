@@ -49,6 +49,10 @@ class MeikiOCRBackend(OCRBackend):
             model_size_mb=50,  # Approximate size
             license="Apache-2.0 / LGPL-3.0",
             description="High-accuracy OCR optimized for Japanese video game text",
+            huggingface_repos=[
+                "rtr46/meiki.text.detect.v0",
+                "rtr46/meiki.txt.recognition.v0",
+            ],
         )
 
     def load(self) -> None:
