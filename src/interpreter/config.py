@@ -42,6 +42,7 @@ class Config:
         font_size: int = 26,
         font_color: str = "#FFFFFF",
         background_color: str = "#404040",
+        background_opacity: float = 0.8,
         hotkeys: dict | None = None,
         config_path: str | None = None,
         banner_x: int | None = None,
@@ -54,6 +55,7 @@ class Config:
         self.font_size = font_size
         self.font_color = font_color
         self.background_color = background_color
+        self.background_opacity = background_opacity
         self.hotkeys = hotkeys if hotkeys is not None else self.DEFAULT_HOTKEYS.copy()
         self.config_path = config_path
         self.banner_x = banner_x
@@ -109,6 +111,7 @@ class Config:
                 font_size=int(data.get("font_size", 26)),
                 font_color=data.get("font_color", "#FFFFFF"),
                 background_color=data.get("background_color", "#404040"),
+                background_opacity=float(data.get("background_opacity", 0.8)),
                 hotkeys=hotkeys,
                 config_path=config_path,
                 banner_x=data.get("banner_x"),
@@ -147,6 +150,7 @@ overlay_mode: banner
 font_size: 26
 font_color: "#FFFFFF"
 background_color: "#404040"
+background_opacity: 0.8  # 0.0 (transparent) to 1.0 (opaque)
 
 # Hotkeys - single characters or special key names
 # Special keys: f1-f12, escape, space, enter, tab, backspace, delete,
@@ -194,6 +198,7 @@ hotkeys:
             "font_size": int(self.font_size),
             "font_color": str(self.font_color),
             "background_color": str(self.background_color),
+            "background_opacity": float(self.background_opacity),
             "hotkeys": {str(k): str(v) for k, v in self.hotkeys.items()},
         }
         # Only save font_family if user has chosen one (None = system default)
