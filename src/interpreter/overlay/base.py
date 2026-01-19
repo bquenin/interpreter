@@ -6,7 +6,7 @@ macOS and Windows use PySide6, Linux uses Tkinter (separate implementation).
 
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtGui import QFont
-from PySide6.QtWidgets import QApplication, QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QApplication, QFrame, QLabel, QVBoxLayout, QWidget
 
 from .. import log
 
@@ -36,6 +36,7 @@ class BannerOverlayBase(QWidget):
         font_size: int = 24,
         font_color: str = "#FFFFFF",
         background_color: str = "#404040",
+        background_opacity: float = 0.8,
     ):
         super().__init__()
         self._drag_pos: QPoint | None = None
@@ -43,6 +44,7 @@ class BannerOverlayBase(QWidget):
         self._font_size = font_size
         self._font_color = font_color
         self._background_color = background_color
+        self._background_opacity = background_opacity
         self._setup_window()
         self._setup_ui()
 
@@ -59,25 +61,43 @@ class BannerOverlayBase(QWidget):
         )
 
         self.setWindowFlags(flags)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
-
-        self.setStyleSheet(f"background-color: {self._background_color};")
 
         # Use full screen width
         screen = QApplication.primaryScreen().geometry()
         self.resize(screen.width(), BANNER_HEIGHT)
         self._move_to_bottom()
 
+    def _get_background_style(self) -> str:
+        """Generate RGBA background style from color and opacity."""
+        bg_color = self._background_color.lstrip("#")
+        r, g, b = int(bg_color[0:2], 16), int(bg_color[2:4], 16), int(bg_color[4:6], 16)
+        a = int(self._background_opacity * 255)
+        return f"background-color: rgba({r}, {g}, {b}, {a});"
+
     def _setup_ui(self):
-        """Set up the text label."""
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 10, 20, 10)
+        """Set up the background frame and text label."""
+        # Main layout with no margins (frame will fill entire window)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+
+        # Background frame - this paints the semi-transparent background
+        # (WA_TranslucentBackground makes the main widget transparent,
+        # so we need a child widget to actually paint the background)
+        self._background_frame = QFrame()
+        self._background_frame.setStyleSheet(self._get_background_style())
+        main_layout.addWidget(self._background_frame)
+
+        # Layout inside the frame for the label
+        frame_layout = QVBoxLayout(self._background_frame)
+        frame_layout.setContentsMargins(20, 10, 20, 10)
 
         self._label = QLabel("")
         self._label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._label.setWordWrap(True)
         self._update_label_style()
-        layout.addWidget(self._label)
+        frame_layout.addWidget(self._label)
 
     def _create_font(self) -> QFont:
         """Create a font with current family and size settings."""
@@ -122,8 +142,13 @@ class BannerOverlayBase(QWidget):
         """Update the colors."""
         self._font_color = font_color
         self._background_color = background_color
-        self.setStyleSheet(f"background-color: {self._background_color};")
+        self._background_frame.setStyleSheet(self._get_background_style())
         self._update_label_style()
+
+    def set_opacity(self, opacity: float):
+        """Update the background opacity (0.0-1.0)."""
+        self._background_opacity = opacity
+        self._background_frame.setStyleSheet(self._get_background_style())
 
     @property
     def font_size(self) -> int:
@@ -207,6 +232,7 @@ class InplaceOverlayBase(QWidget):
         font_size: int = 18,
         font_color: str = "#FFFFFF",
         background_color: str = "#404040",
+        background_opacity: float = 0.8,
     ):
         super().__init__()
         self._labels: list[QLabel] = []
@@ -214,6 +240,7 @@ class InplaceOverlayBase(QWidget):
         self._font_size = font_size
         self._font_color = font_color
         self._background_color = background_color
+        self._background_opacity = background_opacity
         self._last_regions: list[tuple[str, dict]] = []
         self._last_content_offset: tuple[int, int] = (0, 0)
         self._setup_window()
@@ -287,12 +314,13 @@ class InplaceOverlayBase(QWidget):
                 continue
             label = QLabel(text, self)
             label.setFont(self._create_font())
-            # Convert hex background color to rgba with transparency
+            # Convert hex background color to rgba with configurable transparency
             bg_color = self._background_color.lstrip("#")
             r, g, b = int(bg_color[0:2], 16), int(bg_color[2:4], 16), int(bg_color[4:6], 16)
+            a = int(self._background_opacity * 255)
             label.setStyleSheet(
                 f"color: {self._font_color}; "
-                f"background-color: rgba({r}, {g}, {b}, 200); "
+                f"background-color: rgba({r}, {g}, {b}, {a}); "
                 "padding: 4px 8px; "
                 "border-radius: 4px;"
             )
@@ -344,6 +372,12 @@ class InplaceOverlayBase(QWidget):
         """Update the colors and re-render immediately."""
         self._font_color = font_color
         self._background_color = background_color
+        if self._last_regions:
+            self.set_regions(self._last_regions, self._last_content_offset)
+
+    def set_opacity(self, opacity: float):
+        """Update the background opacity (0.0-1.0) and re-render immediately."""
+        self._background_opacity = opacity
         if self._last_regions:
             self.set_regions(self._last_regions, self._last_content_offset)
 

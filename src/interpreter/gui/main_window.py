@@ -94,12 +94,14 @@ class MainWindow(QMainWindow):
             font_size=config.font_size,
             font_color=config.font_color,
             background_color=config.background_color,
+            background_opacity=config.background_opacity,
         )
         self._inplace_overlay = InplaceOverlay(
             font_family=config.font_family,
             font_size=config.font_size,
             font_color=config.font_color,
             background_color=config.background_color,
+            background_opacity=config.background_opacity,
         )
 
         # Apply saved banner position if available
@@ -328,6 +330,16 @@ class MainWindow(QMainWindow):
         self._bg_color_btn.setStyleSheet(f"background-color: {self._config.background_color};")
         self._bg_color_btn.clicked.connect(self._pick_bg_color)
         settings_layout.addWidget(self._bg_color_btn, 4, 1)
+
+        # Opacity
+        settings_layout.addWidget(QLabel("Opacity:"), 5, 0)
+        self._opacity_slider = QSlider(Qt.Orientation.Horizontal)
+        self._opacity_slider.setRange(0, 100)
+        self._opacity_slider.setValue(int(self._config.background_opacity * 100))
+        self._opacity_slider.valueChanged.connect(self._on_opacity_changed)
+        settings_layout.addWidget(self._opacity_slider, 5, 1)
+        self._opacity_label = QLabel(f"{int(self._config.background_opacity * 100)}%")
+        settings_layout.addWidget(self._opacity_label, 5, 2)
 
         layout.addWidget(settings_group)
 
@@ -945,6 +957,13 @@ class MainWindow(QMainWindow):
         self._font_label.setText(f"{value}pt")
         self._banner_overlay.set_font_size(value)
         self._inplace_overlay.set_font_size(value)
+
+    def _on_opacity_changed(self, value: int):
+        opacity = value / 100.0
+        self._config.background_opacity = opacity
+        self._opacity_label.setText(f"{value}%")
+        self._banner_overlay.set_opacity(opacity)
+        self._inplace_overlay.set_opacity(opacity)
 
     def _pick_font_family(self):
         # Initialize dialog with current font
