@@ -69,8 +69,8 @@ class MainWindow(QMainWindow):
         self._mode = config.overlay_mode
         self._windows_list: list[dict] = []
         self._paused = False
-        # Detect session type: Wayland or X11-only
-        self._is_wayland_session = bool(os.environ.get("WAYLAND_DISPLAY"))
+        # Detect session type: check if PipeWire portal is available (works on gamescope/Steam Deck)
+        self._is_wayland_session = self._check_wayland_available()
         self._wayland_portal = None  # WaylandPortalCapture instance (for managing portal session lifecycle)
         self._wayland_selecting = False  # Guard against re-entry during portal flow
         self._fixing_ocr = False  # Track if we're re-downloading OCR model
@@ -257,7 +257,7 @@ class MainWindow(QMainWindow):
         overlay_layout.addWidget(self._mode_hotkey)
 
         # Wayland limitation warning (only shown on Wayland)
-        if os.environ.get("WAYLAND_DISPLAY"):
+        if self._is_wayland_session:
             wayland_warning = QLabel("<a href='#' style='color: #ffa500;'>⚠️ Wayland limitations</a>")
             wayland_warning.setToolTip("Click for details about inplace mode on Wayland")
             wayland_warning.linkActivated.connect(self._show_wayland_warning)
@@ -1004,6 +1004,28 @@ class MainWindow(QMainWindow):
     def get_banner_position(self) -> tuple[int, int]:
         """Get current banner overlay position."""
         return self._banner_overlay.get_position()
+
+    @staticmethod
+    def _check_wayland_available() -> bool:
+        """Check if PipeWire portal capture is available.
+
+        Uses pipewire_capture.is_available() which checks D-Bus for the
+        ScreenCast portal interface. This works on gamescope/Steam Deck
+        even when WAYLAND_DISPLAY is not set.
+
+        Returns:
+            True if Wayland portal capture is available, False otherwise.
+        """
+        import platform
+
+        if platform.system() != "Linux":
+            return False
+        try:
+            from pipewire_capture import is_available
+
+            return is_available()
+        except ImportError:
+            return False
 
     def cleanup(self):
         """Clean up resources before closing."""
