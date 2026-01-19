@@ -67,14 +67,11 @@ if [ -d "$TOOL_DIR" ]; then
 fi
 
 # Check Wayland dependencies (Linux only)
+# Always check regardless of WAYLAND_DISPLAY - some compositors like gamescope don't set it
 if [[ "$(uname)" == "Linux" ]]; then
     echo -e "${YELLOW}[4/${TOTAL_STEPS}] Checking Wayland capture dependencies...${NC}"
 
-    # Skip if not running on Wayland
-    if [ -z "$WAYLAND_DISPLAY" ]; then
-        echo -e "${GRAY}     Not running on Wayland, skipping${NC}"
-    # Check if libpipewire is available (required for Wayland capture)
-    elif ldconfig -p 2>/dev/null | grep -q libpipewire-0.3; then
+    if ldconfig -p 2>/dev/null | grep -q libpipewire-0.3; then
         echo -e "${GREEN}     PipeWire library available${NC}"
     else
         echo -e "${YELLOW}     libpipewire-0.3 not found. Wayland capture may not work.${NC}"
