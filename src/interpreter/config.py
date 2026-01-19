@@ -29,6 +29,7 @@ class Config:
         window_title: str = "Snes9x",
         ocr_confidence: float = 0.6,
         overlay_mode: str = "banner",
+        font_family: str | None = None,
         font_size: int = 26,
         font_color: str = "#FFFFFF",
         background_color: str = "#404040",
@@ -40,6 +41,7 @@ class Config:
         self.window_title = window_title
         self.ocr_confidence = ocr_confidence
         self.overlay_mode = overlay_mode  # "banner" or "inplace"
+        self.font_family = font_family  # None = system default
         self.font_size = font_size
         self.font_color = font_color
         self.background_color = background_color
@@ -86,6 +88,7 @@ class Config:
                 window_title=data.get("window_title", cls.DEFAULT_WINDOW_TITLE),
                 ocr_confidence=float(data.get("ocr_confidence", 0.6)),
                 overlay_mode=data.get("overlay_mode", "banner"),
+                font_family=data.get("font_family"),  # None = system default
                 font_size=int(data.get("font_size", 26)),
                 font_color=data.get("font_color", "#FFFFFF"),
                 background_color=data.get("background_color", "#404040"),
@@ -176,6 +179,9 @@ hotkeys:
             "background_color": str(self.background_color),
             "hotkeys": {str(k): str(v) for k, v in self.hotkeys.items()},
         }
+        # Only save font_family if user has chosen one (None = system default)
+        if self.font_family is not None:
+            data["font_family"] = str(self.font_family)
         # Only save banner position if it was set (user has moved the banner)
         if self.banner_x is not None:
             data["banner_x"] = int(self.banner_x)

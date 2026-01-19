@@ -32,14 +32,14 @@ class BannerOverlayBase(QWidget):
 
     def __init__(
         self,
-        font_family: str = "Helvetica",
+        font_family: str | None = None,
         font_size: int = 24,
         font_color: str = "#FFFFFF",
         background_color: str = "#404040",
     ):
         super().__init__()
         self._drag_pos: QPoint | None = None
-        self._font_family = font_family
+        self._font_family = font_family  # None = system default
         self._font_size = font_size
         self._font_color = font_color
         self._background_color = background_color
@@ -79,9 +79,19 @@ class BannerOverlayBase(QWidget):
         self._update_label_style()
         layout.addWidget(self._label)
 
+    def _create_font(self) -> QFont:
+        """Create a font with current family and size settings."""
+        if self._font_family:
+            font = QFont(self._font_family)
+        else:
+            font = QFont()  # System default font
+        font.setPointSize(self._font_size)
+        font.setWeight(QFont.Weight.Bold)
+        return font
+
     def _update_label_style(self):
         """Update label font and color."""
-        self._label.setFont(QFont(self._font_family, self._font_size, QFont.Weight.Bold))
+        self._label.setFont(self._create_font())
         self._label.setStyleSheet(f"color: {self._font_color}; background: transparent;")
 
     def _move_to_bottom(self):
@@ -99,6 +109,12 @@ class BannerOverlayBase(QWidget):
     def set_font_size(self, size: int):
         """Update the font size."""
         self._font_size = size
+        self._update_label_style()
+        self._resize_to_fit()
+
+    def set_font_family(self, font_family: str | None):
+        """Update the font family. None = system default."""
+        self._font_family = font_family
         self._update_label_style()
         self._resize_to_fit()
 
@@ -187,14 +203,14 @@ class InplaceOverlayBase(QWidget):
 
     def __init__(
         self,
-        font_family: str = "Helvetica",
+        font_family: str | None = None,
         font_size: int = 18,
         font_color: str = "#FFFFFF",
         background_color: str = "#404040",
     ):
         super().__init__()
         self._labels: list[QLabel] = []
-        self._font_family = font_family
+        self._font_family = font_family  # None = system default
         self._font_size = font_size
         self._font_color = font_color
         self._background_color = background_color
@@ -239,6 +255,16 @@ class InplaceOverlayBase(QWidget):
             screen = QApplication.primaryScreen()
         return screen.devicePixelRatio()
 
+    def _create_font(self) -> QFont:
+        """Create a font with current family and size settings."""
+        if self._font_family:
+            font = QFont(self._font_family)
+        else:
+            font = QFont()  # System default font
+        font.setPointSize(self._font_size)
+        font.setWeight(QFont.Weight.Bold)
+        return font
+
     def set_regions(self, regions: list[tuple[str, dict]], content_offset: tuple[int, int] = (0, 0)):
         """Update text regions.
 
@@ -260,7 +286,7 @@ class InplaceOverlayBase(QWidget):
             if not bbox:
                 continue
             label = QLabel(text, self)
-            label.setFont(QFont(self._font_family, self._font_size, QFont.Weight.Bold))
+            label.setFont(self._create_font())
             # Convert hex background color to rgba with transparency
             bg_color = self._background_color.lstrip("#")
             r, g, b = int(bg_color[0:2], 16), int(bg_color[2:4], 16), int(bg_color[4:6], 16)
@@ -305,6 +331,12 @@ class InplaceOverlayBase(QWidget):
     def set_font_size(self, size: int):
         """Update the font size and re-render immediately."""
         self._font_size = size
+        if self._last_regions:
+            self.set_regions(self._last_regions, self._last_content_offset)
+
+    def set_font_family(self, font_family: str | None):
+        """Update the font family and re-render immediately. None = system default."""
+        self._font_family = font_family
         if self._last_regions:
             self.set_regions(self._last_regions, self._last_content_offset)
 
