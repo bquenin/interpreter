@@ -108,6 +108,8 @@ class MainWindow(QMainWindow):
         if config.banner_x is not None and config.banner_y is not None:
             logger.debug("restoring banner position", x=config.banner_x, y=config.banner_y)
             self._banner_overlay.set_position(config.banner_x, config.banner_y)
+            # Ensure banner is visible (handles monitor changes, resolution changes, etc.)
+            self._banner_overlay.clamp_to_visible_area()
 
         # Main processing timer (fixed 2 FPS)
         self._process_timer = QTimer()
