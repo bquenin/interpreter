@@ -164,8 +164,12 @@ class BannerOverlayBase(QWidget):
         If the banner is completely outside all available screens,
         move it to the bottom of the primary screen.
         """
+        screen = QApplication.primaryScreen()
+        if screen is None:
+            return
+
         # Get the virtual desktop geometry (union of all screens)
-        virtual_geometry = QApplication.primaryScreen().virtualGeometry()
+        virtual_geometry = screen.virtualGeometry()
 
         # Get current banner geometry
         banner_rect = self.frameGeometry()
