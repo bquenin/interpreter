@@ -1,11 +1,20 @@
 """Configuration management for Interpreter."""
 
 import os
+from enum import Enum
 from pathlib import Path
 
 import yaml
 
 from . import log
+
+
+class OverlayMode(str, Enum):
+    """Overlay display mode."""
+
+    BANNER = "banner"
+    INPLACE = "inplace"
+
 
 logger = log.get_logger()
 
@@ -28,7 +37,7 @@ class Config:
         self,
         window_title: str = "Snes9x",
         ocr_confidence: float = 0.6,
-        overlay_mode: str = "banner",
+        overlay_mode: OverlayMode = OverlayMode.BANNER,
         font_family: str | None = None,
         font_size: int = 26,
         font_color: str = "#FFFFFF",
@@ -40,7 +49,7 @@ class Config:
     ):
         self.window_title = window_title
         self.ocr_confidence = ocr_confidence
-        self.overlay_mode = overlay_mode  # "banner" or "inplace"
+        self.overlay_mode = overlay_mode
         self.font_family = font_family  # None = system default
         self.font_size = font_size
         self.font_color = font_color
@@ -84,10 +93,18 @@ class Config:
             hotkeys = cls.DEFAULT_HOTKEYS.copy()
             hotkeys.update(hotkeys_data)
 
+            # Parse overlay_mode from string to enum
+            mode_str = data.get("overlay_mode", "banner")
+            try:
+                overlay_mode = OverlayMode(mode_str)
+            except ValueError:
+                logger.warning("invalid overlay_mode, using banner", mode=mode_str)
+                overlay_mode = OverlayMode.BANNER
+
             return cls(
                 window_title=data.get("window_title", cls.DEFAULT_WINDOW_TITLE),
                 ocr_confidence=float(data.get("ocr_confidence", 0.6)),
-                overlay_mode=data.get("overlay_mode", "banner"),
+                overlay_mode=overlay_mode,
                 font_family=data.get("font_family"),  # None = system default
                 font_size=int(data.get("font_size", 26)),
                 font_color=data.get("font_color", "#FFFFFF"),
@@ -173,7 +190,7 @@ hotkeys:
         data = {
             "window_title": str(self.window_title) if self.window_title else "",
             "ocr_confidence": float(self.ocr_confidence),
-            "overlay_mode": str(self.overlay_mode),
+            "overlay_mode": self.overlay_mode.value,
             "font_size": int(self.font_size),
             "font_color": str(self.font_color),
             "background_color": str(self.background_color),
