@@ -1,6 +1,7 @@
 """Translation module using Sugoi V4 for offline Japanese to English."""
 
 import os
+import sys
 
 # Suppress HuggingFace Hub warnings (must be set before import)
 os.environ["HF_HUB_DISABLE_IMPLICIT_TOKEN"] = "1"
@@ -29,6 +30,28 @@ REQUIRED_MODEL_FILES = [
 # Translation cache defaults
 DEFAULT_CACHE_SIZE = 200  # Max cached translations
 DEFAULT_SIMILARITY_THRESHOLD = 0.9  # Fuzzy match threshold for cache lookup
+
+
+def _get_short_path(path: Path) -> str:
+    """Convert path to Windows short (8.3) format to handle non-ASCII characters.
+
+    CTranslate2 and SentencePiece (C++ libraries) may fail to load files from paths
+    containing non-ASCII characters on Windows. This function converts paths to the
+    short 8.3 format which only uses ASCII characters.
+
+    Args:
+        path: Path to convert.
+
+    Returns:
+        Short path string on Windows if conversion succeeds, otherwise original path string.
+    """
+    if sys.platform == "win32":
+        import ctypes
+
+        buf = ctypes.create_unicode_buffer(512)
+        if ctypes.windll.kernel32.GetShortPathNameW(str(path), buf, 512):
+            return buf.value
+    return str(path)
 
 
 def _validate_model_files(model_path: Path) -> bool:
@@ -192,7 +215,7 @@ class Translator:
             if cuda_types:
                 # Try to load with GPU
                 self._translator = ctranslate2.Translator(
-                    str(self._model_path),
+                    _get_short_path(self._model_path),
                     device="cuda",
                 )
                 # Test inference to verify CUDA actually works
@@ -205,14 +228,15 @@ class Translator:
 
         if device == "cpu":
             self._translator = ctranslate2.Translator(
-                str(self._model_path),
+                _get_short_path(self._model_path),
                 device="cpu",
             )
 
         # Load SentencePiece tokenizer
+        # Read model as bytes to avoid Unicode path issues on Windows
+        # (SentencePiece's C++ layer may not handle non-ASCII paths correctly)
         tokenizer_path = self._model_path / "spm" / "spm.ja.nopretok.model"
-        self._tokenizer = spm.SentencePieceProcessor()
-        self._tokenizer.Load(str(tokenizer_path))
+        self._tokenizer = spm.SentencePieceProcessor(model_proto=tokenizer_path.read_bytes())
 
         device_info = "GPU" if device == "cuda" else "CPU"
         logger.info("sugoi v4 ready", device=device_info)
