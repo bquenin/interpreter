@@ -91,10 +91,32 @@ elif _system == "Windows":
     CaptureStream = WindowsCaptureStream
     _is_wayland_session = False
 elif _system == "Linux":
-    # Detect session type: check if PipeWire portal is available (works on gamescope/Steam Deck)
     from pipewire_capture import is_available as _pipewire_available
 
-    _is_wayland_session = _pipewire_available()
+    def _should_use_wayland_capture() -> bool:
+        """Determine if Wayland/PipeWire capture should be used.
+
+        Uses XDG_SESSION_TYPE as the primary indicator, with special handling
+        for gamescope (Steam Deck Gaming Mode) which sets XDG_SESSION_TYPE=x11
+        but requires portal-based capture.
+        """
+        session_type = os.getenv("XDG_SESSION_TYPE", "").lower()
+
+        if session_type == "wayland":
+            return True
+
+        if session_type == "x11":
+            # Gamescope (Steam Deck Gaming Mode) sets XDG_SESSION_TYPE=x11
+            # but is actually a Wayland compositor that needs portal capture
+            if os.getenv("XDG_CURRENT_DESKTOP", "").lower() == "gamescope":
+                return True
+            # Standard X11 session - use X11 capture unless gamescope env is set
+            return bool(os.getenv("GAMESCOPE_WAYLAND_DISPLAY"))
+
+        # Unknown/unset session type - fall back to portal availability check
+        return _pipewire_available()
+
+    _is_wayland_session = _should_use_wayland_capture()
 
     if _is_wayland_session:
         # Wayland session: use pipewire-capture
