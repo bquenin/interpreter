@@ -158,6 +158,33 @@ class BannerOverlayBase(QWidget):
         """Move banner to specific position."""
         self.move(x, y)
 
+    def clamp_to_visible_area(self):
+        """Ensure banner is at least partially visible on screen.
+
+        If the banner is completely outside all available screens,
+        move it to the bottom of the primary screen.
+        """
+        screen = QApplication.primaryScreen()
+        if screen is None:
+            return
+
+        # Get the virtual desktop geometry (union of all screens)
+        virtual_geometry = screen.virtualGeometry()
+
+        # Get current banner geometry
+        banner_rect = self.frameGeometry()
+
+        # Check if banner intersects with the virtual desktop at all
+        if not virtual_geometry.intersects(banner_rect):
+            logger.info(
+                "banner position out of bounds, resetting to primary screen",
+                banner_x=banner_rect.x(),
+                banner_y=banner_rect.y(),
+                virtual_geometry=f"{virtual_geometry.x()},{virtual_geometry.y()} "
+                f"{virtual_geometry.width()}x{virtual_geometry.height()}",
+            )
+            self._move_to_bottom()
+
     def get_position(self) -> tuple[int, int]:
         """Get current position (x, y)."""
         return (self.x(), self.y())
