@@ -47,6 +47,9 @@ class Config:
         config_path: str | None = None,
         banner_x: int | None = None,
         banner_y: int | None = None,
+        source_language: str = "ja",
+        target_language: str = "en",
+        translation_model: str | None = None,  # None = use default for language pair
     ):
         self.window_title = window_title
         self.ocr_confidence = ocr_confidence
@@ -60,6 +63,9 @@ class Config:
         self.config_path = config_path
         self.banner_x = banner_x
         self.banner_y = banner_y
+        self.source_language = source_language
+        self.target_language = target_language
+        self.translation_model = translation_model
 
     @classmethod
     def load(cls, config_path: str | None = None) -> "Config":
@@ -116,6 +122,9 @@ class Config:
                 config_path=config_path,
                 banner_x=data.get("banner_x"),
                 banner_y=data.get("banner_y"),
+                source_language=data.get("source_language", "ja"),
+                target_language=data.get("target_language", "en"),
+                translation_model=data.get("translation_model"),
             )
 
         # No config file found - create default in home directory
@@ -200,6 +209,8 @@ hotkeys:
             "background_color": str(self.background_color),
             "background_opacity": float(self.background_opacity),
             "hotkeys": {str(k): str(v) for k, v in self.hotkeys.items()},
+            "source_language": str(self.source_language),
+            "target_language": str(self.target_language),
         }
         # Only save font_family if user has chosen one (None = system default)
         if self.font_family is not None:
@@ -209,6 +220,9 @@ hotkeys:
             data["banner_x"] = int(self.banner_x)
         if self.banner_y is not None:
             data["banner_y"] = int(self.banner_y)
+        # Only save translation_model if user has chosen one (None = use default)
+        if self.translation_model is not None:
+            data["translation_model"] = str(self.translation_model)
 
         with open(config_path, "w", encoding="utf-8") as f:
             yaml.dump(data, f, default_flow_style=False, allow_unicode=True)

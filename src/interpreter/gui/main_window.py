@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import log
+from ..backends import Language, get_model_manager, get_registry
 from ..capture import Capture, WindowCapture, _is_wayland_session
 from ..capture.convert import bgra_to_rgb_pil
 from ..config import Config, OverlayMode
@@ -76,11 +77,24 @@ class MainWindow(QMainWindow):
         self._fixing_ocr = False  # Track if we're re-downloading OCR model
         self._fixing_translation = False  # Track if we're re-downloading translation model
 
+        # Backend selection
+        self._registry = get_registry()
+        self._model_manager = get_model_manager()
+        self._source_language = Language(config.source_language)
+        self._target_language = Language(config.target_language)
+        self._selected_translation_model_id = config.translation_model  # None = use default
+        self._ocr_backend_class = None
+        self._translation_backend_class = None
+        self._update_backend_selection()
+
         # Components - unified capture interface (WindowCapture or WaylandCaptureStream)
         self._capture: Capture | None = None
 
         # Worker for OCR/translation (uses Python threading internally)
-        self._process_worker = ProcessWorker()
+        self._process_worker = ProcessWorker(
+            ocr_backend=self._ocr_backend_class,
+            translation_backend=self._translation_backend_class,
+        )
         self._process_worker.text_ready.connect(self._on_text_ready)
         self._process_worker.regions_ready.connect(self._on_regions_ready)
         self._process_worker.models_ready.connect(self._on_models_ready)
@@ -127,32 +141,57 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
         layout = QVBoxLayout(central)
 
-        # Models Section
-        models_group = QGroupBox("Models")
-        models_layout = QGridLayout(models_group)
+        # Translation Section
+        translation_group = QGroupBox("Translation")
+        translation_layout = QGridLayout(translation_group)
 
-        # OCR model row
-        models_layout.addWidget(QLabel("OCR:"), 0, 0)
-        models_layout.addWidget(QLabel("MeikiOCR"), 0, 1)
+        # Source language row
+        translation_layout.addWidget(QLabel("Source:"), 0, 0)
+        self._source_lang_combo = QComboBox()
+        self._populate_source_languages()
+        self._source_lang_combo.currentIndexChanged.connect(self._on_source_language_changed)
+        translation_layout.addWidget(self._source_lang_combo, 0, 1)
+
+        # Target language row
+        translation_layout.addWidget(QLabel("Target:"), 1, 0)
+        self._target_lang_combo = QComboBox()
+        self._populate_target_languages()
+        self._target_lang_combo.currentIndexChanged.connect(self._on_target_language_changed)
+        translation_layout.addWidget(self._target_lang_combo, 1, 1)
+
+        # Separator
+        separator = QFrame()
+        separator.setFrameShape(QFrame.HLine)
+        separator.setFrameShadow(QFrame.Sunken)
+        translation_layout.addWidget(separator, 2, 0, 1, 3)
+
+        # OCR model row (auto-selected, not editable)
+        translation_layout.addWidget(QLabel("OCR:"), 3, 0)
+        self._ocr_name_label = QLabel()
+        self._update_ocr_label()
+        translation_layout.addWidget(self._ocr_name_label, 3, 1)
         self._ocr_status_label = QLabel("Loading...")
-        models_layout.addWidget(self._ocr_status_label, 0, 2)
+        translation_layout.addWidget(self._ocr_status_label, 3, 2)
 
-        # Translation model row
-        models_layout.addWidget(QLabel("Translation:"), 1, 0)
-        models_layout.addWidget(QLabel("Sugoi V4"), 1, 1)
+        # Translation model row (dropdown)
+        translation_layout.addWidget(QLabel("Model:"), 4, 0)
+        self._translation_model_combo = QComboBox()
+        self._populate_translation_models()
+        self._translation_model_combo.currentIndexChanged.connect(self._on_translation_model_changed)
+        translation_layout.addWidget(self._translation_model_combo, 4, 1)
         self._translation_status_label = QLabel("Loading...")
-        models_layout.addWidget(self._translation_status_label, 1, 2)
+        translation_layout.addWidget(self._translation_status_label, 4, 2)
 
         # Fix Models button (hidden by default)
         self._fix_models_btn = QPushButton("Fix Models")
         self._fix_models_btn.clicked.connect(self._on_fix_models)
         self._fix_models_btn.setVisible(False)
-        models_layout.addWidget(self._fix_models_btn, 2, 0, 1, 3, Qt.AlignRight)
+        translation_layout.addWidget(self._fix_models_btn, 5, 0, 1, 3, Qt.AlignRight)
 
-        # Set column stretch so status is right-aligned
-        models_layout.setColumnStretch(1, 1)
+        # Set column stretch
+        translation_layout.setColumnStretch(1, 1)
 
-        layout.addWidget(models_group)
+        layout.addWidget(translation_group)
 
         # macOS Permissions Section (only shown on macOS)
         if is_macos():
@@ -441,6 +480,189 @@ class MainWindow(QMainWindow):
         # Update status after a short delay
         QTimer.singleShot(500, self._update_permissions_status)
 
+    # --- Backend Selection Methods ---
+
+    def _update_backend_selection(self):
+        """Update selected backend classes based on current language settings."""
+        # Get OCR backend for source language
+        self._ocr_backend_class = self._registry.get_default_ocr_backend_for_language(
+            self._source_language
+        )
+
+        # Get translation backend for language pair
+        if self._selected_translation_model_id:
+            # User selected a specific model
+            self._translation_backend_class = self._registry.get_translation_backend_by_id(
+                self._selected_translation_model_id
+            )
+        else:
+            # Use default for this language pair
+            self._translation_backend_class = self._registry.get_default_translation_backend_for_pair(
+                self._source_language, self._target_language
+            )
+
+    def _populate_source_languages(self):
+        """Populate the source language dropdown."""
+        self._source_lang_combo.blockSignals(True)
+        self._source_lang_combo.clear()
+
+        # Get languages that have OCR backends
+        source_languages = self._registry.get_supported_source_languages()
+
+        for lang in source_languages:
+            self._source_lang_combo.addItem(lang.display_name, lang.value)
+
+        # Select current language
+        for i in range(self._source_lang_combo.count()):
+            if self._source_lang_combo.itemData(i) == self._source_language.value:
+                self._source_lang_combo.setCurrentIndex(i)
+                break
+
+        self._source_lang_combo.blockSignals(False)
+
+    def _populate_target_languages(self):
+        """Populate the target language dropdown based on source language."""
+        self._target_lang_combo.blockSignals(True)
+        self._target_lang_combo.clear()
+
+        # Get available target languages for current source
+        target_languages = self._registry.get_supported_target_languages(self._source_language)
+
+        for lang in target_languages:
+            self._target_lang_combo.addItem(lang.display_name, lang.value)
+
+        # Select current target language if available, otherwise first one
+        found = False
+        for i in range(self._target_lang_combo.count()):
+            if self._target_lang_combo.itemData(i) == self._target_language.value:
+                self._target_lang_combo.setCurrentIndex(i)
+                found = True
+                break
+
+        if not found and self._target_lang_combo.count() > 0:
+            self._target_lang_combo.setCurrentIndex(0)
+            self._target_language = Language(self._target_lang_combo.itemData(0))
+
+        self._target_lang_combo.blockSignals(False)
+
+    def _populate_translation_models(self):
+        """Populate the translation model dropdown based on language pair."""
+        self._translation_model_combo.blockSignals(True)
+        self._translation_model_combo.clear()
+
+        # Get available translation backends for current language pair
+        backends = self._registry.get_translation_backends_for_pair(
+            self._source_language, self._target_language
+        )
+
+        for info in backends:
+            # Show installed status
+            installed = self._model_manager.is_installed(info)
+            suffix = "" if installed else " (not installed)"
+            display_name = info.name + suffix
+            self._translation_model_combo.addItem(display_name, info.id)
+
+        # Select current model if set, otherwise use default (first item)
+        if self._selected_translation_model_id:
+            for i in range(self._translation_model_combo.count()):
+                if self._translation_model_combo.itemData(i) == self._selected_translation_model_id:
+                    self._translation_model_combo.setCurrentIndex(i)
+                    break
+        elif self._translation_model_combo.count() > 0:
+            self._translation_model_combo.setCurrentIndex(0)
+
+        self._translation_model_combo.blockSignals(False)
+
+    def _update_ocr_label(self):
+        """Update the OCR name label based on source language."""
+        ocr_info = None
+        backends = self._registry.get_ocr_backends_for_language(self._source_language)
+        if backends:
+            ocr_info = backends[0]
+
+        if ocr_info:
+            self._ocr_name_label.setText(ocr_info.name)
+        else:
+            self._ocr_name_label.setText("None available")
+
+    def _on_source_language_changed(self, index: int):
+        """Handle source language selection change."""
+        if index < 0:
+            return
+
+        lang_value = self._source_lang_combo.itemData(index)
+        self._source_language = Language(lang_value)
+
+        # Update target languages (available pairs may change)
+        self._populate_target_languages()
+
+        # Update OCR label
+        self._update_ocr_label()
+
+        # Update translation models
+        self._selected_translation_model_id = None  # Reset to default
+        self._populate_translation_models()
+
+        # Update backend selection
+        self._update_backend_selection()
+
+        # Save to config
+        self._config.source_language = self._source_language.value
+        self._config.target_language = self._target_language.value
+        self._config.translation_model = None
+        self._config.save()
+
+        logger.debug(
+            "source language changed",
+            source=self._source_language.value,
+            target=self._target_language.value,
+        )
+
+    def _on_target_language_changed(self, index: int):
+        """Handle target language selection change."""
+        if index < 0:
+            return
+
+        lang_value = self._target_lang_combo.itemData(index)
+        self._target_language = Language(lang_value)
+
+        # Update translation models (available models may change)
+        self._selected_translation_model_id = None  # Reset to default
+        self._populate_translation_models()
+
+        # Update backend selection
+        self._update_backend_selection()
+
+        # Save to config
+        self._config.target_language = self._target_language.value
+        self._config.translation_model = None
+        self._config.save()
+
+        logger.debug(
+            "target language changed",
+            source=self._source_language.value,
+            target=self._target_language.value,
+        )
+
+    def _on_translation_model_changed(self, index: int):
+        """Handle translation model selection change."""
+        if index < 0:
+            return
+
+        model_id = self._translation_model_combo.itemData(index)
+        self._selected_translation_model_id = model_id
+
+        # Update backend selection
+        self._update_backend_selection()
+
+        # Save to config
+        self._config.translation_model = model_id
+        self._config.save()
+
+        logger.debug("translation model changed", model=model_id)
+
+    # --- Model Loading Methods ---
+
     def _load_models(self):
         """Start worker thread and load OCR/translation models."""
         self.statusBar().showMessage("Loading models...")
@@ -510,20 +732,19 @@ class MainWindow(QMainWindow):
 
     def _on_fix_models(self):
         """Handle Fix Models button click."""
-        from ..models import delete_model_cache
-
         # Track which models we're fixing (to show "Downloading..." instead of "Loading...")
         self._fixing_ocr = False
         self._fixing_translation = False
 
-        # Delete caches for failed models
+        # Delete caches for failed models using the model manager
         failed = self._process_worker.get_failed_models()
-        if "ocr" in failed:
-            delete_model_cache("rtr46/meiki.text.detect.v0")
-            delete_model_cache("rtr46/meiki.txt.recognition.v0")
+        if "ocr" in failed and self._ocr_backend_class:
+            ocr_info = self._ocr_backend_class.get_info()
+            self._model_manager.uninstall(ocr_info)
             self._fixing_ocr = True
-        if "translation" in failed:
-            delete_model_cache("entai2965/sugoi-v4-ja-en-ctranslate2")
+        if "translation" in failed and self._translation_backend_class:
+            translation_info = self._translation_backend_class.get_info()
+            self._model_manager.uninstall(translation_info)
             self._fixing_translation = True
 
         # Hide the button while fixing
@@ -532,7 +753,10 @@ class MainWindow(QMainWindow):
 
         # Stop and restart the worker to reload models
         self._process_worker.stop()
-        self._process_worker = ProcessWorker()
+        self._process_worker = ProcessWorker(
+            ocr_backend=self._ocr_backend_class,
+            translation_backend=self._translation_backend_class,
+        )
         self._process_worker.text_ready.connect(self._on_text_ready)
         self._process_worker.regions_ready.connect(self._on_regions_ready)
         self._process_worker.models_ready.connect(self._on_models_ready)
