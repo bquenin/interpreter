@@ -3,11 +3,12 @@
 import os
 
 from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtGui import QImage, QKeySequence, QPixmap
+from PySide6.QtGui import QFont, QImage, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
     QButtonGroup,
     QColorDialog,
     QComboBox,
+    QFontDialog,
     QFrame,
     QGridLayout,
     QGroupBox,
@@ -42,7 +43,6 @@ from .workers import ProcessWorker
 logger = log.get_logger()
 
 # Font settings
-FONT_FAMILY = "Helvetica"
 MIN_FONT_SIZE = 8
 MAX_FONT_SIZE = 72
 
@@ -89,13 +89,13 @@ class MainWindow(QMainWindow):
 
         # Overlays
         self._banner_overlay = BannerOverlay(
-            font_family=FONT_FAMILY,
+            font_family=config.font_family,
             font_size=config.font_size,
             font_color=config.font_color,
             background_color=config.background_color,
         )
         self._inplace_overlay = InplaceOverlay(
-            font_family=FONT_FAMILY,
+            font_family=config.font_family,
             font_size=config.font_size,
             font_color=config.font_color,
             background_color=config.background_color,
@@ -297,18 +297,24 @@ class MainWindow(QMainWindow):
         self._font_label = QLabel(f"{self._config.font_size}pt")
         settings_layout.addWidget(self._font_label, 1, 2)
 
+        # Font family
+        settings_layout.addWidget(QLabel("Font:"), 2, 0)
+        self._font_family_btn = QPushButton(self._config.font_family or "System Default")
+        self._font_family_btn.clicked.connect(self._pick_font_family)
+        settings_layout.addWidget(self._font_family_btn, 2, 1)
+
         # Colors
-        settings_layout.addWidget(QLabel("Font Color:"), 2, 0)
+        settings_layout.addWidget(QLabel("Font Color:"), 3, 0)
         self._font_color_btn = QPushButton()
         self._font_color_btn.setStyleSheet(f"background-color: {self._config.font_color};")
         self._font_color_btn.clicked.connect(self._pick_font_color)
-        settings_layout.addWidget(self._font_color_btn, 2, 1)
+        settings_layout.addWidget(self._font_color_btn, 3, 1)
 
-        settings_layout.addWidget(QLabel("Background:"), 3, 0)
+        settings_layout.addWidget(QLabel("Background:"), 4, 0)
         self._bg_color_btn = QPushButton()
         self._bg_color_btn.setStyleSheet(f"background-color: {self._config.background_color};")
         self._bg_color_btn.clicked.connect(self._pick_bg_color)
-        settings_layout.addWidget(self._bg_color_btn, 3, 1)
+        settings_layout.addWidget(self._bg_color_btn, 4, 1)
 
         layout.addWidget(settings_group)
 
@@ -910,6 +916,22 @@ class MainWindow(QMainWindow):
         self._font_label.setText(f"{value}pt")
         self._banner_overlay.set_font_size(value)
         self._inplace_overlay.set_font_size(value)
+
+    def _pick_font_family(self):
+        # Initialize dialog with current font
+        if self._config.font_family:
+            initial_font = QFont(self._config.font_family)
+        else:
+            initial_font = QFont()
+        initial_font.setPointSize(self._config.font_size)
+
+        ok, font = QFontDialog.getFont(initial_font, self)
+        if ok:
+            font_family = font.family()
+            self._config.font_family = font_family
+            self._font_family_btn.setText(font_family)
+            self._banner_overlay.set_font_family(font_family)
+            self._inplace_overlay.set_font_family(font_family)
 
     def _pick_font_color(self):
         color = QColorDialog.getColor()
