@@ -42,11 +42,6 @@ def _ocr_worker(
     except ImportError:
         pass
 
-    # Suppress ppocr's noisy warnings (e.g., "angle classifier not initialized")
-    import logging
-
-    logging.getLogger("ppocr").setLevel(logging.ERROR)
-
     # Import here to avoid issues with multiprocessing
     import time
 

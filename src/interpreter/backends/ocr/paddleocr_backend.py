@@ -189,7 +189,7 @@ class PaddleOCRBackend(OCRBackend):
         rgb_array, _ = self._preprocess_for_pixel_fonts(rgb_array)
 
         # Run PaddleOCR
-        results = self._ocr.ocr(rgb_array)
+        results = self._ocr.ocr(rgb_array, cls=False)
 
         # Filter by confidence and collect text with positions for sorting
         text_items = []  # List of (y, x, text) for sorting by reading order
@@ -270,7 +270,7 @@ class PaddleOCRBackend(OCRBackend):
         rgb_array, scale = self._preprocess_for_pixel_fonts(rgb_array)
 
         # Run PaddleOCR
-        results = self._ocr.ocr(rgb_array)
+        results = self._ocr.ocr(rgb_array, cls=False)
 
         # Scale factor to convert bbox coords back to original size
         inv_scale = 1.0 / scale
