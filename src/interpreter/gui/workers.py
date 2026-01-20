@@ -407,7 +407,7 @@ class ProcessWorker(QObject):
                     if self._source_language == Language.JAPANESE and not contains_japanese(region.text):
                         logger.debug(
                             "skipping region - no Japanese characters",
-                            text=region.text[:30],
+                            text=region.text,
                         )
                         continue
                     try:
@@ -419,9 +419,9 @@ class ProcessWorker(QObject):
                             translated = self._translator.translate(region.text)
                             self._last_translations[region.text] = translated
                             all_cached = False
-                        logger.debug("region translated", ocr=region.text[:50], translated=translated[:50])
+                        logger.debug("region translated", ocr=region.text, translated=translated)
                     except Exception as e:
-                        logger.warning("Translation error", error=str(e), text=region.text[:50])
+                        logger.warning("Translation error", error=str(e), text=region.text)
                         translated = region.text
                         all_cached = False
                 else:
@@ -436,7 +436,7 @@ class ProcessWorker(QObject):
 
             self.regions_ready.emit(translated_regions)
         else:
-            logger.debug("OCR text", text=text[:100] if text else "")
+            logger.debug("OCR text", text=text or "")
             if self._translator:
                 try:
                     # Skip translation for very short text to avoid hallucinations
@@ -453,9 +453,9 @@ class ProcessWorker(QObject):
                         translated = self._translator.translate(text)
                         self._last_translations[text] = translated
                         was_cached = False
-                    logger.debug("translated text", translated=translated[:100] if translated else "")
+                    logger.debug("translated text", translated=translated or "")
                 except Exception as e:
-                    logger.warning("Translation error", error=str(e), text=text[:50])
+                    logger.warning("Translation error", error=str(e), text=text)
                     translated = f"[{text}]"
             else:
                 translated = text
