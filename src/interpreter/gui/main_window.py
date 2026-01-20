@@ -560,6 +560,24 @@ class MainWindow(QMainWindow):
             self._source_language, self._target_language
         )
 
+    def _restart_worker(self):
+        """Stop and restart worker with current backend settings."""
+        self._process_worker.stop()
+        self._process_worker = ProcessWorker(
+            ocr_backend=self._ocr_backend_class,
+            translation_backend=self._translation_backend_class,
+            source_language=self._source_language,
+        )
+        self._process_worker.text_ready.connect(self._on_text_ready)
+        self._process_worker.regions_ready.connect(self._on_regions_ready)
+        self._process_worker.preview_ready.connect(self._on_preview_ready)
+        self._process_worker.models_ready.connect(self._on_models_ready)
+        self._process_worker.models_failed.connect(self._on_models_failed)
+        self._process_worker.ocr_status.connect(self._on_ocr_status)
+        self._process_worker.translation_status.connect(self._on_translation_status)
+        self._process_worker.set_mode(self._mode)
+        self._load_models()
+
     def _check_models_installed(self) -> tuple[bool, bool]:
         """Check if selected OCR and translation models are installed.
 
@@ -709,13 +727,13 @@ class MainWindow(QMainWindow):
         # Update backend selection
         self._update_backend_selection()
 
-        # Update model status UI (check installation)
-        self._update_model_status_ui()
-
         # Save to config
         self._config.source_language = self._source_language.value
         self._config.target_language = self._target_language.value
         self._config.save()
+
+        # Restart worker with new backends
+        self._restart_worker()
 
         logger.debug(
             "source language changed",
@@ -737,12 +755,12 @@ class MainWindow(QMainWindow):
         # Update backend selection
         self._update_backend_selection()
 
-        # Update model status UI (check installation)
-        self._update_model_status_ui()
-
         # Save to config
         self._config.target_language = self._target_language.value
         self._config.save()
+
+        # Restart worker with new translation backend
+        self._restart_worker()
 
         logger.debug(
             "target language changed",

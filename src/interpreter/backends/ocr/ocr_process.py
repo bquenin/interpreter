@@ -32,6 +32,16 @@ def _ocr_worker(
         source_language: Source language for OCR.
         confidence_threshold: OCR confidence threshold.
     """
+    import os
+    import sys
+
+    # Import torch FIRST before paddle/paddleocr to avoid DLL loading issues on Windows
+    # This must happen before any paddle imports
+    try:
+        import torch
+    except ImportError:
+        pass
+
     # Import here to avoid issues with multiprocessing
     import time
 

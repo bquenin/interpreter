@@ -11,11 +11,15 @@ authors = [
 keywords = ["ocr", "translation", "japanese", "games", "retro"]
 
 dependencies = [
+    # PyTorch - pinned for cross-platform consistency
+    "torch>=2.9.0",
+    "torchvision>=0.24.0",
     # OCR
     "meikiocr",
     "easyocr",
-    "paddleocr",
-    "paddlepaddle",
+    "paddleocr>=2.6.0,<2.8.0",  # 2.7.x doesn't have paddlex dependency
+    "paddlepaddle>=2.5.0,<2.7.0",  # 2.6.x works on Windows without oneDNN bug
+    "numpy>=1.26.0,<2.0.0",  # paddleocr 2.x requires numpy 1.x
     "onnxruntime",
     # Translation (Sugoi V4)
     "ctranslate2",

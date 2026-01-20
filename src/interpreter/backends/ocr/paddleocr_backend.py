@@ -25,16 +25,6 @@ logger = log.get_logger()
 # PaddleOCR model directory
 PADDLEOCR_MODEL_DIR = Path.home() / ".paddleocr"
 
-# Detection model - trying mobile for speed (4x NEAREST preprocessing may compensate)
-# Server is more accurate but ~2x slower
-# Mobile: ~1.5s, Server: ~3.5s
-DETECTION_MODEL = "PP-OCRv5_mobile_det"
-
-# Recognition model - use language-specific mobile model
-# Server rec is multilingual and misreads "I" as Chinese "一"
-# Mobile rec misreads "I" as "-" but that's more fixable via post-processing
-RECOGNITION_MODEL_TEMPLATE = "{lang}_PP-OCRv5_mobile_rec"
-
 # Default confidence threshold (0-1 scale)
 # Lower threshold to catch single-char detections with borderline confidence
 DEFAULT_CONFIDENCE_THRESHOLD = 0.55
@@ -124,14 +114,12 @@ class PaddleOCRBackend(OCRBackend):
             from paddleocr import PaddleOCR
 
             # Create OCR instance - this will download models if not present
-            # Disable document preprocessing for faster game screen OCR
+            # PaddleOCR 2.7.x API
             self._ocr = PaddleOCR(
                 lang=self._paddleocr_lang,
-                text_detection_model_name=DETECTION_MODEL,
-                text_recognition_model_name=RECOGNITION_MODEL_TEMPLATE.format(lang=self._paddleocr_lang),
-                use_doc_orientation_classify=False,
-                use_doc_unwarping=False,
-                use_textline_orientation=False,
+                use_angle_cls=False,  # Disable angle classification for speed
+                use_gpu=False,  # CPU mode (GPU requires paddlepaddle-gpu)
+                show_log=False,  # Reduce log verbosity
             )
             logger.info("paddleocr ready", language=self._paddleocr_lang)
             self._loaded = True

@@ -205,6 +205,10 @@ class ProcessWorker(QObject):
         """Set the OCR confidence threshold."""
         self._confidence_threshold = threshold
 
+    def set_source_language(self, language: Language):
+        """Set the source language for text detection."""
+        self._source_language = language
+
     def start(self, ocr_confidence: float):
         """Start the worker thread and load models."""
         if self._thread is not None:
