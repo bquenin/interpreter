@@ -37,6 +37,67 @@ def contains_japanese(text: str) -> bool:
     return False
 
 
+# Content detection for Linux/Wayland PipeWire captures
+# PipeWire returns full-screen frames with window content in a corner
+CONTENT_DARKNESS_THRESHOLD = 10  # RGB values below this are considered black/empty
+MIN_CONTENT_SIZE = 50  # Minimum content size to avoid false positives
+
+
+def detect_content_bounds(frame) -> tuple[int, int, int, int] | None:
+    """Detect the bounding box of actual content in a frame.
+
+    On Linux/Wayland with PipeWire, window captures return full-screen sized
+    frames with the actual window content in a corner. This finds the region
+    containing non-black pixels to crop to the actual content.
+
+    Args:
+        frame: numpy array (H, W, 4) in BGRA format.
+
+    Returns:
+        Tuple of (x, y, width, height) for content bounds, or None if no cropping needed.
+    """
+    import numpy as np
+
+    h, w = frame.shape[:2]
+
+    # Convert to grayscale (use green channel as approximation for speed)
+    # BGRA format: index 1 is green
+    gray = frame[:, :, 1]
+
+    # Find pixels that are not black (above darkness threshold)
+    mask = gray > CONTENT_DARKNESS_THRESHOLD
+
+    # Find bounding box of non-black pixels
+    coords = np.column_stack(np.where(mask))
+    if len(coords) == 0:
+        return None
+
+    y_min, x_min = coords.min(axis=0)
+    y_max, x_max = coords.max(axis=0)
+
+    content_w = x_max - x_min + 1
+    content_h = y_max - y_min + 1
+
+    # Skip if content is too small (probably noise)
+    if content_w < MIN_CONTENT_SIZE or content_h < MIN_CONTENT_SIZE:
+        return None
+
+    # Skip cropping if content fills most of the image (>90%)
+    content_area = content_w * content_h
+    total_area = w * h
+    if content_area > 0.9 * total_area:
+        return None
+
+    logger.debug(
+        "content bounds detected",
+        original=f"{w}x{h}",
+        content=f"{content_w}x{content_h}",
+        offset=f"({x_min}, {y_min})",
+    )
+
+    return (x_min, y_min, content_w, content_h)
+
+
 def compute_frame_hash(frame, thumb_size: int = 32) -> str:
     """Compute a hash of a frame for duplicate detection.
 
@@ -125,6 +186,7 @@ class ProcessWorker(QObject):
         load_ocr: bool = True,
         load_translation: bool = True,
         source_language: Language = Language.JAPANESE,
+        crop_to_content: bool = False,
     ):
         """Initialize the process worker.
 
@@ -134,6 +196,9 @@ class ProcessWorker(QObject):
             load_ocr: Whether to load the OCR model. Default True.
             load_translation: Whether to load the translation model. Default True.
             source_language: Source language for translation. Default Japanese.
+            crop_to_content: Whether to auto-detect and crop to content bounds.
+                           Used for Linux/Wayland PipeWire captures where the frame
+                           is screen-sized but content is in a corner.
         """
         super().__init__()
 
@@ -147,6 +212,9 @@ class ProcessWorker(QObject):
 
         # Source language for skipping non-matching text
         self._source_language = source_language
+
+        # Content cropping for PipeWire captures
+        self._crop_to_content = crop_to_content
 
         # Backend instances (created in worker thread)
         self._ocr: OCRBackend | None = None
@@ -208,6 +276,14 @@ class ProcessWorker(QObject):
     def set_source_language(self, language: Language):
         """Set the source language for text detection."""
         self._source_language = language
+
+    def set_crop_to_content(self, enabled: bool):
+        """Enable/disable auto-cropping to content bounds.
+
+        Used for Linux/Wayland PipeWire captures where the frame is screen-sized
+        but the actual window content is in a corner.
+        """
+        self._crop_to_content = enabled
 
     def start(self, ocr_confidence: float):
         """Start the worker thread and load models."""
@@ -328,6 +404,13 @@ class ProcessWorker(QObject):
         # Generate preview thumbnail first (runs in worker thread, no GIL contention with main)
         self._generate_preview(frame)
 
+        # Auto-detect and crop to content bounds (for PipeWire captures)
+        if self._crop_to_content:
+            bounds = detect_content_bounds(frame)
+            if bounds is not None:
+                x, y, w, h = bounds
+                frame = frame[y : y + h, x : x + w]
+
         # Check if frame is identical to last one (skip OCR if unchanged)
         frame_hash = compute_frame_hash(frame)
         if frame_hash == self._last_frame_hash:
@@ -383,6 +466,7 @@ class ProcessWorker(QObject):
             return
 
         if not text:
+            logger.debug("OCR returned no text", ocr_ms=ocr_ms)
             if self._mode == OverlayMode.INPLACE:
                 self.regions_ready.emit([])
             else:

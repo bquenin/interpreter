@@ -46,6 +46,7 @@ LANGUAGE_TO_PADDLEOCR = {
 SUPPORTED_LANGUAGES = list(LANGUAGE_TO_PADDLEOCR.keys())
 
 
+
 class PaddleOCRBackend(OCRBackend):
     """Extracts text from images using PaddleOCR.
 

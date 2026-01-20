@@ -129,8 +129,9 @@ class OCRProcess:
         self._process.start()
 
         # Wait for ready signal
+        # PaddleOCR downloads models on first use (~300MB total), which can take several minutes
         try:
-            result, _ = self._output_queue.get(timeout=60.0)  # Model loading can be slow
+            result, _ = self._output_queue.get(timeout=300.0)  # 5 min for initial model download
             if result == "ready":
                 self._running = True
                 logger.info("OCR process started")

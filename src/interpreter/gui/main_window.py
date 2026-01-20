@@ -1083,6 +1083,9 @@ class MainWindow(QMainWindow):
             self._capture = WaylandCaptureStream(fd, node_id, width, height)
             self._capture.start()
 
+            # Enable content cropping for PipeWire (frame is screen-sized, content in corner)
+            self._process_worker.set_crop_to_content(True)
+
             # Start processing timer
             self._process_timer.setInterval(PROCESS_INTERVAL_MS)
             self._process_timer.start()
@@ -1114,6 +1117,9 @@ class MainWindow(QMainWindow):
     def _stop_capture(self):
         """Stop capturing."""
         self._process_timer.stop()
+
+        # Disable content cropping
+        self._process_worker.set_crop_to_content(False)
 
         # Stop capture using unified interface
         if self._capture:
