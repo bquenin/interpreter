@@ -208,14 +208,17 @@ def get_registry() -> BackendRegistry:
 
 def _initialize_registry() -> None:
     """Initialize the registry with all available backends."""
+    from .ocr.easyocr import EasyOCRBackend
     from .ocr.meiki import MeikiOCRBackend
-    from .ocr.tesseract import TesseractOCRBackend
+    from .ocr.paddleocr_backend import PaddleOCRBackend
     from .translation.opus_mt import OpusMTTranslationBackend
     from .translation.sugoi import SugoiTranslationBackend
 
     # Register OCR backends
-    _registry.register_ocr_backend(MeikiOCRBackend)
-    _registry.register_ocr_backend(TesseractOCRBackend)
+    # Order matters - first matching backend for a language is the default
+    _registry.register_ocr_backend(MeikiOCRBackend)  # Japanese only
+    _registry.register_ocr_backend(PaddleOCRBackend) # PaddlePaddle - best accuracy (multiprocessing avoids GIL)
+    _registry.register_ocr_backend(EasyOCRBackend)   # PyTorch - fallback
 
     # Register translation backends
     _registry.register_translation_backend(SugoiTranslationBackend)

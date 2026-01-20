@@ -13,10 +13,16 @@ keywords = ["ocr", "translation", "japanese", "games", "retro"]
 dependencies = [
     # OCR
     "meikiocr",
+    "easyocr",
+    "paddleocr",
+    "paddlepaddle",
     "onnxruntime",
     # Translation (Sugoi V4)
     "ctranslate2",
     "sentencepiece",
+    # Translation (OPUS-MT for non-Japanese pairs)
+    "transformers",
+    "sacremoses",
     # Image processing
     "Pillow>=10.0.0",
     "numpy",

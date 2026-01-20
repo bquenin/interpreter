@@ -195,12 +195,10 @@ class OpusMTTranslationBackend(TranslationBackend):
         # Get model path (downloads from HuggingFace if needed)
         self._model_path = self._get_model_path()
 
-        # Try to use CTranslate2 if available, otherwise fall back to transformers
-        try:
-            self._load_ctranslate2()
-        except Exception as e:
-            logger.debug("CTranslate2 not available, using transformers", error=str(e))
-            self._load_transformers()
+        # Use transformers for OPUS-MT models
+        # CTranslate2 conversion is complex and varies by model version,
+        # so we use transformers directly which is more reliable
+        self._load_transformers()
 
     def _load_ctranslate2(self) -> None:
         """Load model using CTranslate2 for faster inference."""
@@ -247,7 +245,17 @@ class OpusMTTranslationBackend(TranslationBackend):
         ct2_path = self._model_path / "ctranslate2"
         logger.info("converting opus-mt to ctranslate2 format")
 
-        ctranslate2.converters.MarianConverter(str(self._model_path)).convert(
+        # MarianConverter requires model_dir and vocab_paths for source/target tokenizers
+        # For OPUS-MT models, both source and target use the same vocab file
+        vocab_file = self._model_path / "vocab.json"
+        source_spm = self._model_path / "source.spm"
+        target_spm = self._model_path / "target.spm"
+
+        converter = ctranslate2.converters.MarianConverter(
+            str(self._model_path),
+            [str(source_spm), str(target_spm)] if source_spm.exists() else [str(vocab_file)],
+        )
+        converter.convert(
             str(ct2_path),
             quantization="int8",  # Use int8 quantization for smaller size
         )

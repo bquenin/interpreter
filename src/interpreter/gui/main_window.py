@@ -26,7 +26,6 @@ from PySide6.QtWidgets import (
 from .. import log
 from ..backends import Language, get_model_manager, get_registry
 from ..capture import Capture, WindowCapture, _is_wayland_session
-from ..capture.convert import bgra_to_rgb_pil
 from ..config import Config, OverlayMode
 from ..overlay import BannerOverlay, InplaceOverlay
 from ..permissions import (
@@ -63,7 +62,14 @@ class MainWindow(QMainWindow):
         self._config = config
 
         self.setWindowTitle("Interpreter")
-        self.setMinimumSize(500, 600)
+        self.setMinimumSize(850, 480)
+        self.resize(950, 550)  # Set initial size for two-column layout
+        logger.debug(
+            "window init",
+            min_size=(750, 480),
+            size=(self.width(), self.height()),
+            geometry=f"{self.geometry().x()},{self.geometry().y()} {self.geometry().width()}x{self.geometry().height()}",
+        )
 
         # State
         self._capturing = False
@@ -82,7 +88,6 @@ class MainWindow(QMainWindow):
         self._model_manager = get_model_manager()
         self._source_language = Language(config.source_language)
         self._target_language = Language(config.target_language)
-        self._selected_translation_model_id = config.translation_model  # None = use default
         self._ocr_backend_class = None
         self._translation_backend_class = None
         self._update_backend_selection()
@@ -94,9 +99,11 @@ class MainWindow(QMainWindow):
         self._process_worker = ProcessWorker(
             ocr_backend=self._ocr_backend_class,
             translation_backend=self._translation_backend_class,
+            source_language=self._source_language,
         )
         self._process_worker.text_ready.connect(self._on_text_ready)
         self._process_worker.regions_ready.connect(self._on_regions_ready)
+        self._process_worker.preview_ready.connect(self._on_preview_ready)
         self._process_worker.models_ready.connect(self._on_models_ready)
         self._process_worker.models_failed.connect(self._on_models_failed)
         self._process_worker.ocr_status.connect(self._on_ocr_status)
@@ -136,10 +143,28 @@ class MainWindow(QMainWindow):
         self._load_models()
 
     def _setup_ui(self):
-        """Set up the main UI."""
+        """Set up the main UI with two-column layout."""
         central = QWidget()
         self.setCentralWidget(central)
-        layout = QVBoxLayout(central)
+
+        # Main horizontal layout with two columns
+        main_layout = QHBoxLayout(central)
+
+        # Left column (with container widget for minimum width)
+        left_container = QWidget()
+        left_container.setMinimumWidth(500)
+        left_column = QVBoxLayout(left_container)
+        left_column.setContentsMargins(0, 0, 0, 0)
+        main_layout.addWidget(left_container, 1)
+
+        # Right column (with container widget for minimum width)
+        right_container = QWidget()
+        right_container.setMinimumWidth(350)
+        right_column = QVBoxLayout(right_container)
+        right_column.setContentsMargins(0, 0, 0, 0)
+        main_layout.addWidget(right_container, 1)
+
+        # === LEFT COLUMN ===
 
         # Translation Section
         translation_group = QGroupBox("Translation")
@@ -170,32 +195,58 @@ class MainWindow(QMainWindow):
         self._ocr_name_label = QLabel()
         self._update_ocr_label()
         translation_layout.addWidget(self._ocr_name_label, 3, 1)
+
+        # OCR status + download button container
+        ocr_status_container = QWidget()
+        ocr_status_layout = QHBoxLayout(ocr_status_container)
+        ocr_status_layout.setContentsMargins(0, 0, 0, 0)
+        ocr_status_layout.setSpacing(8)
         self._ocr_status_label = QLabel("Loading...")
-        translation_layout.addWidget(self._ocr_status_label, 3, 2)
+        ocr_status_layout.addWidget(self._ocr_status_label)
+        self._ocr_download_btn = QPushButton("Download")
+        self._ocr_download_btn.setFixedWidth(70)
+        self._ocr_download_btn.clicked.connect(self._on_download_ocr)
+        self._ocr_download_btn.setVisible(False)
+        ocr_status_layout.addWidget(self._ocr_download_btn)
+        ocr_status_layout.addStretch()
+        translation_layout.addWidget(ocr_status_container, 3, 2)
 
-        # Translation model row (dropdown)
+        # Translation model row (auto-selected, not editable)
         translation_layout.addWidget(QLabel("Model:"), 4, 0)
-        self._translation_model_combo = QComboBox()
-        self._populate_translation_models()
-        self._translation_model_combo.currentIndexChanged.connect(self._on_translation_model_changed)
-        translation_layout.addWidget(self._translation_model_combo, 4, 1)
-        self._translation_status_label = QLabel("Loading...")
-        translation_layout.addWidget(self._translation_status_label, 4, 2)
+        self._translation_name_label = QLabel()
+        self._update_translation_label()
+        translation_layout.addWidget(self._translation_name_label, 4, 1)
 
-        # Fix Models button (hidden by default)
+        # Translation status + download button container
+        trans_status_container = QWidget()
+        trans_status_layout = QHBoxLayout(trans_status_container)
+        trans_status_layout.setContentsMargins(0, 0, 0, 0)
+        trans_status_layout.setSpacing(8)
+        self._translation_status_label = QLabel("Loading...")
+        trans_status_layout.addWidget(self._translation_status_label)
+        self._translation_download_btn = QPushButton("Download")
+        self._translation_download_btn.setFixedWidth(70)
+        self._translation_download_btn.clicked.connect(self._on_download_translation)
+        self._translation_download_btn.setVisible(False)
+        trans_status_layout.addWidget(self._translation_download_btn)
+        trans_status_layout.addStretch()
+        translation_layout.addWidget(trans_status_container, 4, 2)
+
+        # Fix Models button (hidden by default, shown when models fail to load)
         self._fix_models_btn = QPushButton("Fix Models")
         self._fix_models_btn.clicked.connect(self._on_fix_models)
         self._fix_models_btn.setVisible(False)
         translation_layout.addWidget(self._fix_models_btn, 5, 0, 1, 3, Qt.AlignRight)
 
-        # Set column stretch
+        # Set column widths
+        translation_layout.setColumnMinimumWidth(0, 60)
         translation_layout.setColumnStretch(1, 1)
 
-        layout.addWidget(translation_group)
+        left_column.addWidget(translation_group)
 
         # macOS Permissions Section (only shown on macOS)
         if is_macos():
-            self._setup_permissions_ui(layout)
+            self._setup_permissions_ui(left_column)
 
         # Window Selection
         window_group = QGroupBox("Window Selection")
@@ -232,7 +283,7 @@ class MainWindow(QMainWindow):
             self._select_window_btn = None
             self._stop_btn = None
 
-        layout.addWidget(window_group)
+        left_column.addWidget(window_group)
 
         # Overlay Settings
         overlay_group = QGroupBox("Overlay Settings")
@@ -327,14 +378,25 @@ class MainWindow(QMainWindow):
         self._mode_switch_hotkey = self._qt_key_to_key(mode_switch_str)
         self.mode_switch_pressed.connect(self._toggle_mode)
 
-        layout.addWidget(overlay_group)
+        left_column.addWidget(overlay_group)
+
+        # Add stretch to push content to top of left column
+        left_column.addStretch()
+
+        # === RIGHT COLUMN ===
 
         # Settings
         settings_group = QGroupBox("Settings")
         settings_layout = QGridLayout(settings_group)
 
+        # Helper to create labels with fixed minimum width
+        def settings_label(text: str) -> QLabel:
+            label = QLabel(text)
+            label.setMinimumWidth(110)
+            return label
+
         # OCR Confidence
-        settings_layout.addWidget(QLabel("OCR Confidence:"), 0, 0)
+        settings_layout.addWidget(settings_label("OCR Confidence:"), 0, 0)
         self._confidence_slider = QSlider(Qt.Orientation.Horizontal)
         self._confidence_slider.setRange(0, 100)
         self._confidence_slider.setValue(int(self._config.ocr_confidence * 100))
@@ -344,7 +406,7 @@ class MainWindow(QMainWindow):
         settings_layout.addWidget(self._confidence_label, 0, 2)
 
         # Font size
-        settings_layout.addWidget(QLabel("Font Size:"), 1, 0)
+        settings_layout.addWidget(settings_label("Font Size:"), 1, 0)
         self._font_slider = QSlider(Qt.Orientation.Horizontal)
         self._font_slider.setRange(MIN_FONT_SIZE, MAX_FONT_SIZE)
         self._font_slider.setValue(self._config.font_size)
@@ -354,26 +416,26 @@ class MainWindow(QMainWindow):
         settings_layout.addWidget(self._font_label, 1, 2)
 
         # Font family
-        settings_layout.addWidget(QLabel("Font:"), 2, 0)
+        settings_layout.addWidget(settings_label("Font:"), 2, 0)
         self._font_family_btn = QPushButton(self._config.font_family or "System Default")
         self._font_family_btn.clicked.connect(self._pick_font_family)
         settings_layout.addWidget(self._font_family_btn, 2, 1)
 
         # Colors
-        settings_layout.addWidget(QLabel("Font Color:"), 3, 0)
+        settings_layout.addWidget(settings_label("Font Color:"), 3, 0)
         self._font_color_btn = QPushButton()
         self._font_color_btn.setStyleSheet(f"background-color: {self._config.font_color};")
         self._font_color_btn.clicked.connect(self._pick_font_color)
         settings_layout.addWidget(self._font_color_btn, 3, 1)
 
-        settings_layout.addWidget(QLabel("Background:"), 4, 0)
+        settings_layout.addWidget(settings_label("Background:"), 4, 0)
         self._bg_color_btn = QPushButton()
         self._bg_color_btn.setStyleSheet(f"background-color: {self._config.background_color};")
         self._bg_color_btn.clicked.connect(self._pick_bg_color)
         settings_layout.addWidget(self._bg_color_btn, 4, 1)
 
         # Opacity
-        settings_layout.addWidget(QLabel("Opacity:"), 5, 0)
+        settings_layout.addWidget(settings_label("Opacity:"), 5, 0)
         self._opacity_slider = QSlider(Qt.Orientation.Horizontal)
         self._opacity_slider.setRange(0, 100)
         self._opacity_slider.setValue(int(self._config.background_opacity * 100))
@@ -382,24 +444,28 @@ class MainWindow(QMainWindow):
         self._opacity_label = QLabel(f"{int(self._config.background_opacity * 100)}%")
         settings_layout.addWidget(self._opacity_label, 5, 2)
 
-        layout.addWidget(settings_group)
+        # Set column widths - ensure labels aren't truncated
+        settings_layout.setColumnMinimumWidth(0, 110)
+        settings_layout.setColumnStretch(1, 1)
+
+        right_column.addWidget(settings_group)
 
         # Preview
         preview_group = QGroupBox("Preview")
         preview_layout = QVBoxLayout(preview_group)
 
         self._preview_label = QLabel()
-        self._preview_label.setFixedSize(320, 240)
+        self._preview_label.setMinimumSize(280, 210)
         self._preview_label.setFrameStyle(QFrame.Shape.Box)
         self._preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._preview_label.setText("No preview")
         self._preview_label.setStyleSheet("background-color: #2a2a2a; color: #888;")
         preview_layout.addWidget(self._preview_label)
 
-        layout.addWidget(preview_group)
+        right_column.addWidget(preview_group)
 
-        # Stretch at bottom
-        layout.addStretch()
+        # Add stretch to push content to top of right column
+        right_column.addStretch()
 
         # Status bar
         self.statusBar().showMessage("Idle")
@@ -489,17 +555,71 @@ class MainWindow(QMainWindow):
             self._source_language
         )
 
-        # Get translation backend for language pair
-        if self._selected_translation_model_id:
-            # User selected a specific model
-            self._translation_backend_class = self._registry.get_translation_backend_by_id(
-                self._selected_translation_model_id
-            )
+        # Get translation backend for language pair (auto-selected)
+        self._translation_backend_class = self._registry.get_default_translation_backend_for_pair(
+            self._source_language, self._target_language
+        )
+
+    def _check_models_installed(self) -> tuple[bool, bool]:
+        """Check if selected OCR and translation models are installed.
+
+        Returns:
+            Tuple of (ocr_installed, translation_installed)
+        """
+        from ..backends.ocr.easyocr import EasyOCRBackend
+        from ..backends.ocr.paddleocr_backend import PaddleOCRBackend
+
+        ocr_installed = True
+        translation_installed = True
+
+        if self._ocr_backend_class:
+            ocr_info = self._ocr_backend_class.get_info()
+            # Special handling for EasyOCR - check language-specific models
+            if ocr_info.id == "easyocr":
+                ocr_installed = EasyOCRBackend.is_model_installed(self._source_language)
+            elif ocr_info.id == "paddleocr":
+                ocr_installed = PaddleOCRBackend.is_model_installed(self._source_language)
+            else:
+                ocr_installed = self._model_manager.is_installed(ocr_info)
+
+        if self._translation_backend_class:
+            translation_info = self._translation_backend_class.get_info()
+            translation_installed = self._model_manager.is_installed(translation_info)
+
+        return ocr_installed, translation_installed
+
+    def _update_model_status_ui(self):
+        """Update model status labels and buttons based on installation state."""
+        ocr_installed, translation_installed = self._check_models_installed()
+
+        # Update OCR status and download button
+        if ocr_installed:
+            self._ocr_status_label.setText("Ready")
+            self._ocr_status_label.setStyleSheet("color: green;")
+            self._ocr_download_btn.setVisible(False)
         else:
-            # Use default for this language pair
-            self._translation_backend_class = self._registry.get_default_translation_backend_for_pair(
-                self._source_language, self._target_language
-            )
+            self._ocr_status_label.setText("Not installed")
+            self._ocr_status_label.setStyleSheet("color: orange;")
+            self._ocr_download_btn.setVisible(True)
+
+        # Update translation status and download button
+        if translation_installed:
+            self._translation_status_label.setText("Ready")
+            self._translation_status_label.setStyleSheet("color: green;")
+            self._translation_download_btn.setVisible(False)
+        else:
+            self._translation_status_label.setText("Not installed")
+            self._translation_status_label.setStyleSheet("color: orange;")
+            self._translation_download_btn.setVisible(True)
+
+        # Enable/disable capture buttons based on installation
+        all_installed = ocr_installed and translation_installed
+        if self._start_btn:
+            self._start_btn.setEnabled(all_installed)
+        if self._select_window_btn:
+            self._select_window_btn.setEnabled(all_installed)
+
+        return all_installed
 
     def _populate_source_languages(self):
         """Populate the source language dropdown."""
@@ -545,33 +665,17 @@ class MainWindow(QMainWindow):
 
         self._target_lang_combo.blockSignals(False)
 
-    def _populate_translation_models(self):
-        """Populate the translation model dropdown based on language pair."""
-        self._translation_model_combo.blockSignals(True)
-        self._translation_model_combo.clear()
-
-        # Get available translation backends for current language pair
+    def _update_translation_label(self):
+        """Update the translation model name label based on language pair."""
         backends = self._registry.get_translation_backends_for_pair(
             self._source_language, self._target_language
         )
 
-        for info in backends:
-            # Show installed status
-            installed = self._model_manager.is_installed(info)
-            suffix = "" if installed else " (not installed)"
-            display_name = info.name + suffix
-            self._translation_model_combo.addItem(display_name, info.id)
-
-        # Select current model if set, otherwise use default (first item)
-        if self._selected_translation_model_id:
-            for i in range(self._translation_model_combo.count()):
-                if self._translation_model_combo.itemData(i) == self._selected_translation_model_id:
-                    self._translation_model_combo.setCurrentIndex(i)
-                    break
-        elif self._translation_model_combo.count() > 0:
-            self._translation_model_combo.setCurrentIndex(0)
-
-        self._translation_model_combo.blockSignals(False)
+        if backends:
+            # Use the first (default) backend
+            self._translation_name_label.setText(backends[0].name)
+        else:
+            self._translation_name_label.setText("None available")
 
     def _update_ocr_label(self):
         """Update the OCR name label based on source language."""
@@ -599,17 +703,18 @@ class MainWindow(QMainWindow):
         # Update OCR label
         self._update_ocr_label()
 
-        # Update translation models
-        self._selected_translation_model_id = None  # Reset to default
-        self._populate_translation_models()
+        # Update translation label
+        self._update_translation_label()
 
         # Update backend selection
         self._update_backend_selection()
 
+        # Update model status UI (check installation)
+        self._update_model_status_ui()
+
         # Save to config
         self._config.source_language = self._source_language.value
         self._config.target_language = self._target_language.value
-        self._config.translation_model = None
         self._config.save()
 
         logger.debug(
@@ -626,16 +731,17 @@ class MainWindow(QMainWindow):
         lang_value = self._target_lang_combo.itemData(index)
         self._target_language = Language(lang_value)
 
-        # Update translation models (available models may change)
-        self._selected_translation_model_id = None  # Reset to default
-        self._populate_translation_models()
+        # Update translation label
+        self._update_translation_label()
 
         # Update backend selection
         self._update_backend_selection()
 
+        # Update model status UI (check installation)
+        self._update_model_status_ui()
+
         # Save to config
         self._config.target_language = self._target_language.value
-        self._config.translation_model = None
         self._config.save()
 
         logger.debug(
@@ -644,38 +750,33 @@ class MainWindow(QMainWindow):
             target=self._target_language.value,
         )
 
-    def _on_translation_model_changed(self, index: int):
-        """Handle translation model selection change."""
-        if index < 0:
-            return
-
-        model_id = self._translation_model_combo.itemData(index)
-        self._selected_translation_model_id = model_id
-
-        # Update backend selection
-        self._update_backend_selection()
-
-        # Save to config
-        self._config.translation_model = model_id
-        self._config.save()
-
-        logger.debug("translation model changed", model=model_id)
-
     # --- Model Loading Methods ---
 
     def _load_models(self):
         """Start worker thread and load OCR/translation models."""
+        # Check if models are installed first
+        all_installed = self._update_model_status_ui()
+
+        if not all_installed:
+            # Models not installed - don't start worker, wait for user to click Download
+            self.statusBar().showMessage("Some models not installed - click Download to install")
+            return
+
+        # Set both status labels to Loading before worker starts
+        # (OCR loads first, translation loads after OCR finishes)
+        self._ocr_status_label.setText("Loading...")
+        self._ocr_status_label.setStyleSheet("")
+        self._translation_status_label.setText("Pending...")
+        self._translation_status_label.setStyleSheet("color: gray;")
+
         self.statusBar().showMessage("Loading models...")
         self._process_worker.set_mode(self._mode)
         self._process_worker.start(self._config.ocr_confidence)
 
     def _on_models_ready(self):
         """Handle models loaded signal from worker thread."""
-        # Enable the appropriate capture button
-        if self._start_btn:
-            self._start_btn.setEnabled(True)
-        if self._select_window_btn:
-            self._select_window_btn.setEnabled(True)
+        # Update UI to reflect installed state
+        self._update_model_status_ui()
         self.statusBar().showMessage("Ready")
         logger.debug("models loaded")
 
@@ -686,6 +787,7 @@ class MainWindow(QMainWindow):
             self._start_btn.setEnabled(False)
         if self._select_window_btn:
             self._select_window_btn.setEnabled(False)
+        # Show fix button for repair
         self._fix_models_btn.setVisible(True)
         self.statusBar().showMessage(f"Model loading failed: {error[:100]}")
         logger.error("model loading failed", error=error)
@@ -756,9 +858,73 @@ class MainWindow(QMainWindow):
         self._process_worker = ProcessWorker(
             ocr_backend=self._ocr_backend_class,
             translation_backend=self._translation_backend_class,
+            source_language=self._source_language,
         )
         self._process_worker.text_ready.connect(self._on_text_ready)
         self._process_worker.regions_ready.connect(self._on_regions_ready)
+        self._process_worker.preview_ready.connect(self._on_preview_ready)
+        self._process_worker.models_ready.connect(self._on_models_ready)
+        self._process_worker.models_failed.connect(self._on_models_failed)
+        self._process_worker.ocr_status.connect(self._on_ocr_status)
+        self._process_worker.translation_status.connect(self._on_translation_status)
+        self._process_worker.set_mode(self._mode)
+        self._process_worker.start(self._config.ocr_confidence)
+
+    def _on_download_ocr(self):
+        """Handle OCR Download button click."""
+        self._fixing_ocr = True
+        self._fixing_translation = False
+
+        # Hide the download button and show downloading status
+        self._ocr_download_btn.setVisible(False)
+        self._ocr_status_label.setText("Downloading...")
+        self._ocr_status_label.setStyleSheet("")
+
+        self.statusBar().showMessage("Downloading OCR model...")
+
+        # Stop any existing worker and start a new one that will download the OCR model only
+        self._process_worker.stop()
+        self._process_worker = ProcessWorker(
+            ocr_backend=self._ocr_backend_class,
+            translation_backend=self._translation_backend_class,
+            load_ocr=True,
+            load_translation=False,
+            source_language=self._source_language,
+        )
+        self._process_worker.text_ready.connect(self._on_text_ready)
+        self._process_worker.regions_ready.connect(self._on_regions_ready)
+        self._process_worker.preview_ready.connect(self._on_preview_ready)
+        self._process_worker.models_ready.connect(self._on_models_ready)
+        self._process_worker.models_failed.connect(self._on_models_failed)
+        self._process_worker.ocr_status.connect(self._on_ocr_status)
+        self._process_worker.translation_status.connect(self._on_translation_status)
+        self._process_worker.set_mode(self._mode)
+        self._process_worker.start(self._config.ocr_confidence)
+
+    def _on_download_translation(self):
+        """Handle Translation Download button click."""
+        self._fixing_ocr = False
+        self._fixing_translation = True
+
+        # Hide the download button and show downloading status
+        self._translation_download_btn.setVisible(False)
+        self._translation_status_label.setText("Downloading...")
+        self._translation_status_label.setStyleSheet("")
+
+        self.statusBar().showMessage("Downloading translation model...")
+
+        # Stop any existing worker and start a new one that will download the translation model only
+        self._process_worker.stop()
+        self._process_worker = ProcessWorker(
+            ocr_backend=self._ocr_backend_class,
+            translation_backend=self._translation_backend_class,
+            load_ocr=False,
+            load_translation=True,
+            source_language=self._source_language,
+        )
+        self._process_worker.text_ready.connect(self._on_text_ready)
+        self._process_worker.regions_ready.connect(self._on_regions_ready)
+        self._process_worker.preview_ready.connect(self._on_preview_ready)
         self._process_worker.models_ready.connect(self._on_models_ready)
         self._process_worker.models_failed.connect(self._on_models_failed)
         self._process_worker.ocr_status.connect(self._on_ocr_status)
@@ -1119,7 +1285,7 @@ class MainWindow(QMainWindow):
             self._inplace_overlay.show()
 
     def _capture_and_process(self):
-        """Capture a frame and process it through OCR and translation."""
+        """Capture a frame and submit for OCR/translation processing."""
         if not self._capture:
             return
 
@@ -1141,21 +1307,24 @@ class MainWindow(QMainWindow):
         self._last_frame = frame
         self._last_bounds = bounds
 
-        # Update preview (convert BGRA numpy to PIL RGB for thumbnail)
-        preview = bgra_to_rgb_pil(frame)
-        preview.thumbnail((320, 240))
-        data = preview.tobytes("raw", "RGB")
-        qimg = QImage(data, preview.width, preview.height, preview.width * 3, QImage.Format.Format_RGB888)
-        pixmap = QPixmap.fromImage(qimg)
-        self._preview_label.setPixmap(pixmap)
-
         # Update inplace overlay position if window moved (X11 only - Wayland doesn't have bounds)
         if self._mode == OverlayMode.INPLACE and bounds and not self._paused:
             self._inplace_overlay.position_over_window(bounds)
 
         # Process through OCR and translation (on worker thread)
+        # Preview generation is also done in worker thread to avoid GIL contention
         if not self._paused:
             self._process_worker.submit_frame(frame)
+
+    def _on_preview_ready(self, data: bytes, width: int, height: int):
+        """Handle preview thumbnail from worker thread."""
+        import time
+        t0 = time.perf_counter()
+        qimg = QImage(data, width, height, width * 3, QImage.Format.Format_RGB888)
+        pixmap = QPixmap.fromImage(qimg)
+        self._preview_label.setPixmap(pixmap)
+        t1 = time.perf_counter()
+        logger.debug("preview displayed", width=width, height=height, display_ms=int((t1 - t0) * 1000))
 
     def _on_text_ready(self, translated: str):
         """Handle translated text (banner mode)."""
@@ -1228,6 +1397,16 @@ class MainWindow(QMainWindow):
     def get_banner_position(self) -> tuple[int, int]:
         """Get current banner overlay position."""
         return self._banner_overlay.get_position()
+
+    def showEvent(self, event):
+        """Log window geometry when shown."""
+        super().showEvent(event)
+        logger.debug(
+            "window shown",
+            size=(self.width(), self.height()),
+            geometry=f"{self.geometry().x()},{self.geometry().y()} {self.geometry().width()}x{self.geometry().height()}",
+            min_size=(self.minimumWidth(), self.minimumHeight()),
+        )
 
     def cleanup(self):
         """Clean up resources before closing."""

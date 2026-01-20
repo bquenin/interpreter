@@ -1,13 +1,18 @@
 """Background workers for OCR and translation."""
 
+import hashlib
 import threading
 import time
+
+import cv2
 
 from PySide6.QtCore import QObject, Signal
 
 from .. import log
-from ..backends.base import OCRBackend, TranslationBackend
+from ..backends.base import Language, OCRBackend, TranslationBackend
 from ..backends.ocr.meiki import MeikiOCRBackend
+from ..backends.ocr.ocr_process import OCRProcess
+from ..backends.ocr.paddleocr_backend import PaddleOCRBackend
 from ..backends.translation.sugoi import SugoiTranslationBackend
 from ..config import OverlayMode
 
@@ -30,6 +35,26 @@ def contains_japanese(text: str) -> bool:
         ):
             return True
     return False
+
+
+def compute_frame_hash(frame, thumb_size: int = 32) -> str:
+    """Compute a hash of a frame for duplicate detection.
+
+    Downsamples the frame to a small thumbnail before hashing to:
+    - Make hashing fast
+    - Be slightly tolerant to minor variations (compression artifacts, etc.)
+
+    Args:
+        frame: numpy array (H, W, 4) in BGRA format
+        thumb_size: size to downsample to before hashing
+
+    Returns:
+        MD5 hash string of the downsampled frame
+    """
+    # Downsample to small thumbnail (fast and tolerant to minor changes)
+    thumb = cv2.resize(frame, (thumb_size, thumb_size), interpolation=cv2.INTER_AREA)
+    # Hash the thumbnail bytes
+    return hashlib.md5(thumb.tobytes()).hexdigest()
 
 
 class FrameBuffer:
@@ -80,6 +105,9 @@ class ProcessWorker(QObject):
     # Inplace mode: list of (text, bbox) regions
     regions_ready = Signal(list)
 
+    # Preview thumbnail ready (bytes, width, height)
+    preview_ready = Signal(bytes, int, int)
+
     # Emitted when models are loaded and ready
     models_ready = Signal()
 
@@ -94,12 +122,18 @@ class ProcessWorker(QObject):
         self,
         ocr_backend: type[OCRBackend] | None = None,
         translation_backend: type[TranslationBackend] | None = None,
+        load_ocr: bool = True,
+        load_translation: bool = True,
+        source_language: Language = Language.JAPANESE,
     ):
         """Initialize the process worker.
 
         Args:
             ocr_backend: OCR backend class to use. Defaults to MeikiOCRBackend.
             translation_backend: Translation backend class to use. Defaults to SugoiTranslationBackend.
+            load_ocr: Whether to load the OCR model. Default True.
+            load_translation: Whether to load the translation model. Default True.
+            source_language: Source language for translation. Default Japanese.
         """
         super().__init__()
 
@@ -107,9 +141,21 @@ class ProcessWorker(QObject):
         self._ocr_backend_class = ocr_backend or MeikiOCRBackend
         self._translation_backend_class = translation_backend or SugoiTranslationBackend
 
+        # Flags for selective model loading
+        self._load_ocr = load_ocr
+        self._load_translation = load_translation
+
+        # Source language for skipping non-matching text
+        self._source_language = source_language
+
         # Backend instances (created in worker thread)
         self._ocr: OCRBackend | None = None
         self._translator: TranslationBackend | None = None
+
+        # Multiprocessing for PaddleOCR (holds GIL during inference)
+        self._ocr_process: OCRProcess | None = None
+        self._use_multiprocessing = False
+        self._request_id = 0
 
         self._mode = OverlayMode.BANNER
         self._confidence_threshold = 0.6
@@ -121,6 +167,12 @@ class ProcessWorker(QObject):
         # Threading
         self._frame_buffer = FrameBuffer()
         self._thread: threading.Thread | None = None
+
+        # Frame hash cache - skip OCR if frame unchanged
+        self._last_frame_hash: str | None = None
+        self._last_ocr_text: str = ""
+        self._last_translated_text: str = ""
+        self._last_regions: list = []
         self._running = False
 
         # Translation cache for tracking cache hits (backends handle actual caching)
@@ -169,6 +221,11 @@ class ProcessWorker(QObject):
         self._frame_buffer.close()
         self._thread = None
 
+        # Stop OCR process if using multiprocessing
+        if self._ocr_process:
+            self._ocr_process.stop()
+            self._ocr_process = None
+
     def submit_frame(self, frame):
         """Send a frame for processing (non-blocking)."""
         if self._running:
@@ -191,37 +248,57 @@ class ProcessWorker(QObject):
         """Worker thread main loop."""
         logger.debug("worker thread starting")
 
-        # Load OCR model
-        self.ocr_status.emit("loading")
-        try:
-            self._ocr = self._ocr_backend_class(confidence_threshold=self._confidence_threshold)
-            self._ocr.load()
-            self._ocr_failed = False
-            self.ocr_status.emit("ready")
-            logger.debug("OCR model loaded", backend=self._ocr_backend_class.__name__)
-        except Exception as e:
-            self._ocr_failed = True
-            self.ocr_status.emit("error")
-            logger.error("failed to load OCR model", error=str(e))
+        # Load OCR model (if requested)
+        if self._load_ocr:
+            self.ocr_status.emit("loading")
+            try:
+                # Check if this is PaddleOCR - use multiprocessing to avoid GIL issues
+                # PaddlePaddle holds the GIL during inference, causing UI lag
+                if issubclass(self._ocr_backend_class, PaddleOCRBackend):
+                    logger.info("using multiprocessing for PaddleOCR")
+                    self._use_multiprocessing = True
+                    self._ocr_process = OCRProcess(
+                        self._ocr_backend_class,
+                        self._source_language,
+                        self._confidence_threshold,
+                    )
+                    if not self._ocr_process.start():
+                        raise RuntimeError("Failed to start OCR process")
+                    self._ocr_failed = False
+                else:
+                    # Regular in-process OCR for other backends
+                    self._use_multiprocessing = False
+                    self._ocr = self._ocr_backend_class(confidence_threshold=self._confidence_threshold)
+                    self._ocr.load()
+                    self._ocr_failed = False
+                self.ocr_status.emit("ready")
+                logger.debug("OCR model loaded", backend=self._ocr_backend_class.__name__)
+            except Exception as e:
+                self._ocr_failed = True
+                self.ocr_status.emit("error")
+                logger.error("failed to load OCR model", error=str(e))
 
-        # Load translation model
-        self.translation_status.emit("loading")
-        try:
-            self._translator = self._translation_backend_class()
-            self._translator.load()
-            self._translation_failed = False
-            self.translation_status.emit("ready")
-            logger.debug("translation model loaded", backend=self._translation_backend_class.__name__)
-        except Exception as e:
-            self._translation_failed = True
-            self.translation_status.emit("error")
-            logger.error("failed to load translation model", error=str(e))
+        # Load translation model (if requested)
+        if self._load_translation:
+            self.translation_status.emit("loading")
+            try:
+                self._translator = self._translation_backend_class()
+                self._translator.load()
+                self._translation_failed = False
+                self.translation_status.emit("ready")
+                logger.debug("translation model loaded", backend=self._translation_backend_class.__name__)
+            except Exception as e:
+                self._translation_failed = True
+                self.translation_status.emit("error")
+                logger.error("failed to load translation model", error=str(e))
 
-        # Emit overall status
-        if self._ocr_failed or self._translation_failed:
-            self.models_failed.emit("One or more models failed to load")
-        else:
+        # Emit overall status based on what was requested to load
+        ocr_ok = not self._load_ocr or not self._ocr_failed
+        translation_ok = not self._load_translation or not self._translation_failed
+        if ocr_ok and translation_ok:
             self.models_ready.emit()
+        else:
+            self.models_failed.emit("One or more models failed to load")
 
         # Only process frames if both models loaded successfully
         if not self._ocr_failed and not self._translation_failed:
@@ -234,7 +311,9 @@ class ProcessWorker(QObject):
 
     def _process_frame(self, frame):
         """Process a frame through OCR and translation."""
-        if self._ocr is None:
+        if not self._use_multiprocessing and self._ocr is None:
+            return
+        if self._use_multiprocessing and self._ocr_process is None:
             return
 
         frame_start = time.perf_counter()
@@ -242,19 +321,59 @@ class ProcessWorker(QObject):
         translate_ms = 0
         was_cached = False
 
-        # Update OCR threshold
-        self._ocr.confidence_threshold = self._confidence_threshold
+        # Generate preview thumbnail first (runs in worker thread, no GIL contention with main)
+        self._generate_preview(frame)
 
-        # OCR
+        # Check if frame is identical to last one (skip OCR if unchanged)
+        frame_hash = compute_frame_hash(frame)
+        if frame_hash == self._last_frame_hash:
+            # Frame unchanged - reuse cached results
+            logger.debug("frame unchanged, skipping OCR")
+            if self._mode == OverlayMode.INPLACE:
+                self.regions_ready.emit(self._last_regions)
+            else:
+                self.text_ready.emit(self._last_translated_text)
+            return
+
+        # OCR - either via multiprocessing or direct
         try:
             ocr_start = time.perf_counter()
-            if self._mode == OverlayMode.INPLACE:
-                regions = self._ocr.extract_text_regions(frame)
-                text = " ".join(r.text for r in regions if r.text)
+            mode = "regions" if self._mode == OverlayMode.INPLACE else "text"
+
+            if self._use_multiprocessing:
+                # Submit to OCR process and wait for result
+                self._request_id += 1
+                self._ocr_process.submit_frame(frame, self._request_id, mode)
+                result = self._ocr_process.get_result(timeout=10.0)
+
+                if result is None:
+                    logger.warning("OCR timeout")
+                    return
+
+                ocr_result, req_id, result_ocr_ms = result
+
+                # Check for error
+                if isinstance(ocr_result, str) and ocr_result.startswith("error:"):
+                    logger.error("OCR process error", error=ocr_result)
+                    return
+
+                if mode == "regions":
+                    regions = ocr_result
+                    text = " ".join(r.text for r in regions if r.text)
+                else:
+                    text = ocr_result
+                    regions = []
+                ocr_ms = result_ocr_ms
             else:
-                text = self._ocr.extract_text(frame)
-                regions = []
-            ocr_ms = int((time.perf_counter() - ocr_start) * 1000)
+                # Direct backend call (for non-PaddleOCR backends)
+                self._ocr.confidence_threshold = self._confidence_threshold
+                if mode == "regions":
+                    regions = self._ocr.extract_text_regions(frame)
+                    text = " ".join(r.text for r in regions if r.text)
+                else:
+                    text = self._ocr.extract_text(frame)
+                    regions = []
+                ocr_ms = int((time.perf_counter() - ocr_start) * 1000)
         except Exception as e:
             logger.error("OCR error", error=str(e))
             return
@@ -266,11 +385,12 @@ class ProcessWorker(QObject):
                 self.text_ready.emit("")
             return
 
-        # Skip translation for non-Japanese text (banner mode)
-        if self._mode != OverlayMode.INPLACE and not contains_japanese(text):
-            logger.debug("skipping translation - no Japanese characters detected")
-            self.text_ready.emit("")
-            return
+        # Skip translation for non-Japanese text when source is Japanese (banner mode)
+        if self._source_language == Language.JAPANESE:
+            if self._mode != OverlayMode.INPLACE and not contains_japanese(text):
+                logger.debug("skipping translation - no Japanese characters detected")
+                self.text_ready.emit("")
+                return
 
         # Translation
         translate_start = time.perf_counter()
@@ -279,8 +399,8 @@ class ProcessWorker(QObject):
             all_cached = True
             for region in regions:
                 if self._translator and region.text:
-                    # Skip non-Japanese regions
-                    if not contains_japanese(region.text):
+                    # Skip non-Japanese regions when source is Japanese
+                    if self._source_language == Language.JAPANESE and not contains_japanese(region.text):
                         logger.debug(
                             "skipping region - no Japanese characters",
                             text=region.text[:30],
@@ -295,6 +415,7 @@ class ProcessWorker(QObject):
                             translated = self._translator.translate(region.text)
                             self._last_translations[region.text] = translated
                             all_cached = False
+                        logger.debug("region translated", ocr=region.text[:50], translated=translated[:50])
                     except Exception as e:
                         logger.warning("Translation error", error=str(e), text=region.text[:50])
                         translated = region.text
@@ -305,23 +426,41 @@ class ProcessWorker(QObject):
             translate_ms = int((time.perf_counter() - translate_start) * 1000)
             was_cached = all_cached and len(translated_regions) > 0
 
+            # Cache for frame hash comparison
+            self._last_regions = translated_regions
+            self._last_frame_hash = frame_hash
+
             self.regions_ready.emit(translated_regions)
         else:
+            logger.debug("OCR text", text=text[:100] if text else "")
             if self._translator:
                 try:
+                    # Skip translation for very short text to avoid hallucinations
+                    # (e.g., single letter "C" -> "Annex C of EU regulation...")
+                    if len(text.strip()) < 3:
+                        logger.debug("text too short for translation", length=len(text.strip()))
+                        translated = text
+                        was_cached = True  # Treat as cached to avoid logging
                     # Check our local cache first
-                    was_cached = text in self._last_translations
-                    if was_cached:
+                    elif text in self._last_translations:
                         translated = self._last_translations[text]
+                        was_cached = True
                     else:
                         translated = self._translator.translate(text)
                         self._last_translations[text] = translated
+                        was_cached = False
+                    logger.debug("translated text", translated=translated[:100] if translated else "")
                 except Exception as e:
                     logger.warning("Translation error", error=str(e), text=text[:50])
                     translated = f"[{text}]"
             else:
                 translated = text
             translate_ms = int((time.perf_counter() - translate_start) * 1000)
+
+            # Cache for frame hash comparison
+            self._last_ocr_text = text
+            self._last_translated_text = translated
+            self._last_frame_hash = frame_hash
 
             self.text_ready.emit(translated)
 
@@ -340,3 +479,36 @@ class ProcessWorker(QObject):
             keys = list(self._last_translations.keys())
             for key in keys[:100]:
                 del self._last_translations[key]
+
+    def _generate_preview(self, frame):
+        """Generate preview thumbnail and emit to main thread.
+
+        Runs in worker thread to avoid GIL contention with main thread.
+        """
+        import cv2
+
+        preview_start = time.perf_counter()
+
+        h, w = frame.shape[:2]
+        max_w, max_h = 320, 240
+
+        # Calculate scale to fit within max_size while preserving aspect ratio
+        scale = min(max_w / w, max_h / h)
+        if scale < 1.0:
+            new_w = int(w * scale)
+            new_h = int(h * scale)
+            # Resize with cv2 (fast) - use INTER_AREA for downscaling
+            frame = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_AREA)
+
+        # Convert BGRA to RGB
+        rgb = frame[:, :, [2, 1, 0]]
+
+        # Get dimensions and raw bytes
+        h, w = rgb.shape[:2]
+        data = rgb.tobytes()
+
+        preview_ms = int((time.perf_counter() - preview_start) * 1000)
+        logger.debug("preview generated", width=w, height=h, preview_ms=preview_ms)
+
+        # Emit to main thread
+        self.preview_ready.emit(data, w, h)
