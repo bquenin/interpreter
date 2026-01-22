@@ -17,7 +17,12 @@ __pycache__/
 venv/
 ENV/
 .ruff_cache/
+
+# Testing
 .pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
 
 # IDE
 .idea/
