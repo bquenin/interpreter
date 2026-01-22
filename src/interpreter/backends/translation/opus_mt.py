@@ -20,9 +20,19 @@ logger = log.get_logger()
 
 # Helsinki-NLP OPUS-MT models on HuggingFace
 # Format: (source, target) -> repo_id
+# License: CC-BY 4.0 / Apache 2.0 (permissive, attribution required)
 OPUS_MT_MODELS = {
-    # Japanese pairs
+    # Japanese to other languages
+    # Note: JA->EN exists but Sugoi is preferred for game/manga text
     (Language.JAPANESE, Language.ENGLISH): "Helsinki-NLP/opus-mt-ja-en",
+    (Language.JAPANESE, Language.FRENCH): "Helsinki-NLP/opus-mt-ja-fr",
+    (Language.JAPANESE, Language.GERMAN): "Helsinki-NLP/opus-mt-ja-de",
+    (Language.JAPANESE, Language.SPANISH): "Helsinki-NLP/opus-mt-ja-es",
+    (Language.JAPANESE, Language.ITALIAN): "Helsinki-NLP/opus-mt-ja-it",
+    (Language.JAPANESE, Language.PORTUGUESE): "Helsinki-NLP/opus-mt-ja-pt",
+    (Language.JAPANESE, Language.DUTCH): "Helsinki-NLP/opus-mt-ja-nl",
+    (Language.JAPANESE, Language.POLISH): "Helsinki-NLP/opus-mt-ja-pl",
+    (Language.JAPANESE, Language.RUSSIAN): "Helsinki-NLP/opus-mt-ja-ru",
     # English to other languages
     (Language.ENGLISH, Language.FRENCH): "Helsinki-NLP/opus-mt-en-fr",
     (Language.ENGLISH, Language.GERMAN): "Helsinki-NLP/opus-mt-en-de",
@@ -32,7 +42,7 @@ OPUS_MT_MODELS = {
     (Language.ENGLISH, Language.DUTCH): "Helsinki-NLP/opus-mt-en-nl",
     (Language.ENGLISH, Language.POLISH): "Helsinki-NLP/opus-mt-en-pl",
     (Language.ENGLISH, Language.RUSSIAN): "Helsinki-NLP/opus-mt-en-ru",
-    # Other language pairs to English
+    # Other languages to English
     (Language.FRENCH, Language.ENGLISH): "Helsinki-NLP/opus-mt-fr-en",
     (Language.GERMAN, Language.ENGLISH): "Helsinki-NLP/opus-mt-de-en",
     (Language.SPANISH, Language.ENGLISH): "Helsinki-NLP/opus-mt-es-en",
