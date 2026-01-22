@@ -1,6 +1,8 @@
 # Binary
 /interpreter
 /interpreter.exe
+dist/
+build/
 
 # Models directory (downloaded on first run)
 models/
