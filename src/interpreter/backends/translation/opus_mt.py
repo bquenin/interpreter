@@ -21,6 +21,7 @@ logger = log.get_logger()
 # Helsinki-NLP OPUS-MT models on HuggingFace
 # Format: (source, target) -> repo_id
 # License: CC-BY 4.0 / Apache 2.0 (permissive, attribution required)
+# Models verified against HuggingFace API - only includes pairs that exist
 OPUS_MT_MODELS = {
     # Japanese to other languages
     # Note: JA->EN exists but Sugoi is preferred for game/manga text
@@ -33,23 +34,57 @@ OPUS_MT_MODELS = {
     (Language.JAPANESE, Language.DUTCH): "Helsinki-NLP/opus-mt-ja-nl",
     (Language.JAPANESE, Language.POLISH): "Helsinki-NLP/opus-mt-ja-pl",
     (Language.JAPANESE, Language.RUSSIAN): "Helsinki-NLP/opus-mt-ja-ru",
+    # Korean to other languages
+    (Language.KOREAN, Language.ENGLISH): "Helsinki-NLP/opus-mt-ko-en",
+    (Language.KOREAN, Language.FRENCH): "Helsinki-NLP/opus-mt-ko-fr",
+    (Language.KOREAN, Language.GERMAN): "Helsinki-NLP/opus-mt-ko-de",
+    (Language.KOREAN, Language.SPANISH): "Helsinki-NLP/opus-mt-ko-es",
+    (Language.KOREAN, Language.RUSSIAN): "Helsinki-NLP/opus-mt-ko-ru",
     # English to other languages
     (Language.ENGLISH, Language.FRENCH): "Helsinki-NLP/opus-mt-en-fr",
     (Language.ENGLISH, Language.GERMAN): "Helsinki-NLP/opus-mt-en-de",
     (Language.ENGLISH, Language.SPANISH): "Helsinki-NLP/opus-mt-en-es",
     (Language.ENGLISH, Language.ITALIAN): "Helsinki-NLP/opus-mt-en-it",
-    (Language.ENGLISH, Language.PORTUGUESE): "Helsinki-NLP/opus-mt-en-pt",
     (Language.ENGLISH, Language.DUTCH): "Helsinki-NLP/opus-mt-en-nl",
-    (Language.ENGLISH, Language.POLISH): "Helsinki-NLP/opus-mt-en-pl",
     (Language.ENGLISH, Language.RUSSIAN): "Helsinki-NLP/opus-mt-en-ru",
-    # Other languages to English
+    (Language.ENGLISH, Language.CHINESE): "Helsinki-NLP/opus-mt-en-zh",
+    # French to other languages
     (Language.FRENCH, Language.ENGLISH): "Helsinki-NLP/opus-mt-fr-en",
+    (Language.FRENCH, Language.GERMAN): "Helsinki-NLP/opus-mt-fr-de",
+    (Language.FRENCH, Language.SPANISH): "Helsinki-NLP/opus-mt-fr-es",
+    (Language.FRENCH, Language.POLISH): "Helsinki-NLP/opus-mt-fr-pl",
+    (Language.FRENCH, Language.RUSSIAN): "Helsinki-NLP/opus-mt-fr-ru",
+    # German to other languages
     (Language.GERMAN, Language.ENGLISH): "Helsinki-NLP/opus-mt-de-en",
+    (Language.GERMAN, Language.FRENCH): "Helsinki-NLP/opus-mt-de-fr",
+    (Language.GERMAN, Language.SPANISH): "Helsinki-NLP/opus-mt-de-es",
+    (Language.GERMAN, Language.ITALIAN): "Helsinki-NLP/opus-mt-de-it",
+    (Language.GERMAN, Language.DUTCH): "Helsinki-NLP/opus-mt-de-nl",
+    (Language.GERMAN, Language.POLISH): "Helsinki-NLP/opus-mt-de-pl",
+    (Language.GERMAN, Language.CHINESE): "Helsinki-NLP/opus-mt-de-zh",
+    # Spanish to other languages
     (Language.SPANISH, Language.ENGLISH): "Helsinki-NLP/opus-mt-es-en",
+    (Language.SPANISH, Language.FRENCH): "Helsinki-NLP/opus-mt-es-fr",
+    (Language.SPANISH, Language.GERMAN): "Helsinki-NLP/opus-mt-es-de",
+    (Language.SPANISH, Language.ITALIAN): "Helsinki-NLP/opus-mt-es-it",
+    (Language.SPANISH, Language.DUTCH): "Helsinki-NLP/opus-mt-es-nl",
+    (Language.SPANISH, Language.POLISH): "Helsinki-NLP/opus-mt-es-pl",
+    (Language.SPANISH, Language.RUSSIAN): "Helsinki-NLP/opus-mt-es-ru",
+    # Italian to other languages
     (Language.ITALIAN, Language.ENGLISH): "Helsinki-NLP/opus-mt-it-en",
-    (Language.PORTUGUESE, Language.ENGLISH): "Helsinki-NLP/opus-mt-pt-en",
+    (Language.ITALIAN, Language.FRENCH): "Helsinki-NLP/opus-mt-it-fr",
+    (Language.ITALIAN, Language.GERMAN): "Helsinki-NLP/opus-mt-it-de",
+    (Language.ITALIAN, Language.SPANISH): "Helsinki-NLP/opus-mt-it-es",
+    # Dutch to other languages
     (Language.DUTCH, Language.ENGLISH): "Helsinki-NLP/opus-mt-nl-en",
+    (Language.DUTCH, Language.FRENCH): "Helsinki-NLP/opus-mt-nl-fr",
+    (Language.DUTCH, Language.SPANISH): "Helsinki-NLP/opus-mt-nl-es",
+    # Polish to other languages
     (Language.POLISH, Language.ENGLISH): "Helsinki-NLP/opus-mt-pl-en",
+    (Language.POLISH, Language.FRENCH): "Helsinki-NLP/opus-mt-pl-fr",
+    (Language.POLISH, Language.GERMAN): "Helsinki-NLP/opus-mt-pl-de",
+    (Language.POLISH, Language.SPANISH): "Helsinki-NLP/opus-mt-pl-es",
+    # Russian to other languages
     (Language.RUSSIAN, Language.ENGLISH): "Helsinki-NLP/opus-mt-ru-en",
 }
 
