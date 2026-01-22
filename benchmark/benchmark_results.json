@@ -1,0 +1,54 @@
+{
+  "detection_phase": [
+    {
+      "det_model": "PP-OCRv3_mobile_det",
+      "det_label": "v3_mobile",
+      "rec_model": "en_PP-OCRv4_mobile_rec",
+      "avg_time_ms": 589.4745401164982,
+      "avg_similarity": 0.8371820108196609,
+      "avg_word_accuracy": 0.9088449674482063
+    },
+    {
+      "det_model": "PP-OCRv3_server_det",
+      "det_label": "v3_server",
+      "rec_model": "en_PP-OCRv4_mobile_rec",
+      "avg_time_ms": 1675.146685969174,
+      "avg_similarity": 0.8322548509572001,
+      "avg_word_accuracy": 0.9230463329504768
+    },
+    {
+      "det_model": "PP-OCRv4_mobile_det",
+      "det_label": "v4_mobile",
+      "rec_model": "en_PP-OCRv4_mobile_rec",
+      "avg_time_ms": 712.5822226942266,
+      "avg_similarity": 0.8140800663203567,
+      "avg_word_accuracy": 0.8637114747468403
+    },
+    {
+      "det_model": "PP-OCRv4_server_det",
+      "det_label": "v4_server",
+      "rec_model": "en_PP-OCRv4_mobile_rec",
+      "avg_time_ms": 2081.0388398083605,
+      "avg_similarity": 0.8081816994894502,
+      "avg_word_accuracy": 0.8153861889215546
+    }
+  ],
+  "recognition_phase": [
+    {
+      "rec_model": "en_PP-OCRv3_mobile_rec",
+      "rec_label": "en_v3_mobile",
+      "det_model": "PP-OCRv3_mobile_det",
+      "avg_time_ms": 278.7921810768938,
+      "avg_similarity": 0.8389004894353506,
+      "avg_word_accuracy": 0.9265761011236123
+    },
+    {
+      "rec_model": "en_PP-OCRv4_mobile_rec",
+      "rec_label": "en_v4_mobile",
+      "det_model": "PP-OCRv3_mobile_det",
+      "avg_time_ms": 591.1695785426463,
+      "avg_similarity": 0.8371820108196609,
+      "avg_word_accuracy": 0.9088449674482063
+    }
+  ]
+}

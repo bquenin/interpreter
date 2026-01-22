@@ -334,6 +334,7 @@ class ProcessWorker(QObject):
             try:
                 # Check if this is PaddleOCR - use multiprocessing to avoid GIL issues
                 # PaddlePaddle holds the GIL during inference, causing UI lag
+                # Also crashes Qt event loop on macOS ARM when run in-process
                 if issubclass(self._ocr_backend_class, PaddleOCRBackend):
                     logger.info("using multiprocessing for PaddleOCR")
                     self._use_multiprocessing = True
@@ -346,9 +347,9 @@ class ProcessWorker(QObject):
                         raise RuntimeError("Failed to start OCR process")
                     self._ocr_failed = False
                 else:
-                    # Regular in-process OCR for other backends
+                    # Regular in-process OCR for other backends (MeikiOCR)
                     self._use_multiprocessing = False
-                    self._ocr = self._ocr_backend_class(confidence_threshold=self._confidence_threshold)
+                    self._ocr = self._ocr_backend_class(self._confidence_threshold)
                     self._ocr.load()
                     self._ocr_failed = False
                 self.ocr_status.emit("ready")

@@ -1,0 +1,38 @@
+[
+  {
+    "name": "LANCZOS 700 + blur 5x5 (best)",
+    "avg_time_ms": 256.46740873792,
+    "avg_similarity": 0.8521664380606919,
+    "sample_size": "700x536"
+  },
+  {
+    "name": "BICUBIC 700px",
+    "avg_time_ms": 258.2887483451766,
+    "avg_similarity": 0.8461606078892127,
+    "sample_size": "700x536"
+  },
+  {
+    "name": "Grayscale",
+    "avg_time_ms": 263.2011907340851,
+    "avg_similarity": 0.8470638630360392,
+    "sample_size": "700x536"
+  },
+  {
+    "name": "Invert colors",
+    "avg_time_ms": 290.0887451922664,
+    "avg_similarity": 0.8192589271832189,
+    "sample_size": "700x536"
+  },
+  {
+    "name": "Bilateral filter",
+    "avg_time_ms": 263.64476922809934,
+    "avg_similarity": 0.841619694002979,
+    "sample_size": "700x536"
+  },
+  {
+    "name": "Best + grayscale",
+    "avg_time_ms": 260.29368254015793,
+    "avg_similarity": 0.850252303602004,
+    "sample_size": "700x536"
+  }
+]

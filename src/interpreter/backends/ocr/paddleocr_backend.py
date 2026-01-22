@@ -10,15 +10,11 @@ from ... import log
 from ...capture.convert import bgra_to_rgb
 from ..base import Language, OCRBackend, OCRBackendInfo, OCRResult
 
-# Pixel font preprocessing: downscale first, then upscale with NEAREST neighbor
-# This preserves sharp pixel edges that get blurred by other interpolation methods
-# Step 1: Downscale large images to this size (for performance)
-DOWNSCALE_DIMENSION = 300
-# Step 2: Upscale with NEAREST neighbor by this factor (preserves pixel edges)
-# 4x works best for pixel fonts: detects punctuation (?!) and standalone "I"
-# Trade-off: apostrophes may be slightly worse (I'm -> Fm) but translation handles it
-NEAREST_UPSCALE_FACTOR = 4
-# Final OCR dimension will be ~DOWNSCALE_DIMENSION * NEAREST_UPSCALE_FACTOR = 1200
+# Pixel font preprocessing: resize to optimal width + Gaussian blur
+# Benchmarked on 26 pixel font screenshots - see benchmark/FINDINGS.md
+# LANCZOS resize to 700px + 5x5 blur: 85.2% accuracy (vs 82.4% with old NEAREST approach)
+TARGET_WIDTH = 700  # Optimal width for pixel fonts (tested 400-1000px range)
+GAUSSIAN_BLUR_SIZE = 5  # Smooths pixel edges to look more like fonts model was trained on
 
 logger = log.get_logger()
 
@@ -136,9 +132,12 @@ class PaddleOCRBackend(OCRBackend):
     ) -> tuple[NDArray[np.uint8], float]:
         """Preprocess image for better pixel font recognition.
 
-        Uses a two-step approach:
-        1. Downscale large images to DOWNSCALE_DIMENSION (for performance)
-        2. Upscale with NEAREST neighbor (preserves sharp pixel edges)
+        Uses LANCZOS resize + Gaussian blur approach (benchmarked optimal):
+        1. Resize proportionally to TARGET_WIDTH using LANCZOS interpolation
+        2. Apply Gaussian blur to smooth pixel edges
+
+        This makes pixel fonts look more like the smooth fonts the model was
+        trained on, improving accuracy from 82.4% to 85.2% (+2.8%).
 
         Args:
             rgb_array: RGB image array.
@@ -147,29 +146,24 @@ class PaddleOCRBackend(OCRBackend):
             Tuple of (processed image, scale factor for bbox conversion).
         """
         h, w = rgb_array.shape[:2]
-        scale = 1.0
 
-        # Step 1: Downscale if image is larger than target
-        if max(h, w) > DOWNSCALE_DIMENSION:
-            scale = DOWNSCALE_DIMENSION / max(h, w)
-            new_w = int(w * scale)
+        # Resize proportionally to target width using LANCZOS
+        if w != TARGET_WIDTH:
+            scale = TARGET_WIDTH / w
             new_h = int(h * scale)
             rgb_array = cv2.resize(
-                rgb_array, (new_w, new_h), interpolation=cv2.INTER_AREA
+                rgb_array, (TARGET_WIDTH, new_h), interpolation=cv2.INTER_LANCZOS4
+            )
+        else:
+            scale = 1.0
+
+        # Apply Gaussian blur to smooth pixel edges
+        if GAUSSIAN_BLUR_SIZE > 0:
+            rgb_array = cv2.GaussianBlur(
+                rgb_array, (GAUSSIAN_BLUR_SIZE, GAUSSIAN_BLUR_SIZE), 0
             )
 
-        # Step 2: Upscale with NEAREST neighbor to sharpen pixel edges
-        h, w = rgb_array.shape[:2]
-        upscale_w = w * NEAREST_UPSCALE_FACTOR
-        upscale_h = h * NEAREST_UPSCALE_FACTOR
-        rgb_array = cv2.resize(
-            rgb_array, (upscale_w, upscale_h), interpolation=cv2.INTER_NEAREST
-        )
-
-        # Adjust scale factor
-        final_scale = scale * NEAREST_UPSCALE_FACTOR
-
-        return rgb_array, final_scale
+        return rgb_array, scale
 
     def extract_text(self, image: NDArray[np.uint8]) -> str:
         """Extract text from an image.
@@ -186,7 +180,7 @@ class PaddleOCRBackend(OCRBackend):
         # Convert BGRA to RGB
         rgb_array = bgra_to_rgb(image)
 
-        # Preprocess for pixel fonts (downscale + NEAREST upscale)
+        # Preprocess for pixel fonts (LANCZOS resize + Gaussian blur)
         rgb_array, _ = self._preprocess_for_pixel_fonts(rgb_array)
 
         # Run PaddleOCR
@@ -267,7 +261,7 @@ class PaddleOCRBackend(OCRBackend):
         # Convert BGRA to RGB
         rgb_array = bgra_to_rgb(image)
 
-        # Preprocess for pixel fonts (downscale + NEAREST upscale)
+        # Preprocess for pixel fonts (LANCZOS resize + Gaussian blur)
         rgb_array, scale = self._preprocess_for_pixel_fonts(rgb_array)
 
         # Run PaddleOCR

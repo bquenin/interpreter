@@ -17,9 +17,14 @@ dependencies = [
     # OCR
     "meikiocr",
     "easyocr",
-    "paddleocr>=2.6.0,<2.8.0",  # 2.7.x doesn't have paddlex dependency
-    "paddlepaddle>=2.5.0,<2.7.0",  # 2.6.x works on Windows without oneDNN bug
-    "numpy>=1.26.0,<2.0.0",  # paddleocr 2.x requires numpy 1.x
+    # PaddleOCR/PaddlePaddle: platform-specific versions
+    # - macOS ARM: PaddlePaddle 3.x (2.x crashes with SIGSEGV on Apple Silicon)
+    # - Windows/Linux: PaddlePaddle 2.x (3.x has issues on Windows)
+    "paddleocr>=2.6.0,<2.8.0; sys_platform != 'darwin'",  # 2.7.x doesn't have paddlex dependency
+    "paddlepaddle>=2.5.0,<2.7.0; sys_platform != 'darwin'",  # 2.6.x works on Windows without oneDNN bug
+    "numpy>=1.26.0,<2.0.0; sys_platform != 'darwin'",  # paddleocr 2.x requires numpy 1.x
+    "paddleocr; sys_platform == 'darwin'",  # Latest paddleocr for macOS
+    "paddlepaddle>=3.0.0; sys_platform == 'darwin'",  # PaddlePaddle 3.x for macOS ARM
     "onnxruntime",
     # Translation (Sugoi V4)
     "ctranslate2",

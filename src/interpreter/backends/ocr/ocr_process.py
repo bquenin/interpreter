@@ -197,6 +197,11 @@ class OCRProcess:
         try:
             return self._output_queue.get(timeout=timeout)
         except Exception:
+            # Check if process crashed
+            if self._process and not self._process.is_alive():
+                exit_code = self._process.exitcode
+                logger.error("OCR process crashed", exit_code=exit_code)
+                self._running = False
             return None
 
     def set_confidence_threshold(self, threshold: float):
