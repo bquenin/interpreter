@@ -1,6 +1,6 @@
 """OCR configuration dialog for tuning OCR settings per window."""
 
-from PySide6.QtCore import QRectF, Qt, QTimer
+from PySide6.QtCore import QRectF, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QImage, QPen, QPixmap
 from PySide6.QtWidgets import (
     QDialog,
@@ -19,7 +19,6 @@ from PySide6.QtWidgets import (
 )
 
 from ..capture.convert import bgra_to_rgb_pil
-from ..ocr import OCR
 
 
 class ExclusionZoneItem(QGraphicsRectItem):
@@ -145,10 +144,18 @@ class ExclusionZoneItem(QGraphicsRectItem):
 
 
 class OCRConfigDialog(QDialog):
-    """Dialog for configuring OCR settings per window."""
+    """Dialog for configuring OCR settings per window.
+
+    This dialog receives OCR results from the main worker (via update_ocr_results)
+    rather than running its own OCR, ensuring consistency between what's shown
+    in the dialog and what's used for translation.
+    """
 
     MAX_PREVIEW_WIDTH = 800
     MAX_PREVIEW_HEIGHT = 600
+
+    # Emitted when confidence slider changes (float: new threshold)
+    confidence_changed = Signal(float)
 
     def __init__(self, parent=None, window_title: str = "", initial_confidence: float = 0.6, initial_zones: list | None = None):
         super().__init__(parent)
@@ -164,16 +171,7 @@ class OCRConfigDialog(QDialog):
         self._current_draw_rect = None
         self._image_size = (0, 0)  # Original image size
         self._preview_size = (0, 0)  # Scaled preview size
-        self._last_frame = None  # Store last frame for re-processing
-
-        # OCR engine (lazy loaded)
-        self._ocr: OCR | None = None
         self._ocr_results: list = []  # Store latest OCR results
-
-        # Debounce timer for confidence changes
-        self._ocr_debounce_timer = QTimer()
-        self._ocr_debounce_timer.setSingleShot(True)
-        self._ocr_debounce_timer.timeout.connect(self._run_ocr)
 
         self._setup_ui()
 
@@ -330,8 +328,6 @@ class OCRConfigDialog(QDialog):
         if frame is None:
             return
 
-        self._last_frame = frame
-
         # Store original image size
         h, w = frame.shape[:2]
         self._image_size = (w, h)
@@ -354,14 +350,7 @@ class OCRConfigDialog(QDialog):
         qimg = QImage(data, new_w, new_h, new_w * 3, QImage.Format.Format_RGB888)
         pixmap = QPixmap.fromImage(qimg)
 
-        # Update scene background
-        # Remove old pixmap items (keep zone items and OCR boxes)
-        for item in self._scene.items():
-            if not isinstance(item, (ExclusionZoneItem, QGraphicsRectItem)) or item in self._ocr_boxes:
-                if item not in self._ocr_boxes and item != self._current_draw_rect:
-                    self._scene.removeItem(item)
-
-        # Remove old pixmap (it's not in our tracking lists)
+        # Update scene background - remove old pixmap
         for item in list(self._scene.items()):
             if not isinstance(item, ExclusionZoneItem) and item not in self._ocr_boxes and item != self._current_draw_rect:
                 self._scene.removeItem(item)
@@ -375,57 +364,15 @@ class OCRConfigDialog(QDialog):
             self._preview_size = (new_w, new_h)
             self._view.setMinimumSize(new_w + 4, new_h + 4)
 
-        # Run OCR on the frame
-        self._run_ocr()
+    def update_ocr_results(self, results: list):
+        """Update with OCR results from the worker.
 
-    def _run_ocr(self):
-        """Run OCR on the current frame and update visualization."""
-        if self._last_frame is None:
-            return
-
-        # Lazy load OCR
-        if self._ocr is None:
-            self._ocr = OCR(confidence_threshold=self._confidence)
-            self._ocr.load()
-        else:
-            self._ocr.confidence_threshold = self._confidence
-
-        # Apply exclusion zones before OCR
-        frame_for_ocr = self._apply_exclusion_zones(self._last_frame)
-
-        # Run OCR
-        try:
-            self._ocr_results = self._ocr.extract_text_regions(frame_for_ocr)
-        except Exception:
-            self._ocr_results = []
-
-        # Update visualization
+        Args:
+            results: List of OCRResult objects from the worker.
+        """
+        self._ocr_results = results
         self._update_ocr_boxes()
         self._update_detected_text()
-
-    def _apply_exclusion_zones(self, frame):
-        """Apply exclusion zones to frame by masking out excluded regions."""
-        zones = self.get_zones()
-        if not zones:
-            return frame
-
-        masked_frame = frame.copy()
-        h, w = frame.shape[:2]
-
-        for zone in zones:
-            x = int(zone.get("x", 0) * w)
-            y = int(zone.get("y", 0) * h)
-            zone_w = int(zone.get("width", 0) * w)
-            zone_h = int(zone.get("height", 0) * h)
-
-            x = max(0, min(x, w))
-            y = max(0, min(y, h))
-            x2 = max(0, min(x + zone_w, w))
-            y2 = max(0, min(y + zone_h, h))
-
-            masked_frame[y:y2, x:x2] = 0
-
-        return masked_frame
 
     def _update_ocr_boxes(self):
         """Update the green OCR detection boxes on the preview."""
@@ -475,17 +422,14 @@ class OCRConfigDialog(QDialog):
         """Handle confidence slider change."""
         self._confidence = value / 100.0
         self._confidence_label.setText(f"{self._confidence:.0%}")
-
-        # Debounce OCR re-run (wait 200ms after slider stops)
-        self._ocr_debounce_timer.start(200)
+        # Emit signal so main window can update the worker
+        self.confidence_changed.emit(self._confidence)
 
     def _add_zone(self, rect: QRectF):
         """Add a new exclusion zone."""
         zone_item = ExclusionZoneItem(rect)
         self._scene.addItem(zone_item)
         self._zones.append(zone_item)
-        # Re-run OCR with new exclusion
-        self._ocr_debounce_timer.start(200)
 
     def _load_zones(self, zones: list):
         """Load zones from normalized coordinates."""
@@ -521,17 +465,12 @@ class OCRConfigDialog(QDialog):
         for zone_item in selected_items:
             self._scene.removeItem(zone_item)
             self._zones.remove(zone_item)
-        # Re-run OCR after deletion
-        if selected_items:
-            self._ocr_debounce_timer.start(200)
 
     def _clear_all(self):
         """Remove all exclusion zones."""
         for zone_item in self._zones:
             self._scene.removeItem(zone_item)
         self._zones.clear()
-        # Re-run OCR after clearing
-        self._ocr_debounce_timer.start(200)
 
     def get_zones(self) -> list[dict]:
         """Get zones as normalized coordinates.

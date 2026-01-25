@@ -79,6 +79,9 @@ class ProcessWorker(QObject):
     # Inplace mode: list of (text, bbox) regions
     regions_ready = Signal(list)
 
+    # Raw OCR results (list of OCRResult) - emitted before translation for visualization
+    ocr_results_ready = Signal(list)
+
     # Emitted when models are loaded and ready
     models_ready = Signal()
 
@@ -205,19 +208,18 @@ class ProcessWorker(QObject):
         # Update OCR threshold
         self._ocr.confidence_threshold = self._confidence_threshold
 
-        # OCR
+        # OCR - always extract regions to get bboxes for visualization
         try:
             ocr_start = time.perf_counter()
-            if self._mode == OverlayMode.INPLACE:
-                regions = self._ocr.extract_text_regions(frame)
-                text = " ".join(r.text for r in regions if r.text)
-            else:
-                text = self._ocr.extract_text(frame)
-                regions = []
+            regions = self._ocr.extract_text_regions(frame)
+            text = " ".join(r.text for r in regions if r.text)
             ocr_ms = int((time.perf_counter() - ocr_start) * 1000)
         except Exception as e:
             logger.error("OCR error", error=str(e))
             return
+
+        # Emit raw OCR results for visualization (e.g., OCR config dialog)
+        self.ocr_results_ready.emit(regions)
 
         if not text:
             if self._mode == OverlayMode.INPLACE:
@@ -226,10 +228,13 @@ class ProcessWorker(QObject):
                 self.text_ready.emit("")
             return
 
-        # Skip translation for non-Japanese text (banner mode)
-        if self._mode != OverlayMode.INPLACE and not contains_japanese(text):
+        # Skip translation for non-Japanese text
+        if not contains_japanese(text):
             logger.debug("skipping translation - no Japanese characters detected")
-            self.text_ready.emit("")
+            if self._mode == OverlayMode.INPLACE:
+                self.regions_ready.emit([])
+            else:
+                self.text_ready.emit("")
             return
 
         # Translation

@@ -84,6 +84,7 @@ class MainWindow(QMainWindow):
         self._process_worker = ProcessWorker()
         self._process_worker.text_ready.connect(self._on_text_ready)
         self._process_worker.regions_ready.connect(self._on_regions_ready)
+        self._process_worker.ocr_results_ready.connect(self._on_ocr_results_ready)
         self._process_worker.models_ready.connect(self._on_models_ready)
         self._process_worker.models_failed.connect(self._on_models_failed)
         self._process_worker.ocr_status.connect(self._on_ocr_status)
@@ -180,14 +181,14 @@ class MainWindow(QMainWindow):
 
         capture_layout.addLayout(window_row)
 
-        # Preview
+        # Preview (centered, aspect ratio preserved)
         self._preview_label = QLabel()
-        self._preview_label.setFixedSize(320, 240)
+        self._preview_label.setMinimumSize(320, 180)  # Minimum size, will grow to match aspect ratio
         self._preview_label.setFrameStyle(QFrame.Shape.Box)
         self._preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._preview_label.setText("No preview")
         self._preview_label.setStyleSheet("background-color: #2a2a2a; color: #888;")
-        capture_layout.addWidget(self._preview_label)
+        capture_layout.addWidget(self._preview_label, 0, Qt.AlignmentFlag.AlignHCenter)
 
         layout.addWidget(capture_group)
 
@@ -936,26 +937,35 @@ class MainWindow(QMainWindow):
         self._last_frame = frame
         self._last_bounds = bounds
 
-        # Update preview (convert BGRA numpy to PIL RGB for thumbnail)
+        # Update preview (convert BGRA numpy to PIL RGB, scale to fit max 320 width)
         preview = bgra_to_rgb_pil(frame)
-        preview.thumbnail((320, 240))
+        frame_h, frame_w = frame.shape[:2]
+
+        # Scale to max 320 width while preserving aspect ratio
+        max_preview_width = 320
+        scale = max_preview_width / frame_w
+        preview_w = int(frame_w * scale)
+        preview_h = int(frame_h * scale)
+        preview = preview.resize((preview_w, preview_h))
 
         # Draw exclusion zones on preview
         zones = self._config.get_exclusion_zones(self._current_window_title)
         if zones:
             draw = ImageDraw.Draw(preview, "RGBA")
-            pw, ph = preview.size
             for zone in zones:
-                x = int(zone.get("x", 0) * pw)
-                y = int(zone.get("y", 0) * ph)
-                w = int(zone.get("width", 0) * pw)
-                h = int(zone.get("height", 0) * ph)
+                x = int(zone.get("x", 0) * preview_w)
+                y = int(zone.get("y", 0) * preview_h)
+                w = int(zone.get("width", 0) * preview_w)
+                h = int(zone.get("height", 0) * preview_h)
                 # Semi-transparent red fill with red outline
                 draw.rectangle([x, y, x + w, y + h], fill=(255, 0, 0, 60), outline=(255, 0, 0, 180))
 
         data = preview.tobytes("raw", "RGB")
-        qimg = QImage(data, preview.width, preview.height, preview.width * 3, QImage.Format.Format_RGB888)
+        qimg = QImage(data, preview_w, preview_h, preview_w * 3, QImage.Format.Format_RGB888)
         pixmap = QPixmap.fromImage(qimg)
+
+        # Resize label to match preview aspect ratio
+        self._preview_label.setFixedSize(preview_w, preview_h)
         self._preview_label.setPixmap(pixmap)
 
         # Update exclusion editor dialog if open
@@ -986,6 +996,11 @@ class MainWindow(QMainWindow):
             if self._capture:
                 content_offset = self._capture.get_content_offset()
             self._inplace_overlay.set_regions(regions, content_offset)
+
+    def _on_ocr_results_ready(self, results: list):
+        """Handle raw OCR results (for OCR config dialog visualization)."""
+        if self._exclusion_dialog:
+            self._exclusion_dialog.update_ocr_results(results)
 
     # Settings handlers
     def _on_font_size_changed(self, value: int):
@@ -1047,7 +1062,12 @@ class MainWindow(QMainWindow):
         if not self._current_window_title:
             return frame
 
-        zones = self._config.get_exclusion_zones(self._current_window_title)
+        # Use dialog's zones if open (for live editing), otherwise use config
+        if self._exclusion_dialog:
+            zones = self._exclusion_dialog.get_zones()
+        else:
+            zones = self._config.get_exclusion_zones(self._current_window_title)
+
         if not zones:
             return frame
 
@@ -1090,6 +1110,9 @@ class MainWindow(QMainWindow):
             initial_zones=current_zones,
         )
 
+        # Connect confidence changes to worker (for live preview)
+        dialog.confidence_changed.connect(self._process_worker.set_confidence_threshold)
+
         # Set up live frame updates
         self._exclusion_dialog = dialog
 
@@ -1098,7 +1121,9 @@ class MainWindow(QMainWindow):
         dialog.apply_pending_zones()
 
         # Show dialog (modal)
-        if dialog.exec():
+        accepted = dialog.exec()
+
+        if accepted:
             # Save zones and confidence to config
             new_zones = dialog.get_zones()
             new_confidence = dialog.get_confidence()
@@ -1107,15 +1132,15 @@ class MainWindow(QMainWindow):
             self._config.set_ocr_confidence(self._current_window_title, new_confidence)
             self._config.save()
 
-            # Update worker with new confidence
-            self._process_worker.set_confidence_threshold(new_confidence)
-
             logger.debug(
                 "OCR config updated",
                 window=self._current_window_title,
                 zones=len(new_zones),
                 confidence=f"{new_confidence:.0%}",
             )
+        else:
+            # User cancelled - restore original confidence
+            self._process_worker.set_confidence_threshold(current_confidence)
 
         self._exclusion_dialog = None
 
