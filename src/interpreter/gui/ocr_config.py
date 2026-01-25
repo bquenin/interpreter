@@ -1,7 +1,7 @@
-"""Exclusion zone editor dialog for defining areas to exclude from OCR."""
+"""OCR configuration dialog for tuning OCR settings per window."""
 
-from PySide6.QtCore import QRectF, Qt
-from PySide6.QtGui import QBrush, QColor, QImage, QPen, QPixmap
+from PySide6.QtCore import QRectF, Qt, QTimer
+from PySide6.QtGui import QBrush, QColor, QFont, QImage, QPen, QPixmap
 from PySide6.QtWidgets import (
     QDialog,
     QGraphicsItem,
@@ -11,10 +11,15 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QSlider,
+    QSplitter,
+    QTextEdit,
     QVBoxLayout,
+    QWidget,
 )
 
 from ..capture.convert import bgra_to_rgb_pil
+from ..ocr import OCR
 
 
 class ExclusionZoneItem(QGraphicsRectItem):
@@ -33,7 +38,7 @@ class ExclusionZoneItem(QGraphicsRectItem):
         self.setPen(QPen(QColor(255, 0, 0, 200), 2))
 
         # Ensure zones appear above the background pixmap
-        self.setZValue(1)
+        self.setZValue(2)
 
         # Make selectable and movable
         self.setFlags(
@@ -139,22 +144,36 @@ class ExclusionZoneItem(QGraphicsRectItem):
         return super().itemChange(change, value)
 
 
-class ExclusionEditorDialog(QDialog):
-    """Dialog for editing exclusion zones on the captured image."""
+class OCRConfigDialog(QDialog):
+    """Dialog for configuring OCR settings per window."""
 
-    MAX_PREVIEW_WIDTH = 1200
-    MAX_PREVIEW_HEIGHT = 900
+    MAX_PREVIEW_WIDTH = 800
+    MAX_PREVIEW_HEIGHT = 600
 
-    def __init__(self, parent=None, initial_zones: list | None = None):
+    def __init__(self, parent=None, window_title: str = "", initial_confidence: float = 0.6, initial_zones: list | None = None):
         super().__init__(parent)
-        self.setWindowTitle("Edit Exclusion Zones")
+        self.setWindowTitle(f"Configure OCR: {window_title}" if window_title else "Configure OCR")
+        self.setMinimumSize(1000, 700)
 
+        self._window_title = window_title
+        self._confidence = initial_confidence
         self._zones: list[ExclusionZoneItem] = []
+        self._ocr_boxes: list[QGraphicsRectItem] = []  # OCR detection boxes (green)
         self._drawing = False
         self._draw_start = None
         self._current_draw_rect = None
         self._image_size = (0, 0)  # Original image size
         self._preview_size = (0, 0)  # Scaled preview size
+        self._last_frame = None  # Store last frame for re-processing
+
+        # OCR engine (lazy loaded)
+        self._ocr: OCR | None = None
+        self._ocr_results: list = []  # Store latest OCR results
+
+        # Debounce timer for confidence changes
+        self._ocr_debounce_timer = QTimer()
+        self._ocr_debounce_timer.setSingleShot(True)
+        self._ocr_debounce_timer.timeout.connect(self._run_ocr)
 
         self._setup_ui()
 
@@ -168,36 +187,87 @@ class ExclusionEditorDialog(QDialog):
         layout.setContentsMargins(10, 10, 10, 10)
 
         # Instructions
-        instructions = QLabel("Click and drag to draw exclusion zones. Click to select, Delete/Backspace to remove.")
+        instructions = QLabel(
+            "Adjust confidence to filter noise. Draw red exclusion zones to block persistent false detections. "
+            "Green boxes show OCR detections."
+        )
         instructions.setStyleSheet("color: #ccc; font-size: 14px; padding: 5px 0;")
+        instructions.setWordWrap(True)
         layout.addWidget(instructions)
 
-        # Graphics scene and view
+        # Main content: preview on left, detected text on right
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+
+        # Left side: Graphics scene and view for preview
+        left_widget = QWidget()
+        left_layout = QVBoxLayout(left_widget)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+
         self._scene = QGraphicsScene()
         self._view = QGraphicsView(self._scene)
         self._view.setRenderHints(self._view.renderHints())
         self._view.setDragMode(QGraphicsView.DragMode.NoDrag)
         self._view.setMouseTracking(True)
         self._view.viewport().installEventFilter(self)
-        layout.addWidget(self._view)
+        left_layout.addWidget(self._view)
 
-        # Bottom buttons
-        btn_layout = QHBoxLayout()
-        btn_layout.addStretch()
+        splitter.addWidget(left_widget)
 
-        clear_btn = QPushButton("Clear All")
+        # Right side: Detected text panel
+        right_widget = QWidget()
+        right_layout = QVBoxLayout(right_widget)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+
+        detected_label = QLabel("Detected Text:")
+        detected_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        right_layout.addWidget(detected_label)
+
+        self._detected_text = QTextEdit()
+        self._detected_text.setReadOnly(True)
+        self._detected_text.setFont(QFont("sans-serif", 14))
+        self._detected_text.setStyleSheet("background-color: #2a2a2a; color: #fff; border: 1px solid #555;")
+        self._detected_text.setMinimumWidth(250)
+        right_layout.addWidget(self._detected_text)
+
+        splitter.addWidget(right_widget)
+
+        # Set initial splitter sizes (70% preview, 30% text)
+        splitter.setSizes([700, 300])
+
+        layout.addWidget(splitter, 1)
+
+        # Bottom controls
+        bottom_layout = QHBoxLayout()
+
+        # Confidence slider
+        bottom_layout.addWidget(QLabel("Confidence:"))
+        self._confidence_slider = QSlider(Qt.Orientation.Horizontal)
+        self._confidence_slider.setRange(0, 100)
+        self._confidence_slider.setValue(int(self._confidence * 100))
+        self._confidence_slider.valueChanged.connect(self._on_confidence_changed)
+        self._confidence_slider.setMinimumWidth(200)
+        bottom_layout.addWidget(self._confidence_slider)
+        self._confidence_label = QLabel(f"{self._confidence:.0%}")
+        self._confidence_label.setMinimumWidth(40)
+        bottom_layout.addWidget(self._confidence_label)
+
+        bottom_layout.addStretch()
+
+        # Clear exclusions button
+        clear_btn = QPushButton("Clear Exclusions")
         clear_btn.clicked.connect(self._clear_all)
-        btn_layout.addWidget(clear_btn)
+        bottom_layout.addWidget(clear_btn)
 
+        # OK/Cancel buttons
         ok_btn = QPushButton("OK")
         ok_btn.clicked.connect(self.accept)
-        btn_layout.addWidget(ok_btn)
+        bottom_layout.addWidget(ok_btn)
 
         cancel_btn = QPushButton("Cancel")
         cancel_btn.clicked.connect(self.reject)
-        btn_layout.addWidget(cancel_btn)
+        bottom_layout.addWidget(cancel_btn)
 
-        layout.addLayout(btn_layout)
+        layout.addLayout(bottom_layout)
 
     def eventFilter(self, obj, event):
         """Handle mouse events on the graphics view."""
@@ -218,7 +288,7 @@ class ExclusionEditorDialog(QDialog):
                     self._current_draw_rect = QGraphicsRectItem()
                     self._current_draw_rect.setBrush(QBrush(QColor(255, 0, 0, 40)))
                     self._current_draw_rect.setPen(QPen(QColor(255, 0, 0, 150), 1, Qt.PenStyle.DashLine))
-                    self._current_draw_rect.setZValue(2)  # Above zones during drawing
+                    self._current_draw_rect.setZValue(3)  # Above zones during drawing
                     self._scene.addItem(self._current_draw_rect)
                     return True
 
@@ -260,6 +330,8 @@ class ExclusionEditorDialog(QDialog):
         if frame is None:
             return
 
+        self._last_frame = frame
+
         # Store original image size
         h, w = frame.shape[:2]
         self._image_size = (w, h)
@@ -283,33 +355,140 @@ class ExclusionEditorDialog(QDialog):
         pixmap = QPixmap.fromImage(qimg)
 
         # Update scene background
-        # Remove old pixmap items (keep zone items)
+        # Remove old pixmap items (keep zone items and OCR boxes)
         for item in self._scene.items():
-            if not isinstance(item, ExclusionZoneItem) and item != self._current_draw_rect:
+            if not isinstance(item, (ExclusionZoneItem, QGraphicsRectItem)) or item in self._ocr_boxes:
+                if item not in self._ocr_boxes and item != self._current_draw_rect:
+                    self._scene.removeItem(item)
+
+        # Remove old pixmap (it's not in our tracking lists)
+        for item in list(self._scene.items()):
+            if not isinstance(item, ExclusionZoneItem) and item not in self._ocr_boxes and item != self._current_draw_rect:
                 self._scene.removeItem(item)
 
         pixmap_item = self._scene.addPixmap(pixmap)
-        pixmap_item.setZValue(0)  # Keep pixmap behind zones
+        pixmap_item.setZValue(0)  # Keep pixmap behind everything
         self._scene.setSceneRect(0, 0, new_w, new_h)
 
         # Auto-size dialog to fit preview on first frame
         if self._preview_size == (0, 0):
             self._preview_size = (new_w, new_h)
-            # Add padding for margins, instructions, and buttons
-            dialog_w = new_w + 40
-            dialog_h = new_h + 100
-            self.resize(dialog_w, dialog_h)
-            self._view.setFixedSize(new_w + 4, new_h + 4)  # Small padding for border
+            self._view.setMinimumSize(new_w + 4, new_h + 4)
+
+        # Run OCR on the frame
+        self._run_ocr()
+
+    def _run_ocr(self):
+        """Run OCR on the current frame and update visualization."""
+        if self._last_frame is None:
+            return
+
+        # Lazy load OCR
+        if self._ocr is None:
+            self._ocr = OCR(confidence_threshold=self._confidence)
+            self._ocr.load()
+        else:
+            self._ocr.confidence_threshold = self._confidence
+
+        # Apply exclusion zones before OCR
+        frame_for_ocr = self._apply_exclusion_zones(self._last_frame)
+
+        # Run OCR
+        try:
+            self._ocr_results = self._ocr.extract_text_regions(frame_for_ocr)
+        except Exception:
+            self._ocr_results = []
+
+        # Update visualization
+        self._update_ocr_boxes()
+        self._update_detected_text()
+
+    def _apply_exclusion_zones(self, frame):
+        """Apply exclusion zones to frame by masking out excluded regions."""
+        zones = self.get_zones()
+        if not zones:
+            return frame
+
+        masked_frame = frame.copy()
+        h, w = frame.shape[:2]
+
+        for zone in zones:
+            x = int(zone.get("x", 0) * w)
+            y = int(zone.get("y", 0) * h)
+            zone_w = int(zone.get("width", 0) * w)
+            zone_h = int(zone.get("height", 0) * h)
+
+            x = max(0, min(x, w))
+            y = max(0, min(y, h))
+            x2 = max(0, min(x + zone_w, w))
+            y2 = max(0, min(y + zone_h, h))
+
+            masked_frame[y:y2, x:x2] = 0
+
+        return masked_frame
+
+    def _update_ocr_boxes(self):
+        """Update the green OCR detection boxes on the preview."""
+        # Remove old OCR boxes
+        for box in self._ocr_boxes:
+            self._scene.removeItem(box)
+        self._ocr_boxes.clear()
+
+        if not self._ocr_results:
+            return
+
+        # Get scale factor
+        w, h = self._image_size
+        if w == 0 or h == 0:
+            return
+
+        scene_rect = self._scene.sceneRect()
+        scale_x = scene_rect.width() / w
+        scale_y = scene_rect.height() / h
+
+        # Draw boxes for each detection
+        for result in self._ocr_results:
+            if result.bbox:
+                x = result.bbox["x"] * scale_x
+                y = result.bbox["y"] * scale_y
+                box_w = result.bbox["width"] * scale_x
+                box_h = result.bbox["height"] * scale_y
+
+                rect_item = QGraphicsRectItem(QRectF(x, y, box_w, box_h))
+                rect_item.setPen(QPen(QColor(0, 200, 0, 200), 2))
+                rect_item.setBrush(QBrush(QColor(0, 200, 0, 30)))
+                rect_item.setZValue(1)  # Above pixmap, below exclusion zones
+                self._scene.addItem(rect_item)
+                self._ocr_boxes.append(rect_item)
+
+    def _update_detected_text(self):
+        """Update the detected text panel."""
+        if not self._ocr_results:
+            self._detected_text.setPlainText("")
+            return
+
+        # Combine all detected text
+        texts = [result.text for result in self._ocr_results if result.text]
+        self._detected_text.setPlainText("\n".join(texts))
+
+    def _on_confidence_changed(self, value: int):
+        """Handle confidence slider change."""
+        self._confidence = value / 100.0
+        self._confidence_label.setText(f"{self._confidence:.0%}")
+
+        # Debounce OCR re-run (wait 200ms after slider stops)
+        self._ocr_debounce_timer.start(200)
 
     def _add_zone(self, rect: QRectF):
         """Add a new exclusion zone."""
         zone_item = ExclusionZoneItem(rect)
         self._scene.addItem(zone_item)
         self._zones.append(zone_item)
+        # Re-run OCR with new exclusion
+        self._ocr_debounce_timer.start(200)
 
     def _load_zones(self, zones: list):
         """Load zones from normalized coordinates."""
-        # This will be called after the first frame update
         self._pending_zones = zones
 
     def apply_pending_zones(self):
@@ -342,12 +521,17 @@ class ExclusionEditorDialog(QDialog):
         for zone_item in selected_items:
             self._scene.removeItem(zone_item)
             self._zones.remove(zone_item)
+        # Re-run OCR after deletion
+        if selected_items:
+            self._ocr_debounce_timer.start(200)
 
     def _clear_all(self):
-        """Remove all zones."""
+        """Remove all exclusion zones."""
         for zone_item in self._zones:
             self._scene.removeItem(zone_item)
         self._zones.clear()
+        # Re-run OCR after clearing
+        self._ocr_debounce_timer.start(200)
 
     def get_zones(self) -> list[dict]:
         """Get zones as normalized coordinates.
@@ -378,3 +562,11 @@ class ExclusionEditorDialog(QDialog):
                 }
             )
         return zones
+
+    def get_confidence(self) -> float:
+        """Get the current confidence threshold.
+
+        Returns:
+            Confidence threshold (0.0-1.0).
+        """
+        return self._confidence
