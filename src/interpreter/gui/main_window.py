@@ -37,7 +37,7 @@ from ..permissions import (
     request_screen_recording,
 )
 from . import keyboard
-from .exclusion_editor import ExclusionEditorDialog
+from .ocr_config import OCRConfigDialog
 from .workers import ProcessWorker
 
 logger = log.get_logger()
@@ -69,7 +69,7 @@ class MainWindow(QMainWindow):
         self._windows_list: list[dict] = []
         self._paused = False
         self._current_window_title: str = ""  # For exclusion zone lookup
-        self._exclusion_dialog = None  # Reference to open exclusion editor dialog
+        self._ocr_config_dialog = None  # Reference to open OCR config dialog
         # Wayland session detection (from capture module, uses D-Bus portal check)
         self._is_wayland_session = _is_wayland_session
         self._wayland_portal = None  # WaylandPortalCapture instance (for managing portal session lifecycle)
@@ -84,6 +84,7 @@ class MainWindow(QMainWindow):
         self._process_worker = ProcessWorker()
         self._process_worker.text_ready.connect(self._on_text_ready)
         self._process_worker.regions_ready.connect(self._on_regions_ready)
+        self._process_worker.ocr_results_ready.connect(self._on_ocr_results_ready)
         self._process_worker.models_ready.connect(self._on_models_ready)
         self._process_worker.models_failed.connect(self._on_models_failed)
         self._process_worker.ocr_status.connect(self._on_ocr_status)
@@ -131,88 +132,74 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
         layout = QVBoxLayout(central)
 
-        # Models Section
-        models_group = QGroupBox("Models")
-        models_layout = QGridLayout(models_group)
+        # ==================== CAPTURE ====================
+        # Window selection + Preview in one logical group
+        capture_group = QGroupBox("Capture")
+        capture_layout = QVBoxLayout(capture_group)
 
-        # OCR model row
-        models_layout.addWidget(QLabel("OCR:"), 0, 0)
-        models_layout.addWidget(QLabel("MeikiOCR"), 0, 1)
-        self._ocr_status_label = QLabel("Loading...")
-        models_layout.addWidget(self._ocr_status_label, 0, 2)
+        # Window selection row
+        window_row = QHBoxLayout()
 
-        # Translation model row
-        models_layout.addWidget(QLabel("Translation:"), 1, 0)
-        models_layout.addWidget(QLabel("Sugoi V4"), 1, 1)
-        self._translation_status_label = QLabel("Loading...")
-        models_layout.addWidget(self._translation_status_label, 1, 2)
-
-        # Fix Models button (hidden by default)
-        self._fix_models_btn = QPushButton("Fix Models")
-        self._fix_models_btn.clicked.connect(self._on_fix_models)
-        self._fix_models_btn.setVisible(False)
-        models_layout.addWidget(self._fix_models_btn, 2, 0, 1, 3, Qt.AlignRight)
-
-        # Set column stretch so status is right-aligned
-        models_layout.setColumnStretch(1, 1)
-
-        layout.addWidget(models_group)
-
-        # macOS Permissions Section (only shown on macOS)
-        if is_macos():
-            self._setup_permissions_ui(layout)
-
-        # Window Selection
-        window_group = QGroupBox("Window Selection")
-        window_layout = QHBoxLayout(window_group)
-
-        # Edit Exclusions button (shared by both Wayland and X11)
-        self._edit_exclusions_btn = QPushButton("Edit Exclusions")
-        self._edit_exclusions_btn.setEnabled(False)  # Disabled until capturing
-        self._edit_exclusions_btn.clicked.connect(self._open_exclusion_editor)
+        # Configure OCR button (shared by both Wayland and X11)
+        self._ocr_config_btn = QPushButton("Configure OCR")
+        self._ocr_config_btn.setEnabled(False)  # Disabled until capturing
+        self._ocr_config_btn.clicked.connect(self._open_ocr_config)
 
         if self._is_wayland_session:
             # Wayland: single toggle button for capture
             self._select_window_btn = QPushButton("Start Capture")
             self._select_window_btn.setEnabled(False)  # Disabled until models are loaded
             self._select_window_btn.clicked.connect(self._toggle_wayland_capture)
-            window_layout.addWidget(self._select_window_btn, 1)
-            window_layout.addWidget(self._edit_exclusions_btn)
+            window_row.addWidget(self._select_window_btn, 1)
+            window_row.addWidget(self._ocr_config_btn)
 
             # Not used in Wayland mode
             self._window_combo = None
             self._start_btn = None
             self._stop_btn = None
         else:
-            # X11: dropdown + start/refresh buttons
+            # X11/macOS/Windows: dropdown + start/refresh buttons
             self._window_combo = QComboBox()
             self._window_combo.setMinimumWidth(250)
             self._window_combo.activated.connect(self._on_window_selected)
-            window_layout.addWidget(self._window_combo, 1)
+            window_row.addWidget(self._window_combo, 1)
 
             self._start_btn = QPushButton("Start Capture")
             self._start_btn.setEnabled(False)  # Disabled until models are loaded
             self._start_btn.clicked.connect(self._toggle_capture)
-            window_layout.addWidget(self._start_btn)
+            window_row.addWidget(self._start_btn)
 
-            refresh_btn = QPushButton("Refresh List")
+            refresh_btn = QPushButton("Refresh")
             refresh_btn.clicked.connect(self._refresh_windows)
-            window_layout.addWidget(refresh_btn)
+            window_row.addWidget(refresh_btn)
 
-            window_layout.addWidget(self._edit_exclusions_btn)
+            window_row.addWidget(self._ocr_config_btn)
 
             # Not used in X11 mode
             self._select_window_btn = None
             self._stop_btn = None
 
-        layout.addWidget(window_group)
+        capture_layout.addLayout(window_row)
 
-        # Overlay Settings
-        overlay_group = QGroupBox("Overlay Settings")
-        overlay_layout = QHBoxLayout(overlay_group)
+        # Preview (centered, aspect ratio preserved)
+        self._preview_label = QLabel()
+        self._preview_label.setMinimumSize(320, 180)  # Minimum size, will grow to match aspect ratio
+        self._preview_label.setFrameStyle(QFrame.Shape.Box)
+        self._preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._preview_label.setText("No preview")
+        self._preview_label.setStyleSheet("background-color: #2a2a2a; color: #888;")
+        capture_layout.addWidget(self._preview_label, 0, Qt.AlignmentFlag.AlignHCenter)
 
-        # Segmented mode selector
-        overlay_layout.addWidget(QLabel("Mode:"))
+        layout.addWidget(capture_group)
+
+        # ==================== APPEARANCE ====================
+        # Overlay mode + all visual settings
+        appearance_group = QGroupBox("Appearance")
+        appearance_layout = QVBoxLayout(appearance_group)
+
+        # Mode row (Banner/Inplace toggle + hotkeys)
+        mode_row = QHBoxLayout()
+        mode_row.addWidget(QLabel("Mode:"))
 
         self._mode_group = QButtonGroup(self)
         self._mode_group.setExclusive(True)
@@ -253,42 +240,123 @@ class MainWindow(QMainWindow):
 
         # Container to keep buttons connected (no spacing)
         mode_container = QWidget()
-        mode_layout = QHBoxLayout(mode_container)
-        mode_layout.setContentsMargins(0, 0, 0, 0)
-        mode_layout.setSpacing(0)
-        mode_layout.addWidget(self._banner_btn)
-        mode_layout.addWidget(self._inplace_btn)
-        overlay_layout.addWidget(mode_container)
+        mode_btn_layout = QHBoxLayout(mode_container)
+        mode_btn_layout.setContentsMargins(0, 0, 0, 0)
+        mode_btn_layout.setSpacing(0)
+        mode_btn_layout.addWidget(self._banner_btn)
+        mode_btn_layout.addWidget(self._inplace_btn)
+        mode_row.addWidget(mode_container)
 
-        # Mode switch hotkey picker (next to mode buttons)
+        # Mode switch hotkey picker
         mode_switch_str = self._config.hotkeys.get("switch_mode", "m")
         self._mode_hotkey = QKeySequenceEdit(self._hotkey_str_to_qkeysequence(mode_switch_str))
         self._mode_hotkey.setFixedWidth(80)
         self._mode_hotkey.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         self._mode_hotkey.keySequenceChanged.connect(self._on_mode_hotkey_changed)
-        overlay_layout.addWidget(self._mode_hotkey)
+        mode_row.addWidget(self._mode_hotkey)
 
         # Wayland limitation warning (only shown on Wayland)
         if self._is_wayland_session:
             wayland_warning = QLabel("<a href='#' style='color: #ffa500;'>⚠️ Wayland limitations</a>")
             wayland_warning.setToolTip("Click for details about inplace mode on Wayland")
             wayland_warning.linkActivated.connect(self._show_wayland_warning)
-            overlay_layout.addWidget(wayland_warning)
+            mode_row.addWidget(wayland_warning)
 
-        overlay_layout.addStretch()
+        mode_row.addStretch()
 
+        # Hide/Show button with hotkey
         self._pause_btn = QPushButton("Hide")
         self._pause_btn.clicked.connect(self._toggle_pause)
         self._pause_btn.setEnabled(False)
-        overlay_layout.addWidget(self._pause_btn)
+        mode_row.addWidget(self._pause_btn)
 
-        # Hotkey picker for pause - load from config
         hotkey_str = self._config.hotkeys.get("toggle_overlay", "space")
         self._pause_hotkey = QKeySequenceEdit(self._hotkey_str_to_qkeysequence(hotkey_str))
         self._pause_hotkey.setFixedWidth(80)
         self._pause_hotkey.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         self._pause_hotkey.keySequenceChanged.connect(self._on_pause_hotkey_changed)
-        overlay_layout.addWidget(self._pause_hotkey)
+        mode_row.addWidget(self._pause_hotkey)
+
+        appearance_layout.addLayout(mode_row)
+
+        # Visual settings grid
+        visual_grid = QGridLayout()
+
+        # Font family
+        visual_grid.addWidget(QLabel("Font:"), 0, 0)
+        self._font_family_btn = QPushButton(self._config.font_family or "System Default")
+        self._font_family_btn.clicked.connect(self._pick_font_family)
+        visual_grid.addWidget(self._font_family_btn, 0, 1)
+
+        # Font size
+        visual_grid.addWidget(QLabel("Size:"), 0, 2)
+        self._font_slider = QSlider(Qt.Orientation.Horizontal)
+        self._font_slider.setRange(MIN_FONT_SIZE, MAX_FONT_SIZE)
+        self._font_slider.setValue(self._config.font_size)
+        self._font_slider.valueChanged.connect(self._on_font_size_changed)
+        visual_grid.addWidget(self._font_slider, 0, 3)
+        self._font_label = QLabel(f"{self._config.font_size}pt")
+        visual_grid.addWidget(self._font_label, 0, 4)
+
+        # Font color
+        visual_grid.addWidget(QLabel("Text Color:"), 1, 0)
+        self._font_color_btn = QPushButton()
+        self._font_color_btn.setStyleSheet(f"background-color: {self._config.font_color};")
+        self._font_color_btn.clicked.connect(self._pick_font_color)
+        visual_grid.addWidget(self._font_color_btn, 1, 1)
+
+        # Background color
+        visual_grid.addWidget(QLabel("Background:"), 1, 2)
+        self._bg_color_btn = QPushButton()
+        self._bg_color_btn.setStyleSheet(f"background-color: {self._config.background_color};")
+        self._bg_color_btn.clicked.connect(self._pick_bg_color)
+        visual_grid.addWidget(self._bg_color_btn, 1, 3)
+
+        # Opacity
+        visual_grid.addWidget(QLabel("Opacity:"), 2, 0)
+        self._opacity_slider = QSlider(Qt.Orientation.Horizontal)
+        self._opacity_slider.setRange(0, 100)
+        self._opacity_slider.setValue(int(self._config.background_opacity * 100))
+        self._opacity_slider.valueChanged.connect(self._on_opacity_changed)
+        visual_grid.addWidget(self._opacity_slider, 2, 1, 1, 3)
+        self._opacity_label = QLabel(f"{int(self._config.background_opacity * 100)}%")
+        visual_grid.addWidget(self._opacity_label, 2, 4)
+
+        appearance_layout.addLayout(visual_grid)
+
+        layout.addWidget(appearance_group)
+
+        # ==================== STATUS ====================
+        # Models status (at bottom, less prominent)
+        status_group = QGroupBox("Status")
+        status_layout = QGridLayout(status_group)
+
+        # OCR model row
+        status_layout.addWidget(QLabel("OCR:"), 0, 0)
+        status_layout.addWidget(QLabel("MeikiOCR"), 0, 1)
+        self._ocr_status_label = QLabel("Loading...")
+        status_layout.addWidget(self._ocr_status_label, 0, 2)
+
+        # Translation model row
+        status_layout.addWidget(QLabel("Translation:"), 1, 0)
+        status_layout.addWidget(QLabel("Sugoi V4"), 1, 1)
+        self._translation_status_label = QLabel("Loading...")
+        status_layout.addWidget(self._translation_status_label, 1, 2)
+
+        # Fix Models button (hidden by default)
+        self._fix_models_btn = QPushButton("Fix Models")
+        self._fix_models_btn.clicked.connect(self._on_fix_models)
+        self._fix_models_btn.setVisible(False)
+        status_layout.addWidget(self._fix_models_btn, 2, 0, 1, 3, Qt.AlignRight)
+
+        # macOS Permissions (inline, only shown on macOS when needed)
+        if is_macos():
+            self._setup_permissions_ui(status_layout)
+
+        # Set column stretch so status is right-aligned
+        status_layout.setColumnStretch(1, 1)
+
+        layout.addWidget(status_group)
 
         # Global hotkey listener - load from config
         self._current_hotkey = self._qt_key_to_key(hotkey_str)
@@ -296,80 +364,9 @@ class MainWindow(QMainWindow):
         self._keyboard_listener.start()
         self.hotkey_pressed.connect(self._toggle_pause)
 
-        # Mode switch hotkey (UI picker is above, near mode buttons)
+        # Mode switch hotkey
         self._mode_switch_hotkey = self._qt_key_to_key(mode_switch_str)
         self.mode_switch_pressed.connect(self._toggle_mode)
-
-        layout.addWidget(overlay_group)
-
-        # Settings
-        settings_group = QGroupBox("Settings")
-        settings_layout = QGridLayout(settings_group)
-
-        # OCR Confidence
-        settings_layout.addWidget(QLabel("OCR Confidence:"), 0, 0)
-        self._confidence_slider = QSlider(Qt.Orientation.Horizontal)
-        self._confidence_slider.setRange(0, 100)
-        self._confidence_slider.setValue(int(self._config.ocr_confidence * 100))
-        self._confidence_slider.valueChanged.connect(self._on_confidence_changed)
-        settings_layout.addWidget(self._confidence_slider, 0, 1)
-        self._confidence_label = QLabel(f"{self._config.ocr_confidence:.0%}")
-        settings_layout.addWidget(self._confidence_label, 0, 2)
-
-        # Font size
-        settings_layout.addWidget(QLabel("Font Size:"), 1, 0)
-        self._font_slider = QSlider(Qt.Orientation.Horizontal)
-        self._font_slider.setRange(MIN_FONT_SIZE, MAX_FONT_SIZE)
-        self._font_slider.setValue(self._config.font_size)
-        self._font_slider.valueChanged.connect(self._on_font_size_changed)
-        settings_layout.addWidget(self._font_slider, 1, 1)
-        self._font_label = QLabel(f"{self._config.font_size}pt")
-        settings_layout.addWidget(self._font_label, 1, 2)
-
-        # Font family
-        settings_layout.addWidget(QLabel("Font:"), 2, 0)
-        self._font_family_btn = QPushButton(self._config.font_family or "System Default")
-        self._font_family_btn.clicked.connect(self._pick_font_family)
-        settings_layout.addWidget(self._font_family_btn, 2, 1)
-
-        # Colors
-        settings_layout.addWidget(QLabel("Font Color:"), 3, 0)
-        self._font_color_btn = QPushButton()
-        self._font_color_btn.setStyleSheet(f"background-color: {self._config.font_color};")
-        self._font_color_btn.clicked.connect(self._pick_font_color)
-        settings_layout.addWidget(self._font_color_btn, 3, 1)
-
-        settings_layout.addWidget(QLabel("Background:"), 4, 0)
-        self._bg_color_btn = QPushButton()
-        self._bg_color_btn.setStyleSheet(f"background-color: {self._config.background_color};")
-        self._bg_color_btn.clicked.connect(self._pick_bg_color)
-        settings_layout.addWidget(self._bg_color_btn, 4, 1)
-
-        # Opacity
-        settings_layout.addWidget(QLabel("Opacity:"), 5, 0)
-        self._opacity_slider = QSlider(Qt.Orientation.Horizontal)
-        self._opacity_slider.setRange(0, 100)
-        self._opacity_slider.setValue(int(self._config.background_opacity * 100))
-        self._opacity_slider.valueChanged.connect(self._on_opacity_changed)
-        settings_layout.addWidget(self._opacity_slider, 5, 1)
-        self._opacity_label = QLabel(f"{int(self._config.background_opacity * 100)}%")
-        settings_layout.addWidget(self._opacity_label, 5, 2)
-
-        layout.addWidget(settings_group)
-
-        # Preview
-        preview_group = QGroupBox("Preview")
-        preview_layout = QVBoxLayout(preview_group)
-
-        self._preview_label = QLabel()
-        self._preview_label.setFixedSize(320, 240)
-        self._preview_label.setFrameStyle(QFrame.Shape.Box)
-        self._preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._preview_label.setText("No preview")
-        self._preview_label.setStyleSheet("background-color: #2a2a2a; color: #888;")
-        preview_layout.addWidget(self._preview_label)
-
-        layout.addWidget(preview_group)
 
         # Stretch at bottom
         layout.addStretch()
@@ -377,33 +374,29 @@ class MainWindow(QMainWindow):
         # Status bar
         self.statusBar().showMessage("Idle")
 
-    def _setup_permissions_ui(self, layout: QVBoxLayout):
-        """Set up macOS permissions section."""
-        permissions_group = QGroupBox("macOS Permissions")
-        permissions_layout = QGridLayout(permissions_group)
+    def _setup_permissions_ui(self, status_layout: QGridLayout):
+        """Set up macOS permissions in the status section."""
+        # Get current row count to add after models
+        row = status_layout.rowCount()
 
         # Screen Recording row
-        permissions_layout.addWidget(QLabel("Screen Recording"), 0, 0)
+        status_layout.addWidget(QLabel("Screen Recording:"), row, 0)
         self._screen_recording_status = QLabel()
-        permissions_layout.addWidget(self._screen_recording_status, 0, 1)
+        status_layout.addWidget(self._screen_recording_status, row, 1)
         self._screen_recording_btn = QPushButton("Grant")
         self._screen_recording_btn.setFixedWidth(80)
         self._screen_recording_btn.clicked.connect(self._on_request_screen_recording)
-        permissions_layout.addWidget(self._screen_recording_btn, 0, 2)
+        status_layout.addWidget(self._screen_recording_btn, row, 2)
 
         # Accessibility row (required for global hotkeys)
-        permissions_layout.addWidget(QLabel("Accessibility"), 1, 0)
+        row += 1
+        status_layout.addWidget(QLabel("Accessibility:"), row, 0)
         self._accessibility_status = QLabel()
-        permissions_layout.addWidget(self._accessibility_status, 1, 1)
+        status_layout.addWidget(self._accessibility_status, row, 1)
         self._accessibility_btn = QPushButton("Grant")
         self._accessibility_btn.setFixedWidth(80)
         self._accessibility_btn.clicked.connect(self._on_request_accessibility)
-        permissions_layout.addWidget(self._accessibility_btn, 1, 2)
-
-        # Set column stretch
-        permissions_layout.setColumnStretch(0, 1)
-
-        layout.addWidget(permissions_group)
+        status_layout.addWidget(self._accessibility_btn, row, 2)
 
         # Initial permission check
         self._update_permissions_status()
@@ -633,12 +626,16 @@ class MainWindow(QMainWindow):
             self._start_btn.setText("Stop Capture")
         self._pause_btn.setEnabled(True)
         self._pause_btn.setText("Hide")
-        self._edit_exclusions_btn.setEnabled(True)
+        self._ocr_config_btn.setEnabled(True)
         self.statusBar().showMessage(f"Capturing '{title[:40]}...'")
 
         # Update config with selected window
         self._config.window_title = title
         self._current_window_title = title  # Store for exclusion zone lookup
+
+        # Set per-window OCR confidence
+        confidence = self._config.get_ocr_confidence(title)
+        self._process_worker.set_confidence_threshold(confidence)
 
         # Show overlay
         self._show_overlay()
@@ -697,7 +694,7 @@ class MainWindow(QMainWindow):
             self._paused = False
             self._pause_btn.setEnabled(True)
             self._pause_btn.setText("Hide")
-            self._edit_exclusions_btn.setEnabled(True)
+            self._ocr_config_btn.setEnabled(True)
             self.statusBar().showMessage("Capturing Wayland window...")
 
             # Update button to show stop action
@@ -707,6 +704,10 @@ class MainWindow(QMainWindow):
 
             # Store window title for exclusion zone lookup (Wayland doesn't have window titles)
             self._current_window_title = "Wayland Capture"
+
+            # Set per-window OCR confidence
+            confidence = self._config.get_ocr_confidence(self._current_window_title)
+            self._process_worker.set_confidence_threshold(confidence)
 
             # Show overlay
             self._show_overlay()
@@ -738,7 +739,7 @@ class MainWindow(QMainWindow):
         self._capturing = False
         self._paused = False
         self._pause_btn.setEnabled(False)
-        self._edit_exclusions_btn.setEnabled(False)
+        self._ocr_config_btn.setEnabled(False)
         self.statusBar().showMessage("Ready")
 
         # Update UI based on session type
@@ -936,31 +937,40 @@ class MainWindow(QMainWindow):
         self._last_frame = frame
         self._last_bounds = bounds
 
-        # Update preview (convert BGRA numpy to PIL RGB for thumbnail)
+        # Update preview (convert BGRA numpy to PIL RGB, scale to fit max 320 width)
         preview = bgra_to_rgb_pil(frame)
-        preview.thumbnail((320, 240))
+        frame_h, frame_w = frame.shape[:2]
+
+        # Scale to max 320 width while preserving aspect ratio
+        max_preview_width = 320
+        scale = max_preview_width / frame_w
+        preview_w = int(frame_w * scale)
+        preview_h = int(frame_h * scale)
+        preview = preview.resize((preview_w, preview_h))
 
         # Draw exclusion zones on preview
         zones = self._config.get_exclusion_zones(self._current_window_title)
         if zones:
             draw = ImageDraw.Draw(preview, "RGBA")
-            pw, ph = preview.size
             for zone in zones:
-                x = int(zone.get("x", 0) * pw)
-                y = int(zone.get("y", 0) * ph)
-                w = int(zone.get("width", 0) * pw)
-                h = int(zone.get("height", 0) * ph)
+                x = int(zone.get("x", 0) * preview_w)
+                y = int(zone.get("y", 0) * preview_h)
+                w = int(zone.get("width", 0) * preview_w)
+                h = int(zone.get("height", 0) * preview_h)
                 # Semi-transparent red fill with red outline
                 draw.rectangle([x, y, x + w, y + h], fill=(255, 0, 0, 60), outline=(255, 0, 0, 180))
 
         data = preview.tobytes("raw", "RGB")
-        qimg = QImage(data, preview.width, preview.height, preview.width * 3, QImage.Format.Format_RGB888)
+        qimg = QImage(data, preview_w, preview_h, preview_w * 3, QImage.Format.Format_RGB888)
         pixmap = QPixmap.fromImage(qimg)
+
+        # Resize label to match preview aspect ratio
+        self._preview_label.setFixedSize(preview_w, preview_h)
         self._preview_label.setPixmap(pixmap)
 
         # Update exclusion editor dialog if open
-        if self._exclusion_dialog:
-            self._exclusion_dialog.update_frame(frame)
+        if self._ocr_config_dialog:
+            self._ocr_config_dialog.update_frame(frame)
 
         # Update inplace overlay position if window moved (X11 only - Wayland doesn't have bounds)
         if self._mode == OverlayMode.INPLACE and bounds and not self._paused:
@@ -987,13 +997,12 @@ class MainWindow(QMainWindow):
                 content_offset = self._capture.get_content_offset()
             self._inplace_overlay.set_regions(regions, content_offset)
 
-    # Settings handlers
-    def _on_confidence_changed(self, value: int):
-        confidence = value / 100.0
-        self._config.ocr_confidence = confidence
-        self._confidence_label.setText(f"{confidence:.0%}")
-        self._process_worker.set_confidence_threshold(confidence)
+    def _on_ocr_results_ready(self, results: list):
+        """Handle raw OCR results (for OCR config dialog visualization)."""
+        if self._ocr_config_dialog:
+            self._ocr_config_dialog.update_ocr_results(results)
 
+    # Settings handlers
     def _on_font_size_changed(self, value: int):
         self._config.font_size = value
         self._font_label.setText(f"{value}pt")
@@ -1053,7 +1062,12 @@ class MainWindow(QMainWindow):
         if not self._current_window_title:
             return frame
 
-        zones = self._config.get_exclusion_zones(self._current_window_title)
+        # Use dialog's zones if open (for live editing), otherwise use config
+        if self._ocr_config_dialog:
+            zones = self._ocr_config_dialog.get_zones()
+        else:
+            zones = self._config.get_exclusion_zones(self._current_window_title)
+
         if not zones:
             return frame
 
@@ -1079,33 +1093,56 @@ class MainWindow(QMainWindow):
 
         return masked_frame
 
-    def _open_exclusion_editor(self):
-        """Open the exclusion zone editor dialog."""
+    def _open_ocr_config(self):
+        """Open the OCR configuration dialog."""
         if not self._capturing or self._last_frame is None:
             return
 
-        # Get current zones for this window
+        # Get current settings for this window
         current_zones = self._config.get_exclusion_zones(self._current_window_title)
+        current_confidence = self._config.get_ocr_confidence(self._current_window_title)
 
         # Create and show dialog
-        dialog = ExclusionEditorDialog(self, initial_zones=current_zones)
+        dialog = OCRConfigDialog(
+            self,
+            window_title=self._current_window_title,
+            initial_confidence=current_confidence,
+            initial_zones=current_zones,
+        )
+
+        # Connect confidence changes to worker (for live preview)
+        dialog.confidence_changed.connect(self._process_worker.set_confidence_threshold)
 
         # Set up live frame updates
-        self._exclusion_dialog = dialog
+        self._ocr_config_dialog = dialog
 
         # Update with current frame
         dialog.update_frame(self._last_frame)
         dialog.apply_pending_zones()
 
         # Show dialog (modal)
-        if dialog.exec():
-            # Save zones to config
-            new_zones = dialog.get_zones()
-            self._config.set_exclusion_zones(self._current_window_title, new_zones)
-            self._config.save()
-            logger.debug("exclusion zones updated", window=self._current_window_title, count=len(new_zones))
+        accepted = dialog.exec()
 
-        self._exclusion_dialog = None
+        if accepted:
+            # Save zones and confidence to config
+            new_zones = dialog.get_zones()
+            new_confidence = dialog.get_confidence()
+
+            self._config.set_exclusion_zones(self._current_window_title, new_zones)
+            self._config.set_ocr_confidence(self._current_window_title, new_confidence)
+            self._config.save()
+
+            logger.debug(
+                "OCR config updated",
+                window=self._current_window_title,
+                zones=len(new_zones),
+                confidence=f"{new_confidence:.0%}",
+            )
+        else:
+            # User cancelled - restore original confidence
+            self._process_worker.set_confidence_threshold(current_confidence)
+
+        self._ocr_config_dialog = None
 
     def get_banner_position(self) -> tuple[int, int]:
         """Get current banner overlay position."""

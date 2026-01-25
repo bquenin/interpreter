@@ -33,6 +33,9 @@ class Config:
         "quit": "q",
     }
 
+    # Default OCR confidence threshold
+    DEFAULT_OCR_CONFIDENCE = 0.6
+
     def __init__(
         self,
         window_title: str = "Snes9x",
@@ -48,9 +51,10 @@ class Config:
         banner_x: int | None = None,
         banner_y: int | None = None,
         exclusion_zones: dict | None = None,
+        ocr_confidence_per_window: dict | None = None,
     ):
         self.window_title = window_title
-        self.ocr_confidence = ocr_confidence
+        self.ocr_confidence = ocr_confidence  # Global default
         self.overlay_mode = overlay_mode
         self.font_family = font_family  # None = system default
         self.font_size = font_size
@@ -63,6 +67,8 @@ class Config:
         self.banner_y = banner_y
         # Exclusion zones per window title: {"window_title": [{"x": 0.0, "y": 0.0, "width": 0.1, "height": 0.1}, ...]}
         self.exclusion_zones = exclusion_zones if exclusion_zones is not None else {}
+        # Per-window OCR confidence: {"window_title": 0.55, ...}
+        self.ocr_confidence_per_window = ocr_confidence_per_window if ocr_confidence_per_window is not None else {}
 
     @classmethod
     def load(cls, config_path: str | None = None) -> "Config":
@@ -108,7 +114,7 @@ class Config:
 
             return cls(
                 window_title=data.get("window_title", cls.DEFAULT_WINDOW_TITLE),
-                ocr_confidence=float(data.get("ocr_confidence", 0.6)),
+                ocr_confidence=float(data.get("ocr_confidence", cls.DEFAULT_OCR_CONFIDENCE)),
                 overlay_mode=overlay_mode,
                 font_family=data.get("font_family"),  # None = system default
                 font_size=int(data.get("font_size", 26)),
@@ -120,6 +126,7 @@ class Config:
                 banner_x=data.get("banner_x"),
                 banner_y=data.get("banner_y"),
                 exclusion_zones=data.get("exclusion_zones", {}),
+                ocr_confidence_per_window=data.get("ocr_confidence_per_window", {}),
             )
 
         # No config file found - create default in home directory
@@ -194,6 +201,34 @@ hotkeys:
         elif window_title in self.exclusion_zones:
             del self.exclusion_zones[window_title]
 
+    def get_ocr_confidence(self, window_title: str | None = None) -> float:
+        """Get OCR confidence for a specific window, or global default.
+
+        Args:
+            window_title: The window title to get confidence for. If None, returns global default.
+
+        Returns:
+            OCR confidence threshold (0.0-1.0).
+        """
+        if window_title and window_title in self.ocr_confidence_per_window:
+            return self.ocr_confidence_per_window[window_title]
+        return self.ocr_confidence
+
+    def set_ocr_confidence(self, window_title: str, confidence: float) -> None:
+        """Set OCR confidence for a specific window.
+
+        Args:
+            window_title: The window title to set confidence for.
+            confidence: OCR confidence threshold (0.0-1.0).
+        """
+        # Only store if different from global default
+        if abs(confidence - self.ocr_confidence) < 0.001:
+            # Same as global, remove per-window override
+            if window_title in self.ocr_confidence_per_window:
+                del self.ocr_confidence_per_window[window_title]
+        else:
+            self.ocr_confidence_per_window[window_title] = confidence
+
     def hex_to_rgb(self, hex_color: str) -> tuple[int, int, int]:
         """Convert hex color string to RGB tuple."""
         hex_color = hex_color.lstrip("#")
@@ -245,6 +280,11 @@ hotkeys:
                     for zone in zones
                 ]
                 for k, zones in self.exclusion_zones.items()
+            }
+        # Save per-window OCR confidence if any are defined
+        if self.ocr_confidence_per_window:
+            data["ocr_confidence_per_window"] = {
+                str(k): float(v) for k, v in self.ocr_confidence_per_window.items()
             }
 
         with open(config_path, "w", encoding="utf-8") as f:
