@@ -1,7 +1,6 @@
 """Main application window with settings and controls."""
 
-import os
-
+from PIL import ImageDraw
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QFont, QImage, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
@@ -38,6 +37,7 @@ from ..permissions import (
     request_screen_recording,
 )
 from . import keyboard
+from .exclusion_editor import ExclusionEditorDialog
 from .workers import ProcessWorker
 
 logger = log.get_logger()
@@ -62,13 +62,14 @@ class MainWindow(QMainWindow):
         self._config = config
 
         self.setWindowTitle("Interpreter")
-        self.setMinimumSize(500, 600)
 
         # State
         self._capturing = False
         self._mode = config.overlay_mode
         self._windows_list: list[dict] = []
         self._paused = False
+        self._current_window_title: str = ""  # For exclusion zone lookup
+        self._exclusion_dialog = None  # Reference to open exclusion editor dialog
         # Wayland session detection (from capture module, uses D-Bus portal check)
         self._is_wayland_session = _is_wayland_session
         self._wayland_portal = None  # WaylandPortalCapture instance (for managing portal session lifecycle)
@@ -118,6 +119,9 @@ class MainWindow(QMainWindow):
         self._last_bounds = {}
 
         self._setup_ui()
+        # Auto-size window to fit all widgets, then lock minimum size
+        self.adjustSize()
+        self.setMinimumSize(self.size())
         self._refresh_windows()
         self._load_models()
 
@@ -162,12 +166,18 @@ class MainWindow(QMainWindow):
         window_group = QGroupBox("Window Selection")
         window_layout = QHBoxLayout(window_group)
 
+        # Edit Exclusions button (shared by both Wayland and X11)
+        self._edit_exclusions_btn = QPushButton("Edit Exclusions")
+        self._edit_exclusions_btn.setEnabled(False)  # Disabled until capturing
+        self._edit_exclusions_btn.clicked.connect(self._open_exclusion_editor)
+
         if self._is_wayland_session:
             # Wayland: single toggle button for capture
             self._select_window_btn = QPushButton("Start Capture")
             self._select_window_btn.setEnabled(False)  # Disabled until models are loaded
             self._select_window_btn.clicked.connect(self._toggle_wayland_capture)
             window_layout.addWidget(self._select_window_btn, 1)
+            window_layout.addWidget(self._edit_exclusions_btn)
 
             # Not used in Wayland mode
             self._window_combo = None
@@ -188,6 +198,8 @@ class MainWindow(QMainWindow):
             refresh_btn = QPushButton("Refresh List")
             refresh_btn.clicked.connect(self._refresh_windows)
             window_layout.addWidget(refresh_btn)
+
+            window_layout.addWidget(self._edit_exclusions_btn)
 
             # Not used in X11 mode
             self._select_window_btn = None
@@ -621,10 +633,12 @@ class MainWindow(QMainWindow):
             self._start_btn.setText("Stop Capture")
         self._pause_btn.setEnabled(True)
         self._pause_btn.setText("Hide")
+        self._edit_exclusions_btn.setEnabled(True)
         self.statusBar().showMessage(f"Capturing '{title[:40]}...'")
 
         # Update config with selected window
         self._config.window_title = title
+        self._current_window_title = title  # Store for exclusion zone lookup
 
         # Show overlay
         self._show_overlay()
@@ -683,12 +697,16 @@ class MainWindow(QMainWindow):
             self._paused = False
             self._pause_btn.setEnabled(True)
             self._pause_btn.setText("Hide")
+            self._edit_exclusions_btn.setEnabled(True)
             self.statusBar().showMessage("Capturing Wayland window...")
 
             # Update button to show stop action
             if self._select_window_btn:
                 self._select_window_btn.setText("Stop Capture")
                 self._select_window_btn.setEnabled(True)
+
+            # Store window title for exclusion zone lookup (Wayland doesn't have window titles)
+            self._current_window_title = "Wayland Capture"
 
             # Show overlay
             self._show_overlay()
@@ -720,6 +738,7 @@ class MainWindow(QMainWindow):
         self._capturing = False
         self._paused = False
         self._pause_btn.setEnabled(False)
+        self._edit_exclusions_btn.setEnabled(False)
         self.statusBar().showMessage("Ready")
 
         # Update UI based on session type
@@ -920,18 +939,39 @@ class MainWindow(QMainWindow):
         # Update preview (convert BGRA numpy to PIL RGB for thumbnail)
         preview = bgra_to_rgb_pil(frame)
         preview.thumbnail((320, 240))
+
+        # Draw exclusion zones on preview
+        zones = self._config.get_exclusion_zones(self._current_window_title)
+        if zones:
+            draw = ImageDraw.Draw(preview, "RGBA")
+            pw, ph = preview.size
+            for zone in zones:
+                x = int(zone.get("x", 0) * pw)
+                y = int(zone.get("y", 0) * ph)
+                w = int(zone.get("width", 0) * pw)
+                h = int(zone.get("height", 0) * ph)
+                # Semi-transparent red fill with red outline
+                draw.rectangle([x, y, x + w, y + h], fill=(255, 0, 0, 60), outline=(255, 0, 0, 180))
+
         data = preview.tobytes("raw", "RGB")
         qimg = QImage(data, preview.width, preview.height, preview.width * 3, QImage.Format.Format_RGB888)
         pixmap = QPixmap.fromImage(qimg)
         self._preview_label.setPixmap(pixmap)
 
+        # Update exclusion editor dialog if open
+        if self._exclusion_dialog:
+            self._exclusion_dialog.update_frame(frame)
+
         # Update inplace overlay position if window moved (X11 only - Wayland doesn't have bounds)
         if self._mode == OverlayMode.INPLACE and bounds and not self._paused:
             self._inplace_overlay.position_over_window(bounds)
 
+        # Apply exclusion zones before OCR
+        frame_for_ocr = self._apply_exclusion_zones(frame)
+
         # Process through OCR and translation (on worker thread)
         if not self._paused:
-            self._process_worker.submit_frame(frame)
+            self._process_worker.submit_frame(frame_for_ocr)
 
     def _on_text_ready(self, translated: str):
         """Handle translated text (banner mode)."""
@@ -1000,6 +1040,72 @@ class MainWindow(QMainWindow):
             self._bg_color_btn.setStyleSheet(f"background-color: {hex_color};")
             self._banner_overlay.set_colors(self._config.font_color, hex_color)
             self._inplace_overlay.set_colors(self._config.font_color, hex_color)
+
+    def _apply_exclusion_zones(self, frame):
+        """Apply exclusion zones to frame by masking out excluded regions.
+
+        Args:
+            frame: BGRA numpy array (H, W, 4)
+
+        Returns:
+            Frame with exclusion zones blacked out.
+        """
+        if not self._current_window_title:
+            return frame
+
+        zones = self._config.get_exclusion_zones(self._current_window_title)
+        if not zones:
+            return frame
+
+        # Make a copy to avoid modifying the original
+        masked_frame = frame.copy()
+        h, w = frame.shape[:2]
+
+        for zone in zones:
+            # Convert normalized coordinates to pixel coordinates
+            x = int(zone.get("x", 0) * w)
+            y = int(zone.get("y", 0) * h)
+            zone_w = int(zone.get("width", 0) * w)
+            zone_h = int(zone.get("height", 0) * h)
+
+            # Clamp to frame bounds
+            x = max(0, min(x, w))
+            y = max(0, min(y, h))
+            x2 = max(0, min(x + zone_w, w))
+            y2 = max(0, min(y + zone_h, h))
+
+            # Black out the region
+            masked_frame[y:y2, x:x2] = 0
+
+        return masked_frame
+
+    def _open_exclusion_editor(self):
+        """Open the exclusion zone editor dialog."""
+        if not self._capturing or self._last_frame is None:
+            return
+
+        # Get current zones for this window
+        current_zones = self._config.get_exclusion_zones(self._current_window_title)
+
+        # Create and show dialog
+        dialog = ExclusionEditorDialog(self, initial_zones=current_zones)
+
+        # Set up live frame updates
+        self._exclusion_dialog = dialog
+
+        # Update with current frame
+        dialog.update_frame(self._last_frame)
+        dialog.apply_pending_zones()
+
+        # Show dialog (modal)
+        if dialog.exec():
+            # Save zones to config
+            new_zones = dialog.get_zones()
+            self._config.set_exclusion_zones(self._current_window_title, new_zones)
+            self._config.save()
+            logger.debug("exclusion zones updated", window=self._current_window_title, count=len(new_zones))
+
+        self._exclusion_dialog = None
 
     def get_banner_position(self) -> tuple[int, int]:
         """Get current banner overlay position."""
