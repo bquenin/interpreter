@@ -47,6 +47,7 @@ class Config:
         config_path: str | None = None,
         banner_x: int | None = None,
         banner_y: int | None = None,
+        exclusion_zones: dict | None = None,
     ):
         self.window_title = window_title
         self.ocr_confidence = ocr_confidence
@@ -60,6 +61,8 @@ class Config:
         self.config_path = config_path
         self.banner_x = banner_x
         self.banner_y = banner_y
+        # Exclusion zones per window title: {"window_title": [{"x": 0.0, "y": 0.0, "width": 0.1, "height": 0.1}, ...]}
+        self.exclusion_zones = exclusion_zones if exclusion_zones is not None else {}
 
     @classmethod
     def load(cls, config_path: str | None = None) -> "Config":
@@ -116,6 +119,7 @@ class Config:
                 config_path=config_path,
                 banner_x=data.get("banner_x"),
                 banner_y=data.get("banner_y"),
+                exclusion_zones=data.get("exclusion_zones", {}),
             )
 
         # No config file found - create default in home directory
@@ -167,6 +171,29 @@ hotkeys:
 
         logger.info("created default config", path=str(config_path))
 
+    def get_exclusion_zones(self, window_title: str) -> list[dict]:
+        """Get exclusion zones for a specific window title.
+
+        Args:
+            window_title: The window title to get zones for.
+
+        Returns:
+            List of zone dicts with x, y, width, height as floats (0.0-1.0).
+        """
+        return self.exclusion_zones.get(window_title, [])
+
+    def set_exclusion_zones(self, window_title: str, zones: list[dict]) -> None:
+        """Set exclusion zones for a specific window title.
+
+        Args:
+            window_title: The window title to set zones for.
+            zones: List of zone dicts with x, y, width, height as floats (0.0-1.0).
+        """
+        if zones:
+            self.exclusion_zones[window_title] = zones
+        elif window_title in self.exclusion_zones:
+            del self.exclusion_zones[window_title]
+
     def hex_to_rgb(self, hex_color: str) -> tuple[int, int, int]:
         """Convert hex color string to RGB tuple."""
         hex_color = hex_color.lstrip("#")
@@ -209,6 +236,16 @@ hotkeys:
             data["banner_x"] = int(self.banner_x)
         if self.banner_y is not None:
             data["banner_y"] = int(self.banner_y)
+        # Save exclusion zones if any are defined
+        # Convert keys to plain strings to avoid Python-specific YAML tags
+        if self.exclusion_zones:
+            data["exclusion_zones"] = {
+                str(k): [
+                    {str(zk): float(zv) for zk, zv in zone.items()}
+                    for zone in zones
+                ]
+                for k, zones in self.exclusion_zones.items()
+            }
 
         with open(config_path, "w", encoding="utf-8") as f:
             yaml.dump(data, f, default_flow_style=False, allow_unicode=True)
