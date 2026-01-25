@@ -69,7 +69,7 @@ class MainWindow(QMainWindow):
         self._windows_list: list[dict] = []
         self._paused = False
         self._current_window_title: str = ""  # For exclusion zone lookup
-        self._exclusion_dialog = None  # Reference to open exclusion editor dialog
+        self._ocr_config_dialog = None  # Reference to open OCR config dialog
         # Wayland session detection (from capture module, uses D-Bus portal check)
         self._is_wayland_session = _is_wayland_session
         self._wayland_portal = None  # WaylandPortalCapture instance (for managing portal session lifecycle)
@@ -141,9 +141,9 @@ class MainWindow(QMainWindow):
         window_row = QHBoxLayout()
 
         # Configure OCR button (shared by both Wayland and X11)
-        self._edit_exclusions_btn = QPushButton("Configure OCR")
-        self._edit_exclusions_btn.setEnabled(False)  # Disabled until capturing
-        self._edit_exclusions_btn.clicked.connect(self._open_ocr_config)
+        self._ocr_config_btn = QPushButton("Configure OCR")
+        self._ocr_config_btn.setEnabled(False)  # Disabled until capturing
+        self._ocr_config_btn.clicked.connect(self._open_ocr_config)
 
         if self._is_wayland_session:
             # Wayland: single toggle button for capture
@@ -151,7 +151,7 @@ class MainWindow(QMainWindow):
             self._select_window_btn.setEnabled(False)  # Disabled until models are loaded
             self._select_window_btn.clicked.connect(self._toggle_wayland_capture)
             window_row.addWidget(self._select_window_btn, 1)
-            window_row.addWidget(self._edit_exclusions_btn)
+            window_row.addWidget(self._ocr_config_btn)
 
             # Not used in Wayland mode
             self._window_combo = None
@@ -173,7 +173,7 @@ class MainWindow(QMainWindow):
             refresh_btn.clicked.connect(self._refresh_windows)
             window_row.addWidget(refresh_btn)
 
-            window_row.addWidget(self._edit_exclusions_btn)
+            window_row.addWidget(self._ocr_config_btn)
 
             # Not used in X11 mode
             self._select_window_btn = None
@@ -626,7 +626,7 @@ class MainWindow(QMainWindow):
             self._start_btn.setText("Stop Capture")
         self._pause_btn.setEnabled(True)
         self._pause_btn.setText("Hide")
-        self._edit_exclusions_btn.setEnabled(True)
+        self._ocr_config_btn.setEnabled(True)
         self.statusBar().showMessage(f"Capturing '{title[:40]}...'")
 
         # Update config with selected window
@@ -694,7 +694,7 @@ class MainWindow(QMainWindow):
             self._paused = False
             self._pause_btn.setEnabled(True)
             self._pause_btn.setText("Hide")
-            self._edit_exclusions_btn.setEnabled(True)
+            self._ocr_config_btn.setEnabled(True)
             self.statusBar().showMessage("Capturing Wayland window...")
 
             # Update button to show stop action
@@ -739,7 +739,7 @@ class MainWindow(QMainWindow):
         self._capturing = False
         self._paused = False
         self._pause_btn.setEnabled(False)
-        self._edit_exclusions_btn.setEnabled(False)
+        self._ocr_config_btn.setEnabled(False)
         self.statusBar().showMessage("Ready")
 
         # Update UI based on session type
@@ -969,8 +969,8 @@ class MainWindow(QMainWindow):
         self._preview_label.setPixmap(pixmap)
 
         # Update exclusion editor dialog if open
-        if self._exclusion_dialog:
-            self._exclusion_dialog.update_frame(frame)
+        if self._ocr_config_dialog:
+            self._ocr_config_dialog.update_frame(frame)
 
         # Update inplace overlay position if window moved (X11 only - Wayland doesn't have bounds)
         if self._mode == OverlayMode.INPLACE and bounds and not self._paused:
@@ -999,8 +999,8 @@ class MainWindow(QMainWindow):
 
     def _on_ocr_results_ready(self, results: list):
         """Handle raw OCR results (for OCR config dialog visualization)."""
-        if self._exclusion_dialog:
-            self._exclusion_dialog.update_ocr_results(results)
+        if self._ocr_config_dialog:
+            self._ocr_config_dialog.update_ocr_results(results)
 
     # Settings handlers
     def _on_font_size_changed(self, value: int):
@@ -1063,8 +1063,8 @@ class MainWindow(QMainWindow):
             return frame
 
         # Use dialog's zones if open (for live editing), otherwise use config
-        if self._exclusion_dialog:
-            zones = self._exclusion_dialog.get_zones()
+        if self._ocr_config_dialog:
+            zones = self._ocr_config_dialog.get_zones()
         else:
             zones = self._config.get_exclusion_zones(self._current_window_title)
 
@@ -1114,7 +1114,7 @@ class MainWindow(QMainWindow):
         dialog.confidence_changed.connect(self._process_worker.set_confidence_threshold)
 
         # Set up live frame updates
-        self._exclusion_dialog = dialog
+        self._ocr_config_dialog = dialog
 
         # Update with current frame
         dialog.update_frame(self._last_frame)
@@ -1142,7 +1142,7 @@ class MainWindow(QMainWindow):
             # User cancelled - restore original confidence
             self._process_worker.set_confidence_threshold(current_confidence)
 
-        self._exclusion_dialog = None
+        self._ocr_config_dialog = None
 
     def get_banner_position(self) -> tuple[int, int]:
         """Get current banner overlay position."""
