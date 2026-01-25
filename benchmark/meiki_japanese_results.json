@@ -1,0 +1,48 @@
+{
+  "configs": [
+    {
+      "preprocessing": "raw",
+      "config": {
+        "name": "raw",
+        "target_width": null,
+        "blur_size": 0,
+        "upscale": null
+      },
+      "avg_time_ms": 38.9256505206084,
+      "avg_similarity": 0.9935897435897435
+    },
+    {
+      "preprocessing": "old_interpreter_300_nearest_4x",
+      "config": {
+        "name": "old_interpreter_300_nearest_4x",
+        "target_width": 300,
+        "blur_size": 0,
+        "upscale": 4
+      },
+      "avg_time_ms": 37.329192237498674,
+      "avg_similarity": 1.0
+    },
+    {
+      "preprocessing": "lanczos_700_blur5",
+      "config": {
+        "name": "lanczos_700_blur5",
+        "target_width": 700,
+        "blur_size": 5,
+        "upscale": null
+      },
+      "avg_time_ms": 36.78217001008586,
+      "avg_similarity": 0.9924264924264925
+    },
+    {
+      "preprocessing": "lanczos_700_no_blur",
+      "config": {
+        "name": "lanczos_700_no_blur",
+        "target_width": 700,
+        "blur_size": 0,
+        "upscale": null
+      },
+      "avg_time_ms": 36.86877876484337,
+      "avg_similarity": 1.0
+    }
+  ]
+}

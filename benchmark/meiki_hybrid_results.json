@@ -1,0 +1,40 @@
+{
+  "models": [
+    {
+      "approach": "meiki_multilingual_fork",
+      "language": "en",
+      "language_name": "English",
+      "preprocessing": "raw",
+      "avg_time_ms": 64.36220664405622,
+      "avg_similarity": 0.8335309578750454,
+      "avg_word_accuracy": 0.9064714194804693
+    },
+    {
+      "approach": "meiki_multilingual_fork",
+      "language": "en",
+      "language_name": "English",
+      "preprocessing": "paddle_optimized",
+      "avg_time_ms": 63.309525654543755,
+      "avg_similarity": 0.8363314655671891,
+      "avg_word_accuracy": 0.9145565007615496
+    },
+    {
+      "approach": "meiki_multilingual_fork",
+      "language": "latin",
+      "language_name": "Latin (32 langs)",
+      "preprocessing": "raw",
+      "avg_time_ms": 64.29522280814126,
+      "avg_similarity": 0.8258745479418864,
+      "avg_word_accuracy": 0.8222645058230912
+    },
+    {
+      "approach": "meiki_multilingual_fork",
+      "language": "latin",
+      "language_name": "Latin (32 langs)",
+      "preprocessing": "paddle_optimized",
+      "avg_time_ms": 63.42359771952033,
+      "avg_similarity": 0.8357103709272246,
+      "avg_word_accuracy": 0.8554863453738186
+    }
+  ]
+}
