@@ -182,12 +182,79 @@ Tested pyspellchecker to correct OCR errors.
 
 ---
 
-## 8. Benchmark Scripts
+## 8. MeikiOCR Japanese Preprocessing
 
-- `ocr_benchmark.py` - Main benchmark (model selection + preprocessing)
-- `width_sweep.py` - Test different image widths
-- `preprocess_benchmark.py` - Test preprocessing approaches
+Benchmark conducted on 13 screenshots from Tales of Phantasia (Japanese version) to determine if preprocessing helps MeikiOCR.
+
+### Results
+
+| Preprocessing | Time (ms) | Similarity |
+|---------------|-----------|------------|
+| **lanczos_700_no_blur** | 37 | **100%** |
+| **old_interpreter_300_nearest_4x** | 37 | **100%** |
+| raw | 39 | 99.4% |
+| lanczos_700_blur5 | 37 | 99.2% |
+
+### Key Findings
+
+1. **Blur hurts MeikiOCR**: Unlike PaddleOCR which benefits from Gaussian blur, MeikiOCR performs *worse* with blur (99.2% vs 100%). MeikiOCR was trained specifically on pixel fonts and handles sharp edges well.
+
+2. **Preprocessing helps slightly**: LANCZOS 700px (no blur) achieves 100% vs 99.4% raw.
+
+3. **Raw is already excellent**: 99.4% accuracy with no preprocessing overhead.
+
+### Decision: Keep Raw Implementation
+
+**We decided NOT to add preprocessing to MeikiOCR on main.** Rationale:
+
+1. **Dataset bias risk**: All 13 test images are from one game (Tales of Phantasia). Optimizing for 700px LANCZOS might hurt games with different text sizes, resolutions, or font styles.
+
+2. **99.4% is already excellent**: The 0.6% improvement doesn't justify the risk of regression on other games.
+
+3. **Raw is most generalizable**: MeikiOCR was trained on diverse Japanese game text - it's designed to handle raw input without preprocessing.
+
+4. **Simplicity**: No preprocessing means simpler code and no processing overhead.
+
+### MeikiOCR vs PaddleOCR: Different Preprocessing Needs
+
+| Aspect | PaddleOCR | MeikiOCR |
+|--------|-----------|----------|
+| Trained on | Documents, photos | Japanese game pixel fonts |
+| Blur effect | Helps (+14%) | Hurts (-0.8%) |
+| Optimal preprocessing | LANCZOS 700px + blur 5x5 | Raw (or LANCZOS 700px, no blur) |
+| Why | Smooths pixel edges to look like training data | Already trained on pixel edges |
+
+---
+
+## 9. MeikiOCR Hybrid (Multilingual) Evaluation
+
+Evaluated eriksonssilva's MeikiOCR fork which combines MeikiOCR detection with PaddleOCR ONNX recognition for multilingual support.
+
+See GitHub issue: https://github.com/bquenin/interpreter/issues/210
+
+### Results (English text)
+
+| OCR Engine | Time (ms) | Similarity |
+|------------|-----------|------------|
+| **MeikiOCR Hybrid (en)** | **63** | 83.6% |
+| PaddleOCR (optimized) | 279 | 83.9% |
+
+**Finding**: Nearly identical accuracy (83.6% vs 83.9%) but **4x faster** (63ms vs 279ms).
+
+### Status
+
+Waiting for eriksonssilva to publish the fork to PyPI under a new package name. Git references can't be used in PyPI-published packages, so we can't adopt the fork until it's properly published.
+
+---
+
+## 10. Benchmark Scripts
+
+- `ocr_benchmark.py` - PaddleOCR benchmark (model selection + preprocessing)
+- `width_sweep.py` - Test different image widths for PaddleOCR
+- `preprocess_benchmark.py` - Test preprocessing approaches for PaddleOCR
 - `postprocess_benchmark.py` - Test spell check post-processing
+- `meiki_japanese_benchmark.py` - MeikiOCR Japanese preprocessing benchmark
+- `meiki_hybrid_benchmark.py` - MeikiOCR multilingual fork evaluation
 
 Run with:
 ```bash
