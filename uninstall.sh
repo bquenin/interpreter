@@ -45,15 +45,19 @@ if [[ "$(uname)" == "Linux" ]]; then
         echo -e "${GRAY}     Desktop entry not found${NC}"
     fi
 
-    if [ -f "$ICON_FILE" ]; then
+    if command -v xdg-icon-resource &> /dev/null; then
+        xdg-icon-resource uninstall --size 256 interpreter-v2 2>/dev/null && \
+            echo -e "${GREEN}     Removed icon${NC}" || \
+            echo -e "${GRAY}     Icon not found${NC}"
+    elif [ -f "$ICON_FILE" ]; then
         rm -f "$ICON_FILE"
+        gtk-update-icon-cache -f "$HOME/.local/share/icons/hicolor" 2>/dev/null || true
         echo -e "${GREEN}     Removed icon${NC}"
     else
         echo -e "${GRAY}     Icon not found${NC}"
     fi
 
-    # Update caches
-    gtk-update-icon-cache -f "$HOME/.local/share/icons/hicolor" 2>/dev/null || true
+    # Update desktop database
     update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
 else
     echo -e "${GRAY}[2/3] Skipping desktop entry removal (not Linux)${NC}"

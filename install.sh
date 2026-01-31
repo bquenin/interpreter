@@ -89,10 +89,14 @@ if [[ "$(uname)" == "Linux" ]]; then
     ICON_SRC=$(find "$TOOL_DIR/lib" -name "icon.png" -path "*/resources/icons/*" 2>/dev/null | head -1)
 
     if [ -n "$ICON_SRC" ]; then
-        # Install icon
-        mkdir -p "$HOME/.local/share/icons/hicolor/256x256/apps"
-        cp "$ICON_SRC" "$HOME/.local/share/icons/hicolor/256x256/apps/interpreter-v2.png"
-
+        # Install icon using xdg-icon-resource if available, otherwise fall back to manual copy
+        if command -v xdg-icon-resource &> /dev/null; then
+            xdg-icon-resource install --novendor --size 256 "$ICON_SRC" interpreter-v2
+        else
+            mkdir -p "$HOME/.local/share/icons/hicolor/256x256/apps"
+            cp "$ICON_SRC" "$HOME/.local/share/icons/hicolor/256x256/apps/interpreter-v2.png"
+            gtk-update-icon-cache -f "$HOME/.local/share/icons/hicolor" 2>/dev/null || true
+        fi
         # Install desktop entry
         mkdir -p "$HOME/.local/share/applications"
         cat > "$HOME/.local/share/applications/interpreter-v2.desktop" << 'EOF'
@@ -106,8 +110,6 @@ Categories=Utility;Translation;
 StartupWMClass=interpreter-v2
 EOF
 
-        # Update caches
-        gtk-update-icon-cache -f "$HOME/.local/share/icons/hicolor" 2>/dev/null || true
         update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
 
         echo -e "${GREEN}Desktop entry installed${NC}"
