@@ -206,12 +206,42 @@ def _is_window_cloaked(hwnd: int) -> bool:
     return hr == 0 and cloaked.value != 0
 
 
+def _get_window_process_name(hwnd: int) -> str | None:
+    """Get the owning process's executable basename (no extension).
+
+    Used to give nameless windows a more identifiable label — e.g.
+    RPGMaker games typically ship as 'Game.exe' so the user sees
+    'Game' instead of an opaque HWND. Returns None on failure.
+    """
+    PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+    pid = wintypes.DWORD(0)
+    ctypes.windll.user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+    if pid.value == 0:
+        return None
+
+    handle = ctypes.windll.kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid.value)
+    if not handle:
+        return None
+    try:
+        buf = ctypes.create_unicode_buffer(1024)
+        size = wintypes.DWORD(len(buf))
+        if not ctypes.windll.kernel32.QueryFullProcessImageNameW(handle, 0, buf, ctypes.byref(size)):
+            return None
+        name = buf.value.rsplit("\\", 1)[-1]
+        if name.lower().endswith(".exe"):
+            name = name[:-4]
+        return name or None
+    finally:
+        ctypes.windll.kernel32.CloseHandle(handle)
+
+
 def get_window_list() -> list[dict]:
     """Get list of all top-level capturable windows.
 
     Nameless windows (e.g. some RPGMaker games that leave Game.ini Title=
-    empty) are included with a synthetic label so users can still select
-    them. Invisible, cloaked, and zero-size windows are filtered out.
+    empty) are labeled with the owning process name and HWND so users can
+    still identify and select them. Invisible, cloaked, and zero-size
+    windows are filtered out.
 
     Returns:
         List of window dictionaries with keys: id, title, owner, bounds
@@ -233,7 +263,10 @@ def get_window_list() -> list[dict]:
             continue
         if _is_window_cloaked(hwnd):
             continue
-        title = win.title or f"[Untitled window {hex(hwnd)}]"
+        title = win.title
+        if not title:
+            proc = _get_window_process_name(hwnd)
+            title = f"{proc} ({hex(hwnd)})" if proc else f"[Untitled window {hex(hwnd)}]"
         windows.append(
             {
                 "id": hwnd,
