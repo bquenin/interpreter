@@ -34,7 +34,7 @@ Write-Host "     (this may take a minute on first install)" -ForegroundColor Gra
 # Use Python 3.12 explicitly - onnxruntime doesn't have wheels for 3.14 yet
 # Temporarily allow errors so uv's progress output (on stderr) doesn't stop the script
 $ErrorActionPreference = 'Continue'
-uv tool install --upgrade --python 3.12 interpreter-v2
+uv tool install --force --upgrade --python 3.12 interpreter-v2
 $installExitCode = $LASTEXITCODE
 $ErrorActionPreference = 'Stop'
 if ($installExitCode -ne 0) {
