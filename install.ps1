@@ -51,7 +51,7 @@ $ErrorActionPreference = 'Stop'
 
 # Pre-compile bytecode and warm up OS caches
 Write-Host "[3/3] Optimizing for fast startup..." -ForegroundColor Yellow
-$toolDir = "$env:LOCALAPPDATA\uv\tools\interpreter-v2"
+$toolDir = "$env:APPDATA\uv\tools\interpreter-v2"
 if (Test-Path $toolDir) {
     & "$toolDir\Scripts\python.exe" -m compileall -q "$toolDir\Lib" 2>$null
     # Warm up caches (Windows Defender, etc.) by running once
