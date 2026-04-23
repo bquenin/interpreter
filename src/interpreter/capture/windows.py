@@ -189,31 +189,64 @@ class BITMAPINFO(ctypes.Structure):
     ]
 
 
+def _is_window_cloaked(hwnd: int) -> bool:
+    """Check if a window is cloaked by DWM.
+
+    UWP and modern apps leave behind hidden 'ghost' top-level windows that
+    still enumerate via EnumWindows but are invisible to the user.
+    """
+    DWMWA_CLOAKED = 14
+    cloaked = wintypes.DWORD(0)
+    hr = ctypes.windll.dwmapi.DwmGetWindowAttribute(
+        wintypes.HWND(hwnd),
+        ctypes.c_uint(DWMWA_CLOAKED),
+        ctypes.byref(cloaked),
+        ctypes.sizeof(cloaked),
+    )
+    return hr == 0 and cloaked.value != 0
+
+
 def get_window_list() -> list[dict]:
-    """Get list of all windows with their properties.
+    """Get list of all top-level capturable windows.
+
+    Nameless windows (e.g. some RPGMaker games that leave Game.ini Title=
+    empty) are included with a synthetic label so users can still select
+    them. Invisible, cloaked, and zero-size windows are filtered out.
 
     Returns:
-        List of window dictionaries with keys: id, title, bounds
+        List of window dictionaries with keys: id, title, owner, bounds
     """
     if not WINDOWS_AVAILABLE:
         return []
 
+    user32 = ctypes.windll.user32
+    shell_hwnd = user32.GetShellWindow()
+
     windows = []
     for win in gw.getAllWindows():
-        if win.title:  # Skip windows without titles
-            windows.append(
-                {
-                    "id": win._hWnd,
-                    "title": win.title,
-                    "owner": "",
-                    "bounds": {
-                        "x": win.left,
-                        "y": win.top,
-                        "width": win.width,
-                        "height": win.height,
-                    },
-                }
-            )
+        hwnd = win._hWnd
+        if hwnd == shell_hwnd:
+            continue
+        if not user32.IsWindowVisible(hwnd):
+            continue
+        if win.width <= 0 or win.height <= 0:
+            continue
+        if _is_window_cloaked(hwnd):
+            continue
+        title = win.title or f"[Untitled window {hex(hwnd)}]"
+        windows.append(
+            {
+                "id": hwnd,
+                "title": title,
+                "owner": "",
+                "bounds": {
+                    "x": win.left,
+                    "y": win.top,
+                    "width": win.width,
+                    "height": win.height,
+                },
+            }
+        )
     return windows
 
 
