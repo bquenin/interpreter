@@ -34,7 +34,7 @@ if (Test-Path $orphanExe) {
 } else {
     Write-Host "     No orphan executable found" -ForegroundColor Gray
 }
-$staleToolDir = "$env:LOCALAPPDATA\uv\tools\interpreter-v2"
+$staleToolDir = "$env:APPDATA\uv\tools\interpreter-v2"
 if (Test-Path $staleToolDir) {
     Remove-Item -Recurse -Force $staleToolDir
     Write-Host "     Removed stale tool environment" -ForegroundColor Green
