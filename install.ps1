@@ -3,6 +3,10 @@
 
 $ErrorActionPreference = 'Stop'
 
+# Force TLS 1.2+ for Windows PowerShell 5.1, which defaults to TLS 1.0/1.1
+# and fails against modern hosts like astral.sh.
+[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+
 Write-Host ""
 Write-Host "=== interpreter-v2 Installer ===" -ForegroundColor Cyan
 Write-Host "Offline screen translator for Japanese retro games"
