@@ -66,10 +66,10 @@ if [ -d "$TOOL_DIR" ]; then
 	interpreter-v2 --list-windows >/dev/null 2>&1 || true
 fi
 
-# Check Wayland dependencies (Linux only)
+# Check Linux runtime dependencies (Linux only)
 # Always check regardless of WAYLAND_DISPLAY - some compositors like gamescope don't set it
 if [[ "$(uname)" == "Linux" ]]; then
-	echo -e "${YELLOW}[4/${TOTAL_STEPS}] Checking Wayland capture dependencies...${NC}"
+	echo -e "${YELLOW}[4/${TOTAL_STEPS}] Checking Linux runtime dependencies...${NC}"
 
 	if ldconfig -p 2>/dev/null | grep -q libpipewire-0.3; then
 		echo -e "${GREEN}     PipeWire library available${NC}"
@@ -78,6 +78,16 @@ if [[ "$(uname)" == "Linux" ]]; then
 		echo -e "${GRAY}     Install with: apt install libpipewire-0.3-0 (Debian/Ubuntu)${NC}"
 		echo -e "${GRAY}                   dnf install pipewire (Fedora)${NC}"
 		echo -e "${GRAY}                   pacman -S pipewire (Arch)${NC}"
+	fi
+
+	# Qt 6.5+ requires libxcb-cursor for the xcb platform plugin used on X11/XWayland.
+	if ldconfig -p 2>/dev/null | grep -q libxcb-cursor; then
+		echo -e "${GREEN}     libxcb-cursor available${NC}"
+	else
+		echo -e "${YELLOW}     libxcb-cursor not found. The GUI may fail to launch on X11/XWayland.${NC}"
+		echo -e "${GRAY}     Install with: apt install libxcb-cursor0 (Debian/Ubuntu/Mint)${NC}"
+		echo -e "${GRAY}                   dnf install xcb-util-cursor (Fedora)${NC}"
+		echo -e "${GRAY}                   pacman -S xcb-util-cursor (Arch)${NC}"
 	fi
 fi
 

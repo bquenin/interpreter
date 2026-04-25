@@ -23,6 +23,7 @@ Offline screen translator for Japanese retro games. Captures text from any windo
 - **Global hotkeys** require `input` group membership. The installer will show instructions.
 - **Native Wayland capture** requires GStreamer PipeWire plugin. The installer will attempt to install it automatically.
 - **Inplace overlay** on Wayland only works with fullscreen windows (Wayland's security model prevents knowing window positions).
+- **Qt platform plugin** (`xcb`) requires `libxcb-cursor0` (Debian/Ubuntu/Mint) or `xcb-util-cursor` (Fedora/Arch). Without it the GUI will abort with `Could not load the Qt platform plugin "xcb"`.
 
 ## Installation
 
