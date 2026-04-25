@@ -81,13 +81,16 @@ if [[ "$(uname)" == "Linux" ]]; then
 	fi
 
 	# Qt 6.5+ requires libxcb-cursor for the xcb platform plugin used on X11/XWayland.
+	# The GUI cannot launch without it, so treat this as a hard failure rather than a warning.
 	if ldconfig -p 2>/dev/null | grep -q libxcb-cursor; then
 		echo -e "${GREEN}     libxcb-cursor available${NC}"
 	else
-		echo -e "${YELLOW}     libxcb-cursor not found. The GUI may fail to launch on X11/XWayland.${NC}"
-		echo -e "${GRAY}     Install with: apt install libxcb-cursor0 (Debian/Ubuntu/Mint)${NC}"
-		echo -e "${GRAY}                   dnf install xcb-util-cursor (Fedora)${NC}"
-		echo -e "${GRAY}                   pacman -S xcb-util-cursor (Arch)${NC}"
+		echo -e "${RED}     libxcb-cursor not found. The Qt GUI cannot launch without it.${NC}"
+		echo -e "${YELLOW}     Install it and re-run this installer:${NC}"
+		echo -e "${CYAN}       sudo apt install libxcb-cursor0      ${GRAY}(Debian/Ubuntu/Mint)${NC}"
+		echo -e "${CYAN}       sudo dnf install xcb-util-cursor     ${GRAY}(Fedora)${NC}"
+		echo -e "${CYAN}       sudo pacman -S xcb-util-cursor       ${GRAY}(Arch)${NC}"
+		exit 1
 	fi
 fi
 
