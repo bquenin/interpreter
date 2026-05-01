@@ -69,3 +69,17 @@ def test_active_model_names_match_source_language():
     assert get_active_ocr_model_name(SourceLanguage.CHINESE) == "RapidOCR"
     assert get_active_translation_model_name(SourceLanguage.JAPANESE) == "Sugoi V4"
     assert get_active_translation_model_name(SourceLanguage.CHINESE) == "OPUS-MT zh-en"
+
+
+
+def test_config_save_accepts_string_source_language(tmp_path):
+    from interpreter.config import Config, SourceLanguage
+
+    config_path = tmp_path / "config.yml"
+    config = Config(source_language=SourceLanguage.JAPANESE)
+    config.source_language = "chinese"
+
+    config.save(str(config_path))
+    loaded = Config.load(str(config_path))
+
+    assert loaded.source_language == SourceLanguage.CHINESE

@@ -39,6 +39,17 @@ def get_active_translation_model_name(source_language: SourceLanguage) -> str:
     return "Sugoi V4"
 
 
+def normalize_source_language(source_language: SourceLanguage | str) -> SourceLanguage:
+    """Normalize a source language enum or string value."""
+    if isinstance(source_language, SourceLanguage):
+        return source_language
+    try:
+        return SourceLanguage(source_language)
+    except ValueError:
+        logger.warning("invalid source_language, using japanese", source_language=source_language)
+        return SourceLanguage.JAPANESE
+
+
 class Config:
     """Application configuration."""
 
@@ -77,7 +88,7 @@ class Config:
         self.window_title = window_title
         self.ocr_confidence = ocr_confidence  # Global default
         self.overlay_mode = overlay_mode
-        self.source_language = source_language
+        self.source_language = normalize_source_language(source_language)
         self.font_family = font_family  # None = system default
         self.font_size = font_size
         self.font_color = font_color
@@ -290,7 +301,7 @@ hotkeys:
             "window_title": str(self.window_title) if self.window_title else "",
             "ocr_confidence": float(self.ocr_confidence),
             "overlay_mode": self.overlay_mode.value,
-            "source_language": self.source_language.value,
+            "source_language": normalize_source_language(self.source_language).value,
             "font_size": int(self.font_size),
             "font_color": str(self.font_color),
             "background_color": str(self.background_color),

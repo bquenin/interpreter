@@ -31,6 +31,7 @@ from ..config import (
     SourceLanguage,
     get_active_ocr_model_name,
     get_active_translation_model_name,
+    normalize_source_language,
 )
 from ..overlay import BannerOverlay, InplaceOverlay
 from ..permissions import (
@@ -494,7 +495,7 @@ class MainWindow(QMainWindow):
 
     def _on_source_language_changed(self, index: int):
         """Handle source language selection change."""
-        source_language = self._language_combo.itemData(index)
+        source_language = normalize_source_language(self._language_combo.itemData(index))
         if source_language == self._source_language:
             return
 
