@@ -1,6 +1,27 @@
 """Tests for the translate module."""
 
+import importlib.metadata
 import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+SRC = ROOT / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
+
+import importlib.metadata
+
+_real_version = importlib.metadata.version
+
+
+def _version_with_fallback(name: str) -> str:
+    if name == "interpreter-v2":
+        return "0.0"
+    return _real_version(name)
+
+
+importlib.metadata.version = _version_with_fallback
+
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch

@@ -16,6 +16,13 @@ class OverlayMode(str, Enum):
     INPLACE = "inplace"
 
 
+class SourceLanguage(str, Enum):
+    """Source language for OCR and translation."""
+
+    JAPANESE = "japanese"
+    CHINESE = "chinese"
+
+
 logger = log.get_logger()
 
 
@@ -41,6 +48,7 @@ class Config:
         window_title: str = "Snes9x",
         ocr_confidence: float = 0.6,
         overlay_mode: OverlayMode = OverlayMode.BANNER,
+        source_language: SourceLanguage = SourceLanguage.JAPANESE,
         font_family: str | None = None,
         font_size: int = 26,
         font_color: str = "#FFFFFF",
@@ -56,6 +64,7 @@ class Config:
         self.window_title = window_title
         self.ocr_confidence = ocr_confidence  # Global default
         self.overlay_mode = overlay_mode
+        self.source_language = source_language
         self.font_family = font_family  # None = system default
         self.font_size = font_size
         self.font_color = font_color
@@ -112,10 +121,18 @@ class Config:
                 logger.warning("invalid overlay_mode, using banner", mode=mode_str)
                 overlay_mode = OverlayMode.BANNER
 
+            source_language_str = data.get("source_language", SourceLanguage.JAPANESE.value)
+            try:
+                source_language = SourceLanguage(source_language_str)
+            except ValueError:
+                logger.warning("invalid source_language, using japanese", source_language=source_language_str)
+                source_language = SourceLanguage.JAPANESE
+
             return cls(
                 window_title=data.get("window_title", cls.DEFAULT_WINDOW_TITLE),
                 ocr_confidence=float(data.get("ocr_confidence", cls.DEFAULT_OCR_CONFIDENCE)),
                 overlay_mode=overlay_mode,
+                source_language=source_language,
                 font_family=data.get("font_family"),  # None = system default
                 font_size=int(data.get("font_size", 26)),
                 font_color=data.get("font_color", "#FFFFFF"),
@@ -153,6 +170,9 @@ window_title: "Snes9x"
 # OCR confidence threshold (0.0-1.0)
 # Filters out low-confidence text detection
 ocr_confidence: 0.6
+
+# Source language: "japanese" or "chinese"
+source_language: japanese
 
 # Overlay mode: "banner" (subtitle bar) or "inplace" (over game text)
 overlay_mode: banner
@@ -257,6 +277,7 @@ hotkeys:
             "window_title": str(self.window_title) if self.window_title else "",
             "ocr_confidence": float(self.ocr_confidence),
             "overlay_mode": self.overlay_mode.value,
+            "source_language": self.source_language.value,
             "font_size": int(self.font_size),
             "font_color": str(self.font_color),
             "background_color": str(self.background_color),

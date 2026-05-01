@@ -1,50 +1,46 @@
-"""Translation module using Sugoi V4 for offline Japanese to English."""
+"""Translation module for offline Japanese and Chinese to English."""
 
 import os
 import sys
+from difflib import SequenceMatcher
+from pathlib import Path
 
 # Suppress HuggingFace Hub warnings (must be set before import)
 os.environ["HF_HUB_DISABLE_IMPLICIT_TOKEN"] = "1"
 os.environ["HF_HUB_VERBOSITY"] = "error"
 
-from difflib import SequenceMatcher
-from pathlib import Path
-
-from huggingface_hub import snapshot_download
-from huggingface_hub.utils import LocalEntryNotFoundError
-
 from . import log
+from .config import SourceLanguage
 from .models import ModelLoadError
 
 logger = log.get_logger()
 
-# Official HuggingFace repository for Sugoi V4
 SUGOI_REPO_ID = "entai2965/sugoi-v4-ja-en-ctranslate2"
+OPUS_ZH_EN_REPO_ID = "gaudi/opus-mt-zh-en-ctranslate2"
 
-# Required files that must exist for the model to work
 REQUIRED_MODEL_FILES = [
     "model.bin",
     "spm/spm.ja.nopretok.model",
 ]
 
-# Translation cache defaults
-DEFAULT_CACHE_SIZE = 200  # Max cached translations
-DEFAULT_SIMILARITY_THRESHOLD = 0.9  # Fuzzy match threshold for cache lookup
+DEFAULT_CACHE_SIZE = 200
+DEFAULT_SIMILARITY_THRESHOLD = 0.9
+
+
+def _snapshot_download(*args, **kwargs):
+    from huggingface_hub import snapshot_download
+
+    return snapshot_download(*args, **kwargs)
+
+
+def _get_local_entry_not_found_error():
+    from huggingface_hub.utils import LocalEntryNotFoundError
+
+    return LocalEntryNotFoundError
 
 
 def _get_short_path(path: Path) -> str:
-    """Convert path to Windows short (8.3) format to handle non-ASCII characters.
-
-    CTranslate2 and SentencePiece (C++ libraries) may fail to load files from paths
-    containing non-ASCII characters on Windows. This function converts paths to the
-    short 8.3 format which only uses ASCII characters.
-
-    Args:
-        path: Path to convert.
-
-    Returns:
-        Short path string on Windows if conversion succeeds, otherwise original path string.
-    """
+    """Convert path to Windows short (8.3) format to handle non-ASCII characters."""
     if sys.platform == "win32":
         import ctypes
 
@@ -54,60 +50,35 @@ def _get_short_path(path: Path) -> str:
     return str(path)
 
 
-def _validate_model_files(model_path: Path) -> bool:
-    """Check if all required model files exist.
-
-    Args:
-        model_path: Path to the model directory.
-
-    Returns:
-        True if all required files exist, False otherwise.
-    """
-    for file_path in REQUIRED_MODEL_FILES:
+def _validate_model_files(model_path: Path, required_files: list[str]) -> bool:
+    for file_path in required_files:
         if not (model_path / file_path).exists():
             logger.warning("missing model file", file=file_path)
             return False
     return True
 
 
-def _get_sugoi_model_path() -> Path:
-    """Get path to Sugoi V4 translation model, downloading if needed.
+def _get_model_path(repo_id: str, required_files: list[str], download_size: str | None = None) -> Path:
+    """Get path to a Hugging Face model, downloading if needed."""
+    local_entry_not_found_error = _get_local_entry_not_found_error()
 
-    Downloads from official HuggingFace source on first use.
-    Model is cached in standard HuggingFace cache (~/.cache/huggingface/).
-
-    Returns:
-        Path to the model directory.
-
-    Raises:
-        ModelLoadError: If model files are missing or corrupted.
-    """
-    # First try to load from cache (no network request)
     try:
-        model_path = snapshot_download(
-            repo_id=SUGOI_REPO_ID,
-            local_files_only=True,
-        )
+        model_path = _snapshot_download(repo_id=repo_id, local_files_only=True)
         model_path = Path(model_path)
-        # Validate that required files exist
-        if _validate_model_files(model_path):
+        if _validate_model_files(model_path, required_files):
             return model_path
-        # Files missing - raise error (UI will show "Fix Models" button)
-        raise ModelLoadError(
-            "Translation model cache is corrupted. Click 'Fix Models' to repair."
-        )
-    except LocalEntryNotFoundError:
+        raise ModelLoadError("Model cache is corrupted. Click 'Fix Models' to repair.")
+    except local_entry_not_found_error:
         pass
 
-    # Not cached, download from HuggingFace
-    logger.info("downloading sugoi v4 model", size="~1.1GB")
-    model_path = Path(snapshot_download(repo_id=SUGOI_REPO_ID))
+    log_fields = {"repo": repo_id}
+    if download_size:
+        log_fields["size"] = download_size
+    logger.info("downloading translation model", **log_fields)
+    model_path = Path(_snapshot_download(repo_id=repo_id))
 
-    # Validate download completed successfully
-    if not _validate_model_files(model_path):
-        raise ModelLoadError(
-            "Translation model download incomplete. Click 'Fix Models' to retry."
-        )
+    if not _validate_model_files(model_path, required_files):
+        raise ModelLoadError("Translation model download incomplete. Click 'Fix Models' to retry.")
 
     return model_path
 
@@ -127,30 +98,14 @@ class TranslationCache:
         max_size: int = DEFAULT_CACHE_SIZE,
         similarity_threshold: float = DEFAULT_SIMILARITY_THRESHOLD,
     ):
-        """Initialize the cache.
-
-        Args:
-            max_size: Maximum number of entries to store.
-            similarity_threshold: Minimum similarity ratio for fuzzy match (0.0-1.0).
-        """
         self._cache: dict[str, str] = {}
         self._max_size = max_size
         self._similarity_threshold = similarity_threshold
 
     def get(self, text: str) -> str | None:
-        """Get cached translation, using fuzzy matching if exact match not found.
-
-        Args:
-            text: Japanese text to look up.
-
-        Returns:
-            Cached translation if found, None otherwise.
-        """
-        # Try exact match first
         if text in self._cache:
             return self._cache[text]
 
-        # Try fuzzy match
         for cached_text, translation in self._cache.items():
             if text_similarity(text, cached_text) >= self._similarity_threshold:
                 return translation
@@ -158,13 +113,6 @@ class TranslationCache:
         return None
 
     def put(self, text: str, translation: str) -> None:
-        """Store a translation in the cache.
-
-        Args:
-            text: Japanese source text.
-            translation: English translation.
-        """
-        # Simple LRU: remove oldest entry if at capacity
         if len(self._cache) >= self._max_size and text not in self._cache:
             oldest_key = next(iter(self._cache))
             del self._cache[oldest_key]
@@ -172,7 +120,7 @@ class TranslationCache:
         self._cache[text] = translation
 
 
-class Translator:
+class JapaneseTranslator:
     """Translates Japanese text to English using Sugoi V4 (CTranslate2)."""
 
     def __init__(
@@ -180,23 +128,12 @@ class Translator:
         cache_size: int = DEFAULT_CACHE_SIZE,
         similarity_threshold: float = DEFAULT_SIMILARITY_THRESHOLD,
     ):
-        """Initialize the translator (lazy loading).
-
-        Args:
-            cache_size: Maximum number of translations to cache.
-            similarity_threshold: Minimum similarity for fuzzy cache match (0.0-1.0).
-        """
         self._model_path = None
         self._translator = None
         self._tokenizer = None
         self._cache = TranslationCache(cache_size, similarity_threshold)
 
     def load(self) -> None:
-        """Load the translation model, downloading if needed.
-
-        Raises:
-            ModelLoadError: If model fails to load.
-        """
         if self._translator is not None:
             return
 
@@ -205,104 +142,155 @@ class Translator:
         import ctranslate2
         import sentencepiece as spm
 
-        # Get model path (downloads from HuggingFace if needed)
-        self._model_path = _get_sugoi_model_path()
+        self._model_path = _get_model_path(SUGOI_REPO_ID, REQUIRED_MODEL_FILES, download_size="~1.1GB")
 
-        # Load CTranslate2 model with GPU if available, fallback to CPU
         device = "cpu"
         try:
             cuda_types = ctranslate2.get_supported_compute_types("cuda")
             if cuda_types:
-                # Try to load with GPU
-                self._translator = ctranslate2.Translator(
-                    _get_short_path(self._model_path),
-                    device="cuda",
-                )
-                # Test inference to verify CUDA actually works
-                # (loading may succeed but inference can fail if cuBLAS is missing)
+                self._translator = ctranslate2.Translator(_get_short_path(self._model_path), device="cuda")
                 self._translator.translate_batch([["テスト"]])
                 device = "cuda"
         except Exception as e:
-            # GPU failed (load or inference), will use CPU below
             logger.debug("CUDA failed, falling back to CPU", error=str(e))
 
         if device == "cpu":
-            self._translator = ctranslate2.Translator(
-                _get_short_path(self._model_path),
-                device="cpu",
-            )
+            self._translator = ctranslate2.Translator(_get_short_path(self._model_path), device="cpu")
 
-        # Load SentencePiece tokenizer
-        # Read model as bytes to avoid Unicode path issues on Windows
-        # (SentencePiece's C++ layer may not handle non-ASCII paths correctly)
         tokenizer_path = self._model_path / "spm" / "spm.ja.nopretok.model"
         self._tokenizer = spm.SentencePieceProcessor(model_proto=tokenizer_path.read_bytes())
 
-        device_info = "GPU" if device == "cuda" else "CPU"
-        logger.info("sugoi v4 ready", device=device_info)
+        logger.info("sugoi v4 ready", device=("GPU" if device == "cuda" else "CPU"))
 
     def translate(self, text: str) -> tuple[str, bool]:
-        """Translate Japanese text to English.
-
-        Args:
-            text: Japanese text to translate.
-
-        Returns:
-            Tuple of (translated English text, was_cached).
-        """
         if not text or not text.strip():
             return "", False
 
-        # Check cache first (includes fuzzy matching)
         cached = self._cache.get(text)
         if cached is not None:
             return cached, True
 
-        # Ensure model is loaded
         if self._translator is None:
             self.load()
 
-        # Tokenize input
         tokens = self._tokenizer.EncodeAsPieces(text)
-
-        # Translate
-        results = self._translator.translate_batch(
-            [tokens],
-            beam_size=5,
-            max_decoding_length=256,
-        )
-
-        # Decode output - join tokens and clean up SentencePiece markers
+        results = self._translator.translate_batch([tokens], beam_size=5, max_decoding_length=256)
         translated_tokens = results[0].hypotheses[0]
         result = "".join(translated_tokens).replace("▁", " ").strip()
-
-        # Normalize Unicode characters to ASCII equivalents (fixes rendering issues)
-        result = (
-            result
-            # Curly quotes → straight quotes
-            .replace("\u2018", "'")  # LEFT SINGLE QUOTATION MARK
-            .replace("\u2019", "'")  # RIGHT SINGLE QUOTATION MARK
-            .replace("\u201c", '"')  # LEFT DOUBLE QUOTATION MARK
-            .replace("\u201d", '"')  # RIGHT DOUBLE QUOTATION MARK
-            # Dashes
-            .replace("\u2013", "-")  # EN DASH
-            .replace("\u2014", "--")  # EM DASH
-            .replace("\u2212", "-")  # MINUS SIGN
-            # Spaces
-            .replace("\u00a0", " ")  # NO-BREAK SPACE
-            # Ellipsis
-            .replace("\u2026", "...")  # HORIZONTAL ELLIPSIS
-        )
-
-        # Store in cache
+        result = normalize_translation_text(result)
         self._cache.put(text, result)
-
         return result, False
 
     def is_loaded(self) -> bool:
-        """Check if the translation model is loaded.
-
-        Returns:
-            True if model is loaded, False otherwise.
-        """
         return self._translator is not None
+
+
+class ChineseTranslator:
+    """Translates Chinese text to English using OPUS-MT (CTranslate2)."""
+
+    def __init__(
+        self,
+        cache_size: int = DEFAULT_CACHE_SIZE,
+        similarity_threshold: float = DEFAULT_SIMILARITY_THRESHOLD,
+    ):
+        self._model_path = None
+        self._translator = None
+        self._tokenizer = None
+        self._cache = TranslationCache(cache_size, similarity_threshold)
+
+    def load(self) -> None:
+        if self._translator is not None:
+            return
+
+        logger.info("loading opus zh-en")
+
+        import ctranslate2
+        from transformers import AutoTokenizer
+
+        required_files = ["model.bin", "source.spm", "target.spm"]
+        self._model_path = _get_model_path(OPUS_ZH_EN_REPO_ID, required_files, download_size="~155MB")
+
+        device = "cpu"
+        try:
+            cuda_types = ctranslate2.get_supported_compute_types("cuda")
+            if cuda_types:
+                self._translator = ctranslate2.Translator(str(self._model_path), device="cuda")
+                self._translator.translate_batch([["▁测试", "</s>"]])
+                device = "cuda"
+        except Exception as e:
+            logger.debug("CUDA failed, falling back to CPU", error=str(e))
+
+        if device == "cpu":
+            self._translator = ctranslate2.Translator(str(self._model_path), device="cpu")
+
+        self._tokenizer = AutoTokenizer.from_pretrained(self._model_path)
+        logger.info("opus zh-en ready", device=("GPU" if device == "cuda" else "CPU"))
+
+    def translate(self, text: str) -> tuple[str, bool]:
+        if not text or not text.strip():
+            return "", False
+
+        cached = self._cache.get(text)
+        if cached is not None:
+            return cached, True
+
+        if self._translator is None:
+            self.load()
+
+        input_ids = self._tokenizer.encode(text)
+        tokens = self._tokenizer.convert_ids_to_tokens(input_ids)
+        results = self._translator.translate_batch([tokens], beam_size=4, max_decoding_length=256)
+        translated_tokens = results[0].hypotheses[0]
+        translated_ids = self._tokenizer.convert_tokens_to_ids(translated_tokens)
+        result = self._tokenizer.decode(translated_ids, skip_special_tokens=True).strip()
+        result = normalize_translation_text(result)
+        self._cache.put(text, result)
+        return result, False
+
+    def is_loaded(self) -> bool:
+        return self._translator is not None
+
+
+def normalize_translation_text(result: str) -> str:
+    return (
+        result
+        .replace("‘", "'")
+        .replace("’", "'")
+        .replace("“", '"')
+        .replace("”", '"')
+        .replace("–", "-")
+        .replace("—", "--")
+        .replace("−", "-")
+        .replace(" ", " ")
+        .replace("…", "...")
+    )
+
+
+class Translator:
+    """Language-aware translation wrapper."""
+
+    def __init__(
+        self,
+        source_language: SourceLanguage = SourceLanguage.JAPANESE,
+        cache_size: int = DEFAULT_CACHE_SIZE,
+        similarity_threshold: float = DEFAULT_SIMILARITY_THRESHOLD,
+    ):
+        if source_language == SourceLanguage.CHINESE:
+            self._backend = ChineseTranslator(cache_size, similarity_threshold)
+        else:
+            self._backend = JapaneseTranslator(cache_size, similarity_threshold)
+
+    def load(self) -> None:
+        self._backend.load()
+
+    def translate(self, text: str) -> tuple[str, bool]:
+        return self._backend.translate(text)
+
+    def is_loaded(self) -> bool:
+        return self._backend.is_loaded()
+
+
+def get_translation_repo_id(source_language: SourceLanguage) -> str:
+    if source_language == SourceLanguage.CHINESE:
+        return OPUS_ZH_EN_REPO_ID
+    return SUGOI_REPO_ID

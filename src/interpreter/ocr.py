@@ -6,7 +6,13 @@ import numpy as np
 from numpy.typing import NDArray
 
 from . import log
-from .capture.convert import bgra_to_rgb
+from .config import SourceLanguage
+
+
+def bgra_to_rgb(frame: NDArray[np.uint8]) -> NDArray[np.uint8]:
+    """Convert BGRA numpy array to RGB numpy array."""
+    rgb = frame[:, :, [2, 1, 0]]
+    return np.ascontiguousarray(rgb)
 
 logger = log.get_logger()
 
@@ -28,7 +34,7 @@ class OCRResult:
     bbox: dict | None = None  # {"x": int, "y": int, "width": int, "height": int}
 
 
-class OCR:
+class JapaneseOCR:
     """Extracts Japanese text from images using MeikiOCR.
 
     MeikiOCR is specifically trained on Japanese video game text,
@@ -330,3 +336,40 @@ class OCR:
             True if model is loaded, False otherwise.
         """
         return self._model is not None
+
+
+class OCR:
+    """Language-aware OCR wrapper."""
+
+    def __init__(
+        self,
+        confidence_threshold: float = DEFAULT_CONFIDENCE_THRESHOLD,
+        debug: bool = False,
+        source_language: SourceLanguage = SourceLanguage.JAPANESE,
+    ):
+        if source_language == SourceLanguage.CHINESE:
+            from .ocr_rapid import ChineseOCR
+
+            self._backend = ChineseOCR(confidence_threshold=confidence_threshold, debug=debug)
+        else:
+            self._backend = JapaneseOCR(confidence_threshold=confidence_threshold, debug=debug)
+
+    @property
+    def confidence_threshold(self) -> float:
+        return self._backend.confidence_threshold
+
+    @confidence_threshold.setter
+    def confidence_threshold(self, value: float) -> None:
+        self._backend.confidence_threshold = value
+
+    def load(self) -> None:
+        self._backend.load()
+
+    def extract_text(self, image: NDArray[np.uint8]) -> str:
+        return self._backend.extract_text(image)
+
+    def extract_text_regions(self, image: NDArray[np.uint8]) -> list[OCRResult]:
+        return self._backend.extract_text_regions(image)
+
+    def is_loaded(self) -> bool:
+        return self._backend.is_loaded()
