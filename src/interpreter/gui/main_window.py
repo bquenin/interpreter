@@ -25,7 +25,13 @@ from PySide6.QtWidgets import (
 from .. import log
 from ..capture import Capture, WindowCapture, _is_wayland_session
 from ..capture.convert import bgra_to_rgb_pil
-from ..config import Config, OverlayMode, SourceLanguage
+from ..config import (
+    Config,
+    OverlayMode,
+    SourceLanguage,
+    get_active_ocr_model_name,
+    get_active_translation_model_name,
+)
 from ..overlay import BannerOverlay, InplaceOverlay
 from ..permissions import (
     check_accessibility,
@@ -349,13 +355,15 @@ class MainWindow(QMainWindow):
 
         # OCR model row
         status_layout.addWidget(QLabel("OCR:"), 0, 0)
-        status_layout.addWidget(QLabel("MeikiOCR"), 0, 1)
+        self._ocr_model_name_label = QLabel()
+        status_layout.addWidget(self._ocr_model_name_label, 0, 1)
         self._ocr_status_label = QLabel("Loading...")
         status_layout.addWidget(self._ocr_status_label, 0, 2)
 
         # Translation model row
         status_layout.addWidget(QLabel("Translation:"), 1, 0)
-        status_layout.addWidget(QLabel("Sugoi V4"), 1, 1)
+        self._translation_model_name_label = QLabel()
+        status_layout.addWidget(self._translation_model_name_label, 1, 1)
         self._translation_status_label = QLabel("Loading...")
         status_layout.addWidget(self._translation_status_label, 1, 2)
 
@@ -371,6 +379,7 @@ class MainWindow(QMainWindow):
 
         # Set column stretch so status is right-aligned
         status_layout.setColumnStretch(1, 1)
+        self._update_active_model_labels()
 
         layout.addWidget(status_group)
 
@@ -492,7 +501,21 @@ class MainWindow(QMainWindow):
         self._source_language = source_language
         self._config.source_language = source_language
         self._config.save()
+        self._update_active_model_labels()
         self._restart_process_worker()
+
+    def _update_active_model_labels(self):
+        """Update the status area to show the active OCR/translation models."""
+        ocr_name = get_active_ocr_model_name(self._source_language)
+        translation_name = get_active_translation_model_name(self._source_language)
+        self._ocr_model_name_label.setText(f"{ocr_name} (active)")
+        self._translation_model_name_label.setText(f"{translation_name} (active)")
+        self._ocr_model_name_label.setToolTip(
+            "Japanese uses MeikiOCR. Chinese uses RapidOCR. The active pipeline follows the Language selector."
+        )
+        self._translation_model_name_label.setToolTip(
+            "Japanese uses Sugoi V4. Chinese uses OPUS-MT zh-en. The active pipeline follows the Language selector."
+        )
 
     def _on_models_ready(self):
         """Handle models loaded signal from worker thread."""
@@ -544,8 +567,8 @@ class MainWindow(QMainWindow):
             label.setText("Downloading...")
             label.setStyleSheet("")
         elif status == "ready":
-            label.setText("Ready")
-            label.setStyleSheet("color: green;")
+            label.setText("● Active")
+            label.setStyleSheet("color: green; font-weight: 600;")
         elif status == "error":
             label.setText("Error")
             label.setStyleSheet("color: red;")

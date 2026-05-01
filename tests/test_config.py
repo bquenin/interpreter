@@ -56,3 +56,16 @@ def test_config_save_round_trips_source_language(tmp_path):
 
     assert loaded.source_language == SourceLanguage.CHINESE
     assert "source_language: chinese" in Path(config_path).read_text(encoding="utf-8")
+
+
+def test_active_model_names_match_source_language():
+    from interpreter.config import (
+        SourceLanguage,
+        get_active_ocr_model_name,
+        get_active_translation_model_name,
+    )
+
+    assert get_active_ocr_model_name(SourceLanguage.JAPANESE) == "MeikiOCR"
+    assert get_active_ocr_model_name(SourceLanguage.CHINESE) == "RapidOCR"
+    assert get_active_translation_model_name(SourceLanguage.JAPANESE) == "Sugoi V4"
+    assert get_active_translation_model_name(SourceLanguage.CHINESE) == "OPUS-MT zh-en"

@@ -1,8 +1,19 @@
 # Interpreter
 
-Offline screen translator for Japanese and Chinese games. Captures text from any window, performs OCR, translates to English, and displays subtitles in a floating overlay.
+Play Japanese and Chinese games with live English translation.
+
+Interpreter captures in-game text from any window, runs OCR locally, translates it offline, and overlays clean English subtitles so you can play import titles without ROM hacks or cloud APIs.
 
 ![screenshot](screenshot.png)
+
+Caption: The original game screen stays intact while Interpreter reads the dialogue box and shows an English subtitle overlay in real time.
+
+## Why use it?
+
+- Play untranslated retro RPGs without fan patches
+- Keep your emulator setup and original game visuals unchanged
+- Run fully offline after model download
+- Switch between Japanese -> English and Chinese -> English in the GUI
 
 ## Features
 
@@ -74,7 +85,7 @@ This opens the GUI where you can select a window to capture and configure all se
 A subtitle bar at the bottom of the screen displaying translated text. Draggable, opaque background, centered text.
 
 ### Inplace Mode
-Transparent overlay positioned over the game window. Translated text appears directly over the original Japanese text at OCR-detected positions. Click-through so you can interact with the game.
+Transparent overlay positioned over the game window. Translated text appears directly over the original Japanese or Chinese text at OCR-detected positions. Click-through so you can interact with the game.
 
 ## How It Works
 

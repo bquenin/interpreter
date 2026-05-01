@@ -25,6 +25,19 @@ class SourceLanguage(str, Enum):
 
 logger = log.get_logger()
 
+def get_active_ocr_model_name(source_language: SourceLanguage) -> str:
+    """Return the active OCR model name for a source language."""
+    if source_language == SourceLanguage.CHINESE:
+        return "RapidOCR"
+    return "MeikiOCR"
+
+
+def get_active_translation_model_name(source_language: SourceLanguage) -> str:
+    """Return the active translation model name for a source language."""
+    if source_language == SourceLanguage.CHINESE:
+        return "OPUS-MT zh-en"
+    return "Sugoi V4"
+
 
 class Config:
     """Application configuration."""
