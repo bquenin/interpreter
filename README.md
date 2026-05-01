@@ -1,6 +1,6 @@
 # Interpreter
 
-Offline screen translator for Japanese retro games. Captures text from any window, performs OCR, translates to English, and displays subtitles in a floating overlay.
+Offline screen translator for Japanese and Chinese games. Captures text from any window, performs OCR, translates to English, and displays subtitles in a floating overlay.
 
 ![screenshot](screenshot.png)
 
@@ -9,7 +9,8 @@ Offline screen translator for Japanese retro games. Captures text from any windo
 - **Fully offline** - No cloud APIs, no internet required after setup
 - **Free** - No API costs or subscriptions
 - **Private** - Text never leaves your machine
-- **Optimized for retro games** - Uses MeikiOCR, trained specifically on Japanese game text
+- **Japanese and Chinese support** - Select Japanese -> English or Chinese -> English
+- **Optimized for retro games** - Uses MeikiOCR for Japanese game text and RapidOCR for Chinese text
 - **Two overlay modes** - Banner (subtitle bar) or inplace (text over game)
 - **Translation caching** - Fuzzy matching avoids re-translating similar text
 - **Multi-display support** - Overlay appears on the same display as the game
@@ -78,8 +79,8 @@ Transparent overlay positioned over the game window. Translated text appears dir
 ## How It Works
 
 1. **Screen Capture** - Captures the target window at the configured refresh rate
-2. **OCR** - [MeikiOCR](https://github.com/rtr46/meikiocr) extracts Japanese text (optimized for pixel fonts)
-3. **Translation** - [Sugoi V4](https://huggingface.co/entai2965/sugoi-v4-ja-en-ctranslate2) translates Japanese to English
+2. **OCR** - [MeikiOCR](https://github.com/rtr46/meikiocr) extracts Japanese text (optimized for pixel fonts), while [RapidOCR](https://github.com/RapidAI/RapidOCR) handles Chinese text
+3. **Translation** - [Sugoi V4](https://huggingface.co/entai2965/sugoi-v4-ja-en-ctranslate2) translates Japanese to English, while [OPUS-MT zh-en](https://huggingface.co/gaudi/opus-mt-zh-en-ctranslate2) translates Chinese to English
 4. **Display** - Shows translated text in the selected overlay mode
 
 ## Troubleshooting
@@ -89,3 +90,10 @@ Try adjusting the OCR confidence slider in the GUI. Lower values include more te
 
 ### Slow performance
 First run downloads models (~1.5GB). Subsequent runs use cached models from `~/.cache/huggingface/`.
+
+## Language Support
+
+- Japanese -> English: MeikiOCR + Sugoi V4
+- Chinese -> English: RapidOCR + OPUS-MT zh-en
+
+Chinese OCR quality may vary on low-resolution retro pixel fonts and may require OCR confidence tuning.

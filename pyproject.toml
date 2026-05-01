@@ -1,14 +1,14 @@
 [project]
 name = "interpreter-v2"
 version = "2.17.4"
-description = "Offline screen translator for Japanese retro games"
+description = "Offline screen translator for Japanese and Chinese games"
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
 license = "MIT"
 authors = [
     { name = "qube" }
 ]
-keywords = ["ocr", "translation", "japanese", "games", "retro"]
+keywords = ["ocr", "translation", "japanese", "chinese", "games", "retro"]
 
 dependencies = [
     # OCR
@@ -17,6 +17,7 @@ dependencies = [
     # Translation (Sugoi V4)
     "ctranslate2",
     "sentencepiece",
+    "transformers",
     # Image processing
     "Pillow>=10.0.0",
     "numpy",
@@ -28,6 +29,8 @@ dependencies = [
     # Model download
     "requests",
     "tqdm",
+    # Chinese OCR
+    "rapidocr",
     # Logging
     "structlog>=24.0.0",
     # macOS only - window capture

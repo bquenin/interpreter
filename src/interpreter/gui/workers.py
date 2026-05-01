@@ -6,7 +6,7 @@ import time
 from PySide6.QtCore import QObject, Signal
 
 from .. import log
-from ..config import OverlayMode
+from ..config import OverlayMode, SourceLanguage
 from ..ocr import OCR
 from ..translate import Translator
 
@@ -17,16 +17,21 @@ def contains_japanese(text: str) -> bool:
     """Check if text contains Japanese characters."""
     for char in text:
         code = ord(char)
-        # Hiragana: U+3040-U+309F
-        # Katakana: U+30A0-U+30FF
-        # CJK (Kanji): U+4E00-U+9FFF
-        # Half-width Katakana: U+FF65-U+FF9F
         if (
-            0x3040 <= code <= 0x309F  # Hiragana
-            or 0x30A0 <= code <= 0x30FF  # Katakana
-            or 0x4E00 <= code <= 0x9FFF  # Kanji
-            or 0xFF65 <= code <= 0xFF9F  # Half-width Katakana
+            0x3040 <= code <= 0x309F
+            or 0x30A0 <= code <= 0x30FF
+            or 0x4E00 <= code <= 0x9FFF
+            or 0xFF65 <= code <= 0xFF9F
         ):
+            return True
+    return False
+
+
+def contains_han(text: str) -> bool:
+    """Check if text contains CJK unified ideographs."""
+    for char in text:
+        code = ord(char)
+        if 0x4E00 <= code <= 0x9FFF:
             return True
     return False
 
@@ -97,6 +102,7 @@ class ProcessWorker(QObject):
         self._ocr: OCR | None = None
         self._translator: Translator | None = None
         self._mode = OverlayMode.BANNER
+        self._source_language = SourceLanguage.JAPANESE
         self._confidence_threshold = 0.6
 
         # Track which models failed (for "Fix Models" button)
@@ -111,6 +117,10 @@ class ProcessWorker(QObject):
     def set_mode(self, mode: OverlayMode):
         """Set the overlay mode."""
         self._mode = mode
+
+    def set_source_language(self, source_language: SourceLanguage):
+        """Set source language for OCR and translation."""
+        self._source_language = source_language
 
     def set_confidence_threshold(self, threshold: float):
         """Set the OCR confidence threshold."""
@@ -157,7 +167,7 @@ class ProcessWorker(QObject):
         # Load OCR model
         self.ocr_status.emit("loading")
         try:
-            self._ocr = OCR(confidence_threshold=self._confidence_threshold)
+            self._ocr = OCR(confidence_threshold=self._confidence_threshold, source_language=self._source_language)
             self._ocr.load()
             self._ocr_failed = False
             self.ocr_status.emit("ready")
@@ -170,7 +180,7 @@ class ProcessWorker(QObject):
         # Load translation model
         self.translation_status.emit("loading")
         try:
-            self._translator = Translator()
+            self._translator = Translator(source_language=self._source_language)
             self._translator.load()
             self._translation_failed = False
             self.translation_status.emit("ready")
@@ -228,9 +238,14 @@ class ProcessWorker(QObject):
                 self.text_ready.emit("")
             return
 
-        # Skip translation for non-Japanese text
-        if not contains_japanese(text):
-            logger.debug("skipping translation - no Japanese characters detected")
+        should_translate = True
+        if self._source_language == SourceLanguage.JAPANESE:
+            should_translate = contains_japanese(text)
+        elif self._source_language == SourceLanguage.CHINESE:
+            should_translate = bool(text.strip()) and contains_han(text)
+
+        if not should_translate:
+            logger.debug("skipping translation - text does not match active source language")
             if self._mode == OverlayMode.INPLACE:
                 self.regions_ready.emit([])
             else:
@@ -244,10 +259,15 @@ class ProcessWorker(QObject):
             all_cached = True
             for region in regions:
                 if self._translator and region.text:
-                    # Skip non-Japanese regions
-                    if not contains_japanese(region.text):
+                    if self._source_language == SourceLanguage.JAPANESE and not contains_japanese(region.text):
                         logger.debug(
                             "skipping region - no Japanese characters",
+                            text=region.text[:30],
+                        )
+                        continue
+                    if self._source_language == SourceLanguage.CHINESE and not contains_han(region.text):
+                        logger.debug(
+                            "skipping region - no Chinese characters",
                             text=region.text[:30],
                         )
                         continue

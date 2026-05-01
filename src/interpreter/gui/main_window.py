@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 from .. import log
 from ..capture import Capture, WindowCapture, _is_wayland_session
 from ..capture.convert import bgra_to_rgb_pil
-from ..config import Config, OverlayMode
+from ..config import Config, OverlayMode, SourceLanguage
 from ..overlay import BannerOverlay, InplaceOverlay
 from ..permissions import (
     check_accessibility,
@@ -66,6 +66,7 @@ class MainWindow(QMainWindow):
         # State
         self._capturing = False
         self._mode = config.overlay_mode
+        self._source_language = config.source_language
         self._windows_list: list[dict] = []
         self._paused = False
         self._current_window_title: str = ""  # For exclusion zone lookup
@@ -196,6 +197,21 @@ class MainWindow(QMainWindow):
         # Overlay mode + all visual settings
         appearance_group = QGroupBox("Appearance")
         appearance_layout = QVBoxLayout(appearance_group)
+
+        # Language row
+        language_row = QHBoxLayout()
+        language_row.addWidget(QLabel("Language:"))
+
+        self._language_combo = QComboBox()
+        self._language_combo.addItem("Japanese -> English", SourceLanguage.JAPANESE)
+        self._language_combo.addItem("Chinese -> English", SourceLanguage.CHINESE)
+        current_language_index = self._language_combo.findData(self._source_language)
+        if current_language_index >= 0:
+            self._language_combo.setCurrentIndex(current_language_index)
+        self._language_combo.currentIndexChanged.connect(self._on_source_language_changed)
+        language_row.addWidget(self._language_combo)
+        language_row.addStretch()
+        appearance_layout.addLayout(language_row)
 
         # Mode row (Banner/Inplace toggle + hotkeys)
         mode_row = QHBoxLayout()
@@ -450,7 +466,33 @@ class MainWindow(QMainWindow):
         """Start worker thread and load OCR/translation models."""
         self.statusBar().showMessage("Loading models...")
         self._process_worker.set_mode(self._mode)
+        self._process_worker.set_source_language(self._source_language)
         self._process_worker.start(self._config.ocr_confidence)
+
+    def _restart_process_worker(self):
+        """Recreate the worker and reload models."""
+        self._process_worker.stop()
+        self._process_worker = ProcessWorker()
+        self._process_worker.text_ready.connect(self._on_text_ready)
+        self._process_worker.regions_ready.connect(self._on_regions_ready)
+        self._process_worker.models_ready.connect(self._on_models_ready)
+        self._process_worker.models_failed.connect(self._on_models_failed)
+        self._process_worker.ocr_status.connect(self._on_ocr_status)
+        self._process_worker.translation_status.connect(self._on_translation_status)
+        self._process_worker.set_mode(self._mode)
+        self._process_worker.set_source_language(self._source_language)
+        self._process_worker.start(self._config.ocr_confidence)
+
+    def _on_source_language_changed(self, index: int):
+        """Handle source language selection change."""
+        source_language = self._language_combo.itemData(index)
+        if source_language == self._source_language:
+            return
+
+        self._source_language = source_language
+        self._config.source_language = source_language
+        self._config.save()
+        self._restart_process_worker()
 
     def _on_models_ready(self):
         """Handle models loaded signal from worker thread."""
@@ -516,6 +558,7 @@ class MainWindow(QMainWindow):
     def _on_fix_models(self):
         """Handle Fix Models button click."""
         from ..models import delete_model_cache
+        from ..translate import get_translation_repo_id
 
         # Track which models we're fixing (to show "Downloading..." instead of "Loading...")
         self._fixing_ocr = False
@@ -523,12 +566,12 @@ class MainWindow(QMainWindow):
 
         # Delete caches for failed models
         failed = self._process_worker.get_failed_models()
-        if "ocr" in failed:
+        if "ocr" in failed and self._source_language == SourceLanguage.JAPANESE:
             delete_model_cache("rtr46/meiki.text.detect.v0")
             delete_model_cache("rtr46/meiki.txt.recognition.v0")
             self._fixing_ocr = True
         if "translation" in failed:
-            delete_model_cache("entai2965/sugoi-v4-ja-en-ctranslate2")
+            delete_model_cache(get_translation_repo_id(self._source_language))
             self._fixing_translation = True
 
         # Hide the button while fixing
@@ -536,16 +579,7 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage("Downloading models...")
 
         # Stop and restart the worker to reload models
-        self._process_worker.stop()
-        self._process_worker = ProcessWorker()
-        self._process_worker.text_ready.connect(self._on_text_ready)
-        self._process_worker.regions_ready.connect(self._on_regions_ready)
-        self._process_worker.models_ready.connect(self._on_models_ready)
-        self._process_worker.models_failed.connect(self._on_models_failed)
-        self._process_worker.ocr_status.connect(self._on_ocr_status)
-        self._process_worker.translation_status.connect(self._on_translation_status)
-        self._process_worker.set_mode(self._mode)
-        self._process_worker.start(self._config.ocr_confidence)
+        self._restart_process_worker()
 
     def _refresh_windows(self):
         """Refresh the window list (X11 only)."""
