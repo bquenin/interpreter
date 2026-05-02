@@ -42,8 +42,11 @@ def arrange_overlay_regions(
     content_offset_x = int(content_offset[0] / scale)
     content_offset_y = int(content_offset[1] / scale)
 
+    ordered_pairs = list(zip(regions, label_sizes, strict=False))
+    ordered_pairs.sort(key=lambda item: (-item[0][1].get("x", 0), item[0][1].get("y", 0)))
+
     arranged: list[dict] = []
-    for (text, bbox), (label_width, label_height) in zip(regions, label_sizes, strict=False):
+    for (text, bbox), (label_width, label_height) in ordered_pairs:
         if not bbox:
             continue
 
