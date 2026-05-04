@@ -18,6 +18,7 @@ dependencies = [
     "ctranslate2",
     "sentencepiece",
     "transformers",
+    "sacremoses",
     # Image processing
     "Pillow>=10.0.0",
     "numpy",

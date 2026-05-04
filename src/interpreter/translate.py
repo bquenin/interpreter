@@ -1,13 +1,17 @@
 """Translation module for offline Japanese and Chinese to English."""
 
+import logging
 import os
 import sys
+import warnings
 from difflib import SequenceMatcher
 from pathlib import Path
 
 # Suppress HuggingFace Hub warnings (must be set before import)
 os.environ["HF_HUB_DISABLE_IMPLICIT_TOKEN"] = "1"
 os.environ["HF_HUB_VERBOSITY"] = "error"
+os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
+os.environ.setdefault("TRANSFORMERS_NO_ADVISORY_WARNINGS", "1")
 
 from . import log
 from .config import SourceLanguage
@@ -205,7 +209,14 @@ class ChineseTranslator:
         logger.info("loading opus zh-en")
 
         import ctranslate2
-        from transformers import AutoTokenizer
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message="Recommended: pip install sacremoses\.", category=UserWarning)
+            from transformers import AutoTokenizer
+            from transformers.utils import logging as transformers_logging
+
+        logging.getLogger("transformers").setLevel(logging.ERROR)
+        transformers_logging.set_verbosity_error()
 
         required_files = ["model.bin", "source.spm", "target.spm"]
         self._model_path = _get_model_path(OPUS_ZH_EN_REPO_ID, required_files, download_size="~155MB")
@@ -214,14 +225,14 @@ class ChineseTranslator:
         try:
             cuda_types = ctranslate2.get_supported_compute_types("cuda")
             if cuda_types:
-                self._translator = ctranslate2.Translator(str(self._model_path), device="cuda")
+                self._translator = ctranslate2.Translator(str(self._model_path), device="cuda", compute_type="float16")
                 self._translator.translate_batch([["▁测试", "</s>"]])
                 device = "cuda"
         except Exception as e:
             logger.debug("CUDA failed, falling back to CPU", error=str(e))
 
         if device == "cpu":
-            self._translator = ctranslate2.Translator(str(self._model_path), device="cpu")
+            self._translator = ctranslate2.Translator(str(self._model_path), device="cpu", compute_type="float32")
 
         self._tokenizer = AutoTokenizer.from_pretrained(self._model_path)
         logger.info("opus zh-en ready", device=("GPU" if device == "cuda" else "CPU"))

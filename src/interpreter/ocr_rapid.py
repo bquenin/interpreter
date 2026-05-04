@@ -1,5 +1,7 @@
 """Chinese OCR backend using RapidOCR."""
 
+import logging
+
 import numpy as np
 from numpy.typing import NDArray
 
@@ -36,9 +38,10 @@ class ChineseOCR:
             return
 
         logger.info("loading rapidocr")
+        logging.getLogger("RapidOCR").setLevel(logging.WARNING)
         from rapidocr import RapidOCR
 
-        self._engine = RapidOCR()
+        self._engine = RapidOCR(params={"Global.log_level": "WARNING"})
         logger.info("rapidocr ready")
 
     def _quad_to_bbox(self, box) -> dict | None:
