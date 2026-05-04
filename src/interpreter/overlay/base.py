@@ -21,6 +21,52 @@ BANNER_VERTICAL_PADDING = 30
 # Qt maximum widget size (not exposed in PySide6, defined as (1 << 24) - 1 in C++)
 QWIDGETSIZE_MAX = 16777215
 
+def _rects_overlap(a: dict, b: dict) -> bool:
+    """Return True when two label rectangles overlap."""
+    return not (
+        a["x"] + a["label_width"] <= b["x"]
+        or b["x"] + b["label_width"] <= a["x"]
+        or a["y"] + a["label_height"] <= b["y"]
+        or b["y"] + b["label_height"] <= a["y"]
+    )
+
+
+def arrange_overlay_regions(
+    regions: list[tuple[str, dict]],
+    label_sizes: list[tuple[int, int]],
+    scale: float,
+    content_offset: tuple[int, int] = (0, 0),
+    padding: int = 4,
+) -> list[dict]:
+    """Arrange overlay labels to avoid overlapping translated regions."""
+    content_offset_x = int(content_offset[0] / scale)
+    content_offset_y = int(content_offset[1] / scale)
+
+    ordered_pairs = list(zip(regions, label_sizes, strict=False))
+    ordered_pairs.sort(key=lambda item: (-item[0][1].get("x", 0), item[0][1].get("y", 0)))
+
+    arranged: list[dict] = []
+    for (text, bbox), (label_width, label_height) in ordered_pairs:
+        if not bbox:
+            continue
+
+        item = {
+            "text": text,
+            "bbox": bbox,
+            "x": int(bbox.get("x", 0) / scale) + content_offset_x,
+            "y": int(bbox.get("y", 0) / scale) + content_offset_y,
+            "label_width": label_width,
+            "label_height": label_height,
+        }
+
+        while any(_rects_overlap(item, existing) for existing in arranged):
+            overlapping = [existing for existing in arranged if _rects_overlap(item, existing)]
+            item["y"] = max(existing["y"] + existing["label_height"] + padding for existing in overlapping)
+
+        arranged.append(item)
+
+    return arranged
+
 
 class BannerOverlayBase(QWidget):
     """Banner-style overlay at bottom of screen.
@@ -336,6 +382,7 @@ class InplaceOverlayBase(QWidget):
         self._clear_labels()
 
         # Create new labels
+        label_entries: list[tuple[QLabel, str, dict]] = []
         for text, bbox in regions:
             if not bbox:
                 continue
@@ -352,12 +399,17 @@ class InplaceOverlayBase(QWidget):
                 "border-radius: 4px;"
             )
             label.adjustSize()
-            # Position at bbox location, converting from pixels to points
-            # OCR returns coordinates in captured image pixels (physical pixels)
-            # Qt uses logical pixels (points), so divide by scale factor
-            x = int(bbox.get("x", 0) / scale) + content_offset_x
-            y = int(bbox.get("y", 0) / scale) + content_offset_y
-            label.move(x, y)
+            label_entries.append((label, text, bbox))
+
+        arranged = arrange_overlay_regions(
+            [(text, bbox) for _, text, bbox in label_entries],
+            [(label.width(), label.height()) for label, _, _ in label_entries],
+            scale=scale,
+            content_offset=content_offset,
+        )
+
+        for (label, _, _), layout in zip(label_entries, arranged, strict=False):
+            label.move(layout["x"], layout["y"])
             label.show()
             self._labels.append(label)
 
