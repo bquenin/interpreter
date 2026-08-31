@@ -37,13 +37,20 @@ def test_percentile_interpolates() -> None:
 def test_corpus_manifest_is_valid_and_readiness_is_explicit() -> None:
     manifest = load_json(OCR_BENCHMARK_DIR / "corpus.json")
     assert validate_manifest(manifest) == []
-    assert len(manifest["samples"]) == 48
-    assert len(select_samples(manifest)) == 37
-    assert len(select_samples(manifest, suites=["legacy-smoke", "retro-real", "community-clean"])) == 33
-    assert len(select_samples(manifest, include_unscored=True)) == 48
+    assert manifest["sample_files"] == ["project-egg.json"]
+    assert len(manifest["samples"]) == 105
+    assert len(select_samples(manifest)) == 100
+    assert len(select_samples(manifest, suites=["legacy-smoke", "retro-real", "retro-pc"])) == 96
+    assert len(select_samples(manifest, include_unscored=True)) == 105
     assert {sample["source"]["kind"] for sample in manifest["samples"]} <= {"url", "git"}
     assert all("synthetic" not in sample["id"] for sample in manifest["samples"])
     assert all("synthetic" not in sample["suites"] for sample in manifest["samples"])
+    assert all("community-issue" not in sample["tags"] for sample in manifest["samples"])
+
+    project_egg = [sample for sample in manifest["samples"] if "retro-pc" in sample["suites"]]
+    assert len(project_egg) == 68
+    assert {sample["annotation"]["status"] for sample in project_egg} == {"single_review"}
+    assert {sample["source"]["author"] for sample in project_egg} == {"Project EGG / D4 Enterprise"}
 
     verified_real = [
         sample

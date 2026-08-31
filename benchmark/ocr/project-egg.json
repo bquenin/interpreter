@@ -1,0 +1,742 @@
+{
+  "schema_version": 1,
+  "description": "Official Project EGG screenshots of Japanese PC-88, PC-98, and Sharp X1 games. Images are fetched and hash-verified locally; this file stores provenance and image-only references, not the copyrighted binaries.",
+  "defaults": {
+    "suites": ["retro-pc", "real"],
+    "role": "evaluation",
+    "tags": ["retro", "pixel-font", "official-source"],
+    "source": {
+      "kind": "url",
+      "author": "Project EGG / D4 Enterprise",
+      "license": "Third-party game screenshot; download-only; no redistribution grant"
+    },
+    "annotation": {
+      "status": "single_review",
+      "notes": "Image-only manual transcription from the exact downloaded pixels using lossless nearest-neighbor zoom only. Requires an independent blind second review."
+    }
+  },
+  "samples": [
+    {
+      "id": "egg-pc88-0019-ss5",
+      "path": "internet/project-egg/pc88/0019-sorcerian/ss5.jpg",
+      "suites": ["pc88", "menu", "hud"],
+      "game": "Sorcerian",
+      "tags": ["pc88", "menu", "hud", "mixed-layout"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0019/ss5.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0019"},
+      "image": {"sha256": "abd99ed069c7067bc1877f76e570636c91903f3113d8e4d9293b09d7c5538a07", "width": 1280, "height": 720},
+      "annotation": {"text": "FOR GUILD いらっしゃい ようけんは なんだ? ARMS をうってほしい。 ROD をうってほしい。 ARMOR をうってほしい。 ROBE をうってほしい。 SHIELDをうってほしい。 RING をうってほしい。 かってほしいものがある。 そとにでる。 DUEL しょじきんは 113GOLD"}
+    },
+    {
+      "id": "egg-pc88-0024-ss2",
+      "path": "internet/project-egg/pc88/0024-legend-of-heroes/ss2.jpg",
+      "suites": ["pc88", "menu", "battle", "hud"],
+      "game": "Dragon Slayer: The Legend of Heroes",
+      "tags": ["pc88", "menu", "battle", "hud", "mixed-layout"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0024/ss2.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0024"},
+      "image": {"sha256": "18506a0bba459ea3a6816ae2439c694f038a0f291a922b81ad987c74d011c253", "width": 1280, "height": 720},
+      "annotation": {
+        "text": "第1章 王子の旅立ち セリオス L 10 あと 483 HP 262/262 MP 72/72 リュナン L 10 あと 388 HP 219/256 MP 112/112 ロー L 10 あと 425 HP 172/177 MP 179/179 400 リュナン 戦う 呪文 守る 使う 武器 オート 強さ 逃げる 544 Gold ベルガ",
+        "notes": "The repeated red status glyphs and enemy-type glyph are decorative icons and are intentionally excluded."
+      }
+    },
+    {
+      "id": "egg-pc88-0024-ss3",
+      "path": "internet/project-egg/pc88/0024-legend-of-heroes/ss3.jpg",
+      "suites": ["pc88", "dialogue", "hud"],
+      "game": "Dragon Slayer: The Legend of Heroes",
+      "tags": ["pc88", "dialogue", "hud", "mixed-layout"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0024/ss3.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0024"},
+      "image": {"sha256": "b66370ebe471ac3c93047bf1dce304fdddc5c4ed2591f8c1dac96dbb454f8c6e", "width": 1280, "height": 720},
+      "annotation": {"text": "第1章 王子の旅立ち セリオス L 1 EP 0 HP 30/30 MP 5/5 ライアス セリオスさま。あなたさまが 王位に つかれる日まで あと2ヶ月あまりと なりました。 0 Gold エルアスタ"}
+    },
+    {
+      "id": "egg-pc88-0030-ss0",
+      "path": "internet/project-egg/pc88/0030-xak-ii/ss0.jpg",
+      "suites": ["pc88", "title"],
+      "game": "Xak II",
+      "tags": ["pc88", "title", "stylized-font"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0030/ss0.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0030"},
+      "image": {"sha256": "8b36dbd317316e14697ad1353327fdba67aea34464fde90442181085bf54ada2", "width": 1280, "height": 720},
+      "annotation": {"text": "[サーク] Xak. ©1989/1990 MICROCABIN CORP. ALL RIGHTS RESERVED"}
+    },
+    {
+      "id": "egg-pc88-0030-ss4",
+      "path": "internet/project-egg/pc88/0030-xak-ii/ss4.jpg",
+      "suites": ["pc88", "dialogue"],
+      "game": "Xak II",
+      "tags": ["pc88", "dialogue", "portrait"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0030/ss4.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0030"},
+      "image": {"sha256": "52dff535c032c297adaf1a021960a3638d3f53e6224fd238b61b852657e7b86a", "width": 1280, "height": 720},
+      "annotation": {
+        "text": "[修道女] お困りの際には、またいつでも当教会においで下さい。",
+        "notes": "The continuation triangle is intentionally excluded."
+      }
+    },
+    {
+      "id": "egg-pc88-0038-ss1",
+      "path": "internet/project-egg/pc88/0038-dinosaur/ss1.jpg",
+      "suites": ["pc88", "menu", "battle", "hud"],
+      "game": "Dinosaur",
+      "tags": ["pc88", "menu", "battle", "hud", "mixed-layout"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0038/ss1.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0038"},
+      "image": {"sha256": "7457ac0022c6d313c31a3e4e92d3a2acfc84b3a2db4a127cbf4a3e9b86229dba", "width": 1280, "height": 720},
+      "annotation": {
+        "text": "NAME HP TP ASH 53 23 FI ORLIC 39 30 PR ELIS 30 31 MA ASH 戦う 技術を使う 道具を使う 武器をかえる 防御する アッシュは何をしますか？",
+        "notes": "Enemy names embedded in the illustrated playing cards are treated as decorative artwork and intentionally excluded."
+      }
+    },
+    {
+      "id": "egg-pc88-0038-ss2",
+      "path": "internet/project-egg/pc88/0038-dinosaur/ss2.jpg",
+      "suites": ["pc88", "menu", "hud"],
+      "game": "Dinosaur",
+      "tags": ["pc88", "menu", "hud", "mixed-layout"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0038/ss2.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0038"},
+      "image": {"sha256": "9182cd6ea848988c0d746d058782e8fe71d3a626aca02b2c5d2e2a387958007e", "width": 1280, "height": 720},
+      "annotation": {"text": "外壁 道具 装備 技術 ステータス 隊列変更 システム 29115GEM 114 042 ASH 085 055 ORL 074 037 HAZ 066 049 HEA 062 065 ELI"}
+    },
+    {
+      "id": "egg-pc88-0038-ss3",
+      "path": "internet/project-egg/pc88/0038-dinosaur/ss3.jpg",
+      "suites": ["pc88", "menu", "battle", "hud"],
+      "game": "Dinosaur",
+      "tags": ["pc88", "menu", "battle", "hud", "mixed-layout"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0038/ss3.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0038"},
+      "image": {"sha256": "b87fd56d57ff7ab707e71feef38af98c1c984f335b571f72a0094fef35c80659", "width": 1280, "height": 720},
+      "annotation": {
+        "text": "NAME HP TP ASH 40 21 FI ORLIC 28 23 PR ELIS 14 12 MA ELI 戦う 技術を使う 道具を使う 武器をかえる 防御する アッシュの攻撃！ ウーティスAに120のダメージ エリスは何をしますか？",
+        "notes": "Enemy names embedded in the illustrated playing cards are treated as decorative artwork and intentionally excluded."
+      }
+    },
+    {
+      "id": "egg-pc88-0038-ss5",
+      "path": "internet/project-egg/pc88/0038-dinosaur/ss5.jpg",
+      "suites": ["pc88", "dialogue", "menu", "hud"],
+      "game": "Dinosaur",
+      "tags": ["pc88", "dialogue", "menu", "hud", "mixed-layout"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0038/ss5.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0038"},
+      "image": {"sha256": "e24b2c5588c5ab810f86c43f0e6e009546c5099f665e1a705ef82ee51e596cfb", "width": 1280, "height": 720},
+      "annotation": {"text": "MAYOR 町 道具 装備 技術 ステータス 隊列変更 システム お待ちしておりましたぞ アッシュ殿 どうも解せぬといったご様子 ごもっとも さて 丘の上にそびえる城をご覧になりましたかな 200GEM 032 018 ASH"}
+    },
+    {
+      "id": "egg-pc88-0039-ss1",
+      "path": "internet/project-egg/pc88/0039-legend-of-heroes-ii/ss1.jpg",
+      "suites": ["pc88", "battle", "hud"],
+      "game": "Dragon Slayer: The Legend of Heroes II",
+      "tags": ["pc88", "battle", "hud", "mixed-layout"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0039/ss1.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0039"},
+      "image": {"sha256": "b10931806c88e564cb2bce8591bf74fefa7727b53a0734d174f9832a7f83a4af", "width": 1280, "height": 720},
+      "annotation": {"text": "第1章 開かれた奈落 アトラス L12 あと735 HP222/227 MP ランドー L12 あと735 HP183/203 MP フローラ L12 あと772 HP137/137 MP シンディ L11 あと230 HP224/228 MP 260HP 260HP グロッグガードが現れた。 4443 Gold 奈落の口"}
+    },
+    {
+      "id": "egg-pc88-0039-ss2",
+      "path": "internet/project-egg/pc88/0039-legend-of-heroes-ii/ss2.jpg",
+      "suites": ["pc88", "hud"],
+      "game": "Dragon Slayer: The Legend of Heroes II",
+      "tags": ["pc88", "hud", "mixed-layout"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0039/ss2.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0039"},
+      "image": {"sha256": "966f35d6606dde2aea3b6c953f8b6607896383a17c18442cddf11f3185cfe84f", "width": 1280, "height": 720},
+      "annotation": {"text": "第1章 開かれた奈落 アトラス L9 あと151 HP144/144 MP ランドー L9 あと151 HP110/134 MP フローラ L9 あと188 HP90/96 MP 25 Gold モレストン"}
+    },
+    {
+      "id": "egg-pc88-0039-ss3",
+      "path": "internet/project-egg/pc88/0039-legend-of-heroes-ii/ss3.jpg",
+      "suites": ["pc88", "dialogue", "hud"],
+      "game": "Dragon Slayer: The Legend of Heroes II",
+      "tags": ["pc88", "dialogue", "hud", "mixed-layout"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0039/ss3.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0039"},
+      "image": {"sha256": "6a758630c199cdc5c4ce1ef23ecff21c6f155ae83e6850e285855afa8f52e37d", "width": 1280, "height": 720},
+      "annotation": {"text": "第1章 開かれた奈落 アトラス L13 あと1072 HP259/259 MP ランドー L13 あと1072 HP228/228 MP フローラ L12 あと22 HP137/137 MP シンディ L12 あと316 HP263/263 MP フローラ アトラスさま もしや この方たちは 人間なのでは ないでしょうか？ 5043 Gold 奈落の口"}
+    },
+    {
+      "id": "egg-pc88-0056-ss0",
+      "path": "internet/project-egg/pc88/0056-xak-gazel-no-tou/ss0.jpg",
+      "suites": ["pc88", "title"],
+      "game": "Xak: The Tower of Gazel",
+      "tags": ["pc88", "title", "stylized-font"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0056/ss0.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0056"},
+      "image": {"sha256": "e7aa06f0f7caaaf9fcbc198da9d941b3cbe4acff76714900c0d388b53477b75e", "width": 1280, "height": 720},
+      "annotation": {"text": "～Xak Precious Package～ [サーク] The Tower of Gazel —ガゼルの塔— ©1989-1991 MICROCABIN CORP. ALL RIGHTS RESERVED"}
+    },
+    {
+      "id": "egg-pc88-0060-ss1",
+      "path": "internet/project-egg/pc88/0060-crimson-ii/ss1.jpg",
+      "suites": ["pc88", "menu", "battle", "hud"],
+      "game": "Crimson II",
+      "tags": ["pc88", "menu", "battle", "hud", "mixed-layout"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0060/ss1.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0060"},
+      "image": {"sha256": "30deb12f64717428c601033545ca96d9b500a5161670b586b0588cb6765c7378", "width": 1280, "height": 720},
+      "annotation": {"text": "CRIMSON II LV HP MP アドル 40 136 66 ゴーバス 40 191 0 リーマ 40 145 102 マーロン 39 105 121 ナターシャ 39 138 66 ネオダルタニア COMMAND? たたかう にげる オートキー"}
+    },
+    {
+      "id": "egg-pc88-0060-ss2",
+      "path": "internet/project-egg/pc88/0060-crimson-ii/ss2.jpg",
+      "suites": ["pc88", "menu", "battle", "hud"],
+      "game": "Crimson II",
+      "tags": ["pc88", "menu", "battle", "hud", "mixed-layout"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0060/ss2.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0060"},
+      "image": {"sha256": "a9367ad507b20bd20c09289bd14eb67245de514c7333e89d31b58265fca22147", "width": 1280, "height": 720},
+      "annotation": {"text": "CRIMSON II LV HP MP ゴーバス 1 35 0 マウマウ A B COMMAND? たたかう にげる オートキー"}
+    },
+    {
+      "id": "egg-pc88-0060-ss3",
+      "path": "internet/project-egg/pc88/0060-crimson-ii/ss3.jpg",
+      "suites": ["pc88", "battle", "hud"],
+      "game": "Crimson II",
+      "tags": ["pc88", "battle", "hud", "mixed-layout"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0060/ss3.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0060"},
+      "image": {"sha256": "e17e8db442248273ac73ce760ad56aeeac2a511a1b56f4e140f7fdcd8e5151e5", "width": 1280, "height": 720},
+      "annotation": {"text": "CRIMSON II LV HP MP マーロン 5 38 16 マーロンの こうげき とうめいじゅう A B C"}
+    },
+    {
+      "id": "egg-pc88-0060-ss4",
+      "path": "internet/project-egg/pc88/0060-crimson-ii/ss4.jpg",
+      "suites": ["pc88", "hud"],
+      "game": "Crimson II",
+      "tags": ["pc88", "hud", "mixed-layout"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0060/ss4.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0060"},
+      "image": {"sha256": "cbdedcdafbaeff65ca8f0ed75efd947d45e904401277dd25e1b070b1d447e919", "width": 1280, "height": 720},
+      "annotation": {"text": "CRIMSON II LV HP MP ゴーバス 1 35 0"}
+    },
+    {
+      "id": "egg-pc88-0075-ss0",
+      "path": "internet/project-egg/pc88/0075-laplace-no-ma/ss0.jpg",
+      "suites": ["pc88", "title"],
+      "game": "Laplace no Ma",
+      "tags": ["pc88", "title", "stylized-font"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0075/ss0.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0075"},
+      "image": {"sha256": "88bd5f460cee02f743f9bede1737fcb85c6d3cfdbc7d4990240007d0ed446eec", "width": 1280, "height": 720},
+      "annotation": {"text": "ラプラスの魔 HummingBird Soft ©1987"}
+    },
+    {
+      "id": "egg-pc88-0075-ss1",
+      "path": "internet/project-egg/pc88/0075-laplace-no-ma/ss1.jpg",
+      "suites": ["pc88", "dialogue", "hud"],
+      "game": "Laplace no Ma",
+      "tags": ["pc88", "dialogue", "hud", "mixed-layout"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0075/ss1.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0075"},
+      "image": {"sha256": "6add01de4195b3dd1621327cd009761f088af20ac0164332a84ad1d27f3ab6b5", "width": 1280, "height": 720},
+      "annotation": {
+        "text": "探偵 MMR ディレッタント モモ ジャーナリスト くま 霊能者 EGG うす暗い屋敷の中に入った。後ろで扉の閉まる音がした",
+        "notes": "The right-side game and company marks are decorative logos and intentionally excluded."
+      }
+    },
+    {
+      "id": "egg-pc88-0075-ss5",
+      "path": "internet/project-egg/pc88/0075-laplace-no-ma/ss5.jpg",
+      "suites": ["pc88", "menu", "hud"],
+      "game": "Laplace no Ma",
+      "tags": ["pc88", "menu", "hud", "mixed-layout"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0075/ss5.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0075"},
+      "image": {"sha256": "e3a348395287a8f33757e342109fa584e6e2e39aa84cec74fd745819b4697dab", "width": 1280, "height": 720},
+      "annotation": {"text": "探偵 MMR ディレッタント モモ ジャーナリスト くま 霊能者 EGG 前へ進む 前へ進む 右を向く クローゼットがある どうしますか？ 0 キャップ 1 調べる 2 罠をはずす 3 取る 4 動かす 5 話す RETURNで 戻ります"}
+    },
+    {
+      "id": "egg-pc88-0080-ss0",
+      "path": "internet/project-egg/pc88/0080-mugen-no-shinzou-ii/ss0.jpg",
+      "suites": ["pc88", "title"],
+      "game": "Mugen no Shinzou II",
+      "tags": ["pc88", "title", "stylized-font"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0080/ss0.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0080"},
+      "image": {"sha256": "f4e2bcc90420fa5e05b433b7deb250508c7c9ce1cd1787f52e7e6f65a110ec12", "width": 1280, "height": 720},
+      "annotation": {"text": "夢幻の心臓II"}
+    },
+    {
+      "id": "egg-pc88-0080-ss1",
+      "path": "internet/project-egg/pc88/0080-mugen-no-shinzou-ii/ss1.jpg",
+      "suites": ["pc88", "menu", "battle", "hud"],
+      "game": "Mugen no Shinzou II",
+      "tags": ["pc88", "menu", "battle", "hud", "mixed-layout"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0080/ss1.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0080"},
+      "image": {"sha256": "4bedf0a7c0f3738b5626851593dc70e9818e3c8e72da8954b86f0426b8b69b1f", "width": 1280, "height": 720},
+      "annotation": {
+        "text": "NAME H.P M.P ST コンゾール 150 12 G ユニギーン 120 18 G テランナ 57 51 G ウルル 59 58 G マーマャ 23 15 G GOLD 9060 FOOD 1607 DAYS 659 COMMAND こうげき する じゅもんを となえる どうぐを つかう ぼうぎょを する にげる リザード マン 4 リザード マンが あらわれた コンゾールは なにを しますか？",
+        "notes": "The trailing diagonal continuation marks are intentionally excluded."
+      }
+    },
+    {
+      "id": "egg-pc88-0080-ss3",
+      "path": "internet/project-egg/pc88/0080-mugen-no-shinzou-ii/ss3.jpg",
+      "suites": ["pc88", "menu", "battle", "hud"],
+      "game": "Mugen no Shinzou II",
+      "tags": ["pc88", "menu", "battle", "hud", "mixed-layout"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0080/ss3.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0080"},
+      "image": {"sha256": "796b942b754cf6ced98aeccbb927c12fe22e7bb510a09d541e20f58baf43c37f", "width": 1280, "height": 720},
+      "annotation": {
+        "text": "NAME H.P M.P ST コンゾール 150 10 G ユニギーン 118 17 G テランナ 57 51 G ウルル 59 58 G マーマャ 24 15 G GOLD 9042 FOOD 1607 DAYS 659 COMMAND こうげき する じゅもんを となえる どうぐを つかう ぼうぎょを する にげる オーク 5 オークが あらわれた コンゾールは なにを しますか？",
+        "notes": "The trailing diagonal continuation marks are intentionally excluded."
+      }
+    },
+    {
+      "id": "egg-pc88-0080-ss4",
+      "path": "internet/project-egg/pc88/0080-mugen-no-shinzou-ii/ss4.jpg",
+      "suites": ["pc88", "hud"],
+      "game": "Mugen no Shinzou II",
+      "tags": ["pc88", "hud", "mixed-layout"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0080/ss4.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0080"},
+      "image": {"sha256": "fddef139c6885561eb5087f58f429196f27dcd5cefdd2b5c3a07f4b5f6b54b43", "width": 1280, "height": 720},
+      "annotation": {
+        "text": "NAME H.P M.P ST コンゾール 50 20 G GOLD 100 FOOD 100 DAYS 0 DIR? DIR? DIR? DIR? DIR?",
+        "notes": "The trailing diagonal continuation marks are intentionally excluded."
+      }
+    },
+    {
+      "id": "egg-pc88-0081-ss0",
+      "path": "internet/project-egg/pc88/0081-mugen-no-shinzou-iii/ss0.jpg",
+      "suites": ["pc88", "title", "menu"],
+      "game": "Mugen no Shinzou III",
+      "tags": ["pc88", "title", "menu", "stylized-font"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0081/ss0.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0081"},
+      "image": {"sha256": "ba4972c6d59598318d675983fb775bd704c8789dff20c80d34e04863ec8780bb", "width": 1280, "height": 720},
+      "annotation": {"text": "夢幻の心臓III COPYRIGHT 1989 XTALSOFT ゲームスタート キャラクターをつくる ゲームディスクのコピー"}
+    },
+    {
+      "id": "egg-pc88-0081-ss1",
+      "path": "internet/project-egg/pc88/0081-mugen-no-shinzou-iii/ss1.jpg",
+      "suites": ["pc88", "battle", "hud"],
+      "game": "Mugen no Shinzou III",
+      "tags": ["pc88", "battle", "hud", "mixed-layout"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0081/ss1.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0081"},
+      "image": {"sha256": "5add2c97632c1d08678511c6f67ecdee29ce967c9f1cf0c703d2db054cfaf4ca", "width": 1280, "height": 720},
+      "annotation": {
+        "text": "ムサシ ST Good ファイター HP315/315 MP221/221 LV13 アルハザード ST Good ビショップ HP238/238 MP261/261 LV13 イアラ ST Good ハイプリースト HP238/238 MP255/255 LV13 ローギン ST Good ハンター HP278/278 MP188/188 LV12 夢幻の心臓III マーダークラブ HP MP STAT A:????:????:Good B:????:????:Good C:????:????:Good D:????:????:Good E:????:????:Good F:????:????:Good ユーギンは チャクラムを 1回放った！",
+        "notes": "Colored meter-only rows G and H are intentionally excluded because they contain no text values."
+      }
+    },
+    {
+      "id": "egg-pc88-0081-ss3",
+      "path": "internet/project-egg/pc88/0081-mugen-no-shinzou-iii/ss3.jpg",
+      "suites": ["pc88", "hud"],
+      "game": "Mugen no Shinzou III",
+      "tags": ["pc88", "hud", "mixed-layout"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0081/ss3.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0081"},
+      "image": {"sha256": "3af0eff194e539a3b2fb4e812713522b3bb55fca1b7934d63543e1dcb05a368a", "width": 1280, "height": 720},
+      "annotation": {
+        "text": "ムサシ ST Good ハンター HP217/217 MP143/143 LV9 メルローズ ST Good ハンター HP205/205 MP162/162 LV9 アルハザード ST Good メイジ HP181/181 MP183/183 LV9 イアラ ST Good プリースト HP176/176 MP181/181 LV9 夢幻の心臓III 2014年 4月 1日 1:37 D.S: GOLD:1614 UNIT:1477 港町ハクロン フォーメーション [移動モード]",
+        "notes": "The sun symbol after D.S is an icon and intentionally excluded."
+      }
+    },
+    {
+      "id": "egg-pc88-0081-ss4",
+      "path": "internet/project-egg/pc88/0081-mugen-no-shinzou-iii/ss4.jpg",
+      "suites": ["pc88", "dialogue"],
+      "game": "Mugen no Shinzou III",
+      "tags": ["pc88", "dialogue", "text-heavy"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0081/ss4.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0081"},
+      "image": {"sha256": "e9c3cff568cca7419da87efc84c8605a74f2a853162d01112385989846ca36c4", "width": 1280, "height": 720},
+      "annotation": {"text": "あなたは、ついに元の世界に帰ることができた。 今あなたの見ているものは、懐かしいガイアール城の、いつまでも変わらぬ美しい姿だった。 あなたは、しばらくの間思い出に浸り、そして力強く故郷への第一歩を踏み出した。"}
+    },
+    {
+      "id": "egg-pc98-0063-ss0",
+      "path": "internet/project-egg/pc98/0063-rune-worth/ss0.jpg",
+      "suites": ["pc98", "title"],
+      "game": "Rune Worth: The Black Prince",
+      "tags": ["pc98", "title", "stylized-font"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0063/ss0.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0063"},
+      "image": {"sha256": "e08f05ca9c6a35189c3641672472e1f81fb470a54da7f1a9bd667029bcc6a5f3", "width": 1280, "height": 720},
+      "annotation": {"text": "Rune Worth 黒衣の貴公子 Copyright © 1990 by T&ESOFT Inc. All rights reserved. Made in Japan"}
+    },
+    {
+      "id": "egg-pc98-0063-ss1",
+      "path": "internet/project-egg/pc98/0063-rune-worth/ss1.jpg",
+      "suites": ["pc98", "hud"],
+      "game": "Rune Worth: The Black Prince",
+      "tags": ["pc98", "hud"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0063/ss1.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0063"},
+      "image": {"sha256": "672dde01ef4367bc3b40b2417584f16eb784382c5817a507f70d5b2af31dc774", "width": 1280, "height": 720},
+      "annotation": {"text": "LIFE MAGIC 軽傷"}
+    },
+    {
+      "id": "egg-pc98-0063-ss2",
+      "path": "internet/project-egg/pc98/0063-rune-worth/ss2.jpg",
+      "suites": ["pc98", "dialogue", "hud"],
+      "game": "Rune Worth: The Black Prince",
+      "tags": ["pc98", "dialogue", "hud", "mixed-layout"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0063/ss2.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0063"},
+      "image": {"sha256": "15e615f447a272a34b81723443027f56d03046736e8626d6991f2758f433c9b1", "width": 1280, "height": 720},
+      "annotation": {"text": "[カイスル] グルルルルルッ………また一人………愚かな人間が………わが世界に………やってきおったか。 [egg] な、なんだこいつは！！ まさか………てめえが、この街をこんなふうに変えやがったのか！？ LIFE MAGIC OK!"}
+    },
+    {
+      "id": "egg-pc98-0063-ss4",
+      "path": "internet/project-egg/pc98/0063-rune-worth/ss4.jpg",
+      "suites": ["pc98", "dialogue", "hud"],
+      "game": "Rune Worth: The Black Prince",
+      "tags": ["pc98", "dialogue", "hud", "partly-clipped"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0063/ss4.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0063"},
+      "image": {"sha256": "bce4455840f274bd086e0aa7ba7a140114294d8b0c13d3f1a1240b07dd3acda0", "width": 1280, "height": 720},
+      "annotation": {
+        "text": "[大デイトゥール] ふむ………わしはおまえという人間に対して少し興味が出てきたぞ。どれ、少し話し相手になってやろうではないか。 [egg] おいおい、間違えんなよ。話し相手になって LIFE MAGIC OK!",
+        "notes": "Only the visible pixels are transcribed; the clipped continuation after 'なって' is not reconstructed."
+      }
+    },
+    {
+      "id": "egg-pc98-0067-ss0",
+      "path": "internet/project-egg/pc98/0067-legend-of-heroes-iii/ss0.jpg",
+      "suites": ["pc98", "title"],
+      "game": "The Legend of Heroes III: White Witch",
+      "tags": ["pc98", "title", "stylized-font"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0067/ss0.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0067"},
+      "image": {"sha256": "a8d375aeced8125bebcbe9eee71303f22ca8e2cd435ce7ee20b9c4c026a3927c", "width": 1280, "height": 720},
+      "annotation": {"text": "The Legend Of Heroes III 白き魔女 もうひとつの英雄たちの物語 © 1994 Falcom"}
+    },
+    {
+      "id": "egg-pc98-0067-ss1",
+      "path": "internet/project-egg/pc98/0067-legend-of-heroes-iii/ss1.jpg",
+      "suites": ["pc98", "hud"],
+      "game": "The Legend of Heroes III: White Witch",
+      "tags": ["pc98", "hud", "mixed-layout"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0067/ss1.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0067"},
+      "image": {"sha256": "124f43f95e4144a69654396093ec7060414cde47ed51d8b7329cb062b7a9ad12", "width": 1280, "height": 720},
+      "annotation": {"text": "The Legend of Heroes III 序章 小さな巡礼者 フォルティア ディーネ シャリネ 11 Goa 1 Pia ジュリオ 2 23/23 100 1 クリス 2 26/26 100 1 LV HP VP"}
+    },
+    {
+      "id": "egg-pc98-0067-ss2",
+      "path": "internet/project-egg/pc98/0067-legend-of-heroes-iii/ss2.jpg",
+      "suites": ["pc98", "battle", "hud"],
+      "game": "The Legend of Heroes III: White Witch",
+      "tags": ["pc98", "battle", "hud", "mixed-layout"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0067/ss2.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0067"},
+      "image": {"sha256": "8106bcb0188845f34496f512db548a9a58e2e4275f7f4665a9e4c4e3754cd46f", "width": 1280, "height": 720},
+      "annotation": {"text": "The Legend of Heroes III Battle ダークチラス 169/169 92 ダークチラス 57/169 89 ジュリオ 15 182/182 27 1 クリス 15 123/123 87 1 LV HP VP"}
+    },
+    {
+      "id": "egg-pc98-0067-ss3",
+      "path": "internet/project-egg/pc98/0067-legend-of-heroes-iii/ss3.jpg",
+      "suites": ["pc98", "battle", "hud"],
+      "game": "The Legend of Heroes III: White Witch",
+      "tags": ["pc98", "battle", "hud", "mixed-layout"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0067/ss3.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0067"},
+      "image": {"sha256": "067408e026ff34228de7d3f8ce369a02b94a182d23fa4b9e179242bb892d52e8", "width": 1280, "height": 720},
+      "annotation": {"text": "The Legend of Heroes III Battle ハゼラー 36/70 93 ハゼミニオン 5/40 83 ハゼミニオン 0/40 78 ジュリオ 9 56/90 89 1 アルフレッド 8 80/80 92 1 クリス 9 40/65 77 1 ローディ 9 79/89 88 1 LV HP VP"}
+    },
+    {
+      "id": "egg-pc98-0095-ss0",
+      "path": "internet/project-egg/pc98/0095-crystal-chaser/ss0.jpg",
+      "suites": ["pc98", "title"],
+      "game": "Crystal Chaser",
+      "tags": ["pc98", "title", "stylized-font"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0095/ss0.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0095"},
+      "image": {"sha256": "b051dc22dc98976478a187750562472404286abac07122ab9e151e4e003803d4", "width": 1280, "height": 720},
+      "annotation": {"text": "クリスタル チェイサー Crystal Chaser 天空の魔晶球"}
+    },
+    {
+      "id": "egg-pc98-0095-ss1",
+      "path": "internet/project-egg/pc98/0095-crystal-chaser/ss1.jpg",
+      "suites": ["pc98", "dialogue", "menu"],
+      "game": "Crystal Chaser",
+      "tags": ["pc98", "dialogue", "menu", "mixed-layout"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0095/ss1.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0095"},
+      "image": {"sha256": "20f40e6fea1e2f63a3f9f56fd3434524a6cc808ad5d98d4a96419f63276c489d", "width": 1280, "height": 720},
+      "annotation": {"text": "山道 日記 持物 移動 鷹之進 記録 環境 鷹之進「頑張れよ、この先で雨宿りできそうだぞ」 鷹之進 野苺 道 あしもと 川"}
+    },
+    {
+      "id": "egg-pc98-0095-ss3",
+      "path": "internet/project-egg/pc98/0095-crystal-chaser/ss3.jpg",
+      "suites": ["pc98", "dialogue", "menu"],
+      "game": "Crystal Chaser",
+      "tags": ["pc98", "dialogue", "menu", "mixed-layout"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0095/ss3.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0095"},
+      "image": {"sha256": "404cdfd01bea395a3d4a9c51061b4fa4a5d3114d6de1883e8d3746839c31ffd1", "width": 1280, "height": 720},
+      "annotation": {"text": "テンホーの家 日記 持物 移動 鷹之進 記録 環境 テンパイ「ワタシ助けてもらってトテモうれしうれしのコトよアルのことね」 テンホー テンパイ"}
+    },
+    {
+      "id": "egg-pc98-0098-ss0",
+      "path": "internet/project-egg/pc98/0098-rune-worth-ii/ss0.jpg",
+      "suites": ["pc98", "title"],
+      "game": "Rune Worth II",
+      "tags": ["pc98", "title", "stylized-font"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0098/ss0.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0098"},
+      "image": {"sha256": "60d39a907e503cca176578c8c5eeb952a840bc28d4b03cb30c33d1f31714895e", "width": 1280, "height": 720},
+      "annotation": {"text": "詳細の説明 ルーンワース2 Copyright © 1991 T&ESOFT Inc. All rights reserved. Made in Japan"}
+    },
+    {
+      "id": "egg-pc98-0098-ss1",
+      "path": "internet/project-egg/pc98/0098-rune-worth-ii/ss1.jpg",
+      "suites": ["pc98", "hud"],
+      "game": "Rune Worth II",
+      "tags": ["pc98", "hud"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0098/ss1.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0098"},
+      "image": {"sha256": "8c2bf7f796c67a88296e6454530696d29e9abbd6b191b7ae3ef6f3288adaf84c", "width": 1280, "height": 720},
+      "annotation": {"text": "LIFE MAGIC MONTH ユーノ 真弦の三日 TIME 七宮地刻"}
+    },
+    {
+      "id": "egg-pc98-0098-ss3",
+      "path": "internet/project-egg/pc98/0098-rune-worth-ii/ss3.jpg",
+      "suites": ["pc98", "dialogue", "menu", "hud"],
+      "game": "Rune Worth II",
+      "tags": ["pc98", "dialogue", "menu", "hud", "mixed-layout"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0098/ss3.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0098"},
+      "image": {"sha256": "6364fd3d8cbfd6defcdebb7c370c019bb2233af847d6ee66d1a784c754a39a62", "width": 1280, "height": 720},
+      "annotation": {"text": "ロンドロリア商会 主人「いらっしゃい！ なにか入り用かい？」 主人「何にしましょう？」 所持金 1240Cz 商品リスト ザン・リクシュ 100Cz LIFE MAGIC PLACE よろず屋 STATUS 軽傷"}
+    },
+    {
+      "id": "egg-pc98-0098-ss4",
+      "path": "internet/project-egg/pc98/0098-rune-worth-ii/ss4.jpg",
+      "suites": ["pc98", "dialogue", "hud"],
+      "game": "Rune Worth II",
+      "tags": ["pc98", "dialogue", "hud", "mixed-layout"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0098/ss4.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0098"},
+      "image": {"sha256": "23b3fffeac49cc04f7dd18391694238f9fd1a8debb443bbc4c4210068de9b1bb", "width": 1280, "height": 720},
+      "annotation": {"text": "切符売り「おう、早いじゃねえか！ 船の乗船は二宮水刻からだ。乗りたいなら、時間を守ってきてくれ」 LIFE MAGIC MONTH アイラ 下弦の四日 TIME 一宮風刻"}
+    },
+    {
+      "id": "egg-pc98-0099-ss0",
+      "path": "internet/project-egg/pc98/0099-revival-xanadu-ii/ss0.jpg",
+      "suites": ["pc98", "title"],
+      "game": "Revival Xanadu II Remix",
+      "tags": ["pc98", "title", "stylized-font"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0099/ss0.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0099"},
+      "image": {"sha256": "b74c18cb983b74139c15d5ff59eeb7f55e33603f609e7600e1f3b642f74da501", "width": 1280, "height": 720},
+      "annotation": {
+        "text": "XANADU II DRAGON SLAYER II リバイバルザナドゥII REMIX NEW MAP VERSION",
+        "notes": "Tiny text inside the decorative Falcom emblem is intentionally excluded."
+      }
+    },
+    {
+      "id": "egg-pc98-0101-ss0",
+      "path": "internet/project-egg/pc98/0101-marchen-veil-ii/ss0.jpg",
+      "suites": ["pc98", "title", "menu"],
+      "game": "Märchen Veil II",
+      "tags": ["pc98", "title", "menu"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0101/ss0.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0101"},
+      "image": {"sha256": "cb916308120529a3edc65fcf0a68b78a116fe0232efbc58904b2e8afd4dfa812", "width": 1280, "height": 720},
+      "annotation": {"text": "Märchen Veil II SYSTEM SACOM F4: ゲームの最初から始める F5: セーブした所から始める いずれか選んで下さい。"}
+    },
+    {
+      "id": "egg-pc98-0101-ss5",
+      "path": "internet/project-egg/pc98/0101-marchen-veil-ii/ss5.jpg",
+      "suites": ["pc98", "menu", "hud"],
+      "game": "Märchen Veil II",
+      "tags": ["pc98", "menu", "hud", "mixed-layout"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0101/ss5.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0101"},
+      "image": {"sha256": "ae230e935e860572b36fb509e4f7872431f65f614084279309561e223feb74b6", "width": 1280, "height": 720},
+      "annotation": {"text": "Märchen Veil II Power 432 【地雷の魔法】 好きな場所に設置することができ、触れると爆発する equipment Scene DARK"}
+    },
+    {
+      "id": "egg-pc98-0138-ss4",
+      "path": "internet/project-egg/pc98/0138-first-queen-iv/ss4.jpg",
+      "suites": ["pc98", "menu"],
+      "game": "First Queen IV",
+      "tags": ["pc98", "menu", "map", "mixed-layout"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0138/ss4.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0138"},
+      "image": {"sha256": "6029c0f9013096e8336872facf43c1b8361538e7314827a33ffeb2269f29ac4f", "width": 1280, "height": 720},
+      "annotation": {
+        "text": "カーリオン バルシア ヒュリア ミュルトン グレイス レスター サネット 城 山 岩 草 森 町 水",
+        "notes": "Colored flag and legend swatches are icons and intentionally excluded."
+      }
+    },
+    {
+      "id": "egg-pc88-0043-ss1",
+      "path": "internet/project-egg/pc88/0043-crimson/ss1.jpg",
+      "suites": ["pc88", "title"],
+      "game": "Crimson",
+      "tags": ["pc88", "title", "stylized-font"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0043/ss1.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0043"},
+      "image": {"sha256": "760595086e893d8e98949d76fa08b59d6f2833182c2bab6754bf4cba170c87fa", "width": 1280, "height": 720},
+      "annotation": {"text": "クリムゾン Copyright © 1987 XTALSOFT"}
+    },
+    {
+      "id": "egg-pc88-0043-ss2",
+      "path": "internet/project-egg/pc88/0043-crimson/ss2.jpg",
+      "suites": ["pc88", "menu", "battle", "hud"],
+      "game": "Crimson",
+      "tags": ["pc88", "menu", "battle", "hud", "mixed-layout"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0043/ss2.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0043"},
+      "image": {"sha256": "0605af84b872f75d3a74dfdb3dbcba365d7336fadc129743f7d4ef4d78524fc4", "width": 1280, "height": 720},
+      "annotation": {"text": "CRIMSON NAME LV HP MP ゆうしゃ 28 138 81 イザベラ 27 129 118 アーノルド 25 124 83 ズール A B C COMMAND? たたかう にげる"}
+    },
+    {
+      "id": "egg-pc88-0043-ss3",
+      "path": "internet/project-egg/pc88/0043-crimson/ss3.jpg",
+      "suites": ["pc88", "menu", "battle", "hud"],
+      "game": "Crimson",
+      "tags": ["pc88", "menu", "battle", "hud", "mixed-layout"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0043/ss3.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0043"},
+      "image": {"sha256": "e8c83c8cdf461f9975b7fe8454c43db403604879682c2a7c065ef3b2c3910e86", "width": 1280, "height": 720},
+      "annotation": {"text": "CRIMSON NAME LV HP MP ゆうしゃ 28 138 73 イザベラ 27 129 102 アーノルド 25 110 61 グズー A B C D E COMMAND? たたかう にげる"}
+    },
+    {
+      "id": "egg-pc88-0043-ss4",
+      "path": "internet/project-egg/pc88/0043-crimson/ss4.jpg",
+      "suites": ["pc88", "menu", "battle", "hud"],
+      "game": "Crimson",
+      "tags": ["pc88", "menu", "battle", "hud", "mixed-layout"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0043/ss4.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0043"},
+      "image": {"sha256": "4aace2241073a6b8a72a968ef6d82413ab7f3c227e47a2bc5ec50990191ab4e0", "width": 1280, "height": 720},
+      "annotation": {"text": "CRIMSON NAME LV HP MP ゆうしゃ 28 138 73 イザベラ 27 129 118 アーノルド 25 124 83 レオパルド A B COMMAND? たたかう にげる"}
+    },
+    {
+      "id": "egg-pc88-0043-ss5",
+      "path": "internet/project-egg/pc88/0043-crimson/ss5.jpg",
+      "suites": ["pc88", "hud"],
+      "game": "Crimson",
+      "tags": ["pc88", "hud", "mixed-layout"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0043/ss5.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0043"},
+      "image": {"sha256": "3395f226ba50e22e301b7f53a63bc9a4e3cb250114fceb81d28bd87a0e918bc9", "width": 1280, "height": 720},
+      "annotation": {"text": "CRIMSON NAME LV HP MP ゆうしゃ 28 138 73 イザベラ 27 129 118 アーノルド 24 120 80"}
+    },
+    {
+      "id": "egg-pc88-0045-ss1",
+      "path": "internet/project-egg/pc88/0045-mugen-no-shinzou/ss1.jpg",
+      "suites": ["pc88", "title"],
+      "game": "Mugen no Shinzou",
+      "tags": ["pc88", "title", "stylized-font"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0045/ss1.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0045"},
+      "image": {"sha256": "d1c9b30236afcbec9a006be1ddf5ee51488adff6affc31ca4384b2d1fad90d3a", "width": 1280, "height": 720},
+      "annotation": {"text": "夢幻の心臓"}
+    },
+    {
+      "id": "egg-pc88-0059-ss0",
+      "path": "internet/project-egg/pc88/0059-mirai/ss0.jpg",
+      "suites": ["pc88", "title"],
+      "game": "Mirai",
+      "tags": ["pc88", "title", "stylized-font"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0059/ss0.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0059"},
+      "image": {"sha256": "059a59b3196c75459b73448adefc6cbe4600c85de87bd9cb3ceb8e8ba080971b", "width": 1280, "height": 720},
+      "annotation": {"text": "未来 SF・Hard・Action・R・P・G (C)1986 Sein・Soft"}
+    },
+    {
+      "id": "egg-pc88-0038-ss0",
+      "path": "internet/project-egg/pc88/0038-dinosaur/ss0.jpg",
+      "suites": ["pc88", "title"],
+      "game": "Dinosaur",
+      "tags": ["pc88", "title", "stylized-font"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0038/ss0.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0038"},
+      "image": {"sha256": "e150b3f36baa274017bae2eb7eef91677bd54ff220f8ff8793fb5484dd3eeb23", "width": 1920, "height": 1080},
+      "annotation": {"text": "DINOSAUR"}
+    },
+    {
+      "id": "egg-pc88-0007-ss1",
+      "path": "internet/project-egg/pc88/0007-ys/ss1.jpg",
+      "suites": ["pc88", "title"],
+      "game": "Ys",
+      "tags": ["pc88", "title", "stylized-font"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0007/ss1.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0007"},
+      "image": {"sha256": "c65465e9017bc7bad9c33c4524f1591ed8c489bf1b9aa9aab05c651a23862073", "width": 1280, "height": 720},
+      "annotation": {"text": "Ancient Ys Vanished Omen イース"}
+    },
+    {
+      "id": "egg-pc88-0011-ss1",
+      "path": "internet/project-egg/pc88/0011-ys-ii/ss1.jpg",
+      "suites": ["pc88", "title"],
+      "game": "Ys II",
+      "tags": ["pc88", "title", "stylized-font"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0011/ss1.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0011"},
+      "image": {"sha256": "55c4c034965e266725955176c870b3ed30049744316b749847419113e0b3178d", "width": 1280, "height": 720},
+      "annotation": {"text": "Ys-II いま、ふたたび... イース ANCIENT Ys VANISHED THE FINAL CHAPTER"}
+    },
+    {
+      "id": "egg-pc88-0009-ss0",
+      "path": "internet/project-egg/pc88/0009-dragon-slayer-level-2/ss0.jpg",
+      "suites": ["pc88", "title"],
+      "game": "Dragon Slayer Level 2.0",
+      "tags": ["pc88", "title", "stylized-font"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0009/ss0.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0009"},
+      "image": {"sha256": "501ae8cdf1965d8e9e17480c1411ec1a6dc7186fbcff06edaacab8a31a31a381", "width": 1280, "height": 720},
+      "annotation": {"text": "Dragon Slayer Falcom"}
+    },
+    {
+      "id": "egg-pc88-0086-ss0",
+      "path": "internet/project-egg/pc88/0086-lizard/ss0.jpg",
+      "suites": ["pc88", "title"],
+      "game": "Lizard",
+      "tags": ["pc88", "title", "stylized-font"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0086/ss0.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0086"},
+      "image": {"sha256": "c963f56991ce6b5d378ca55f48d42b751a0284b18a5ec0bf8fc769f47d4c899c", "width": 1280, "height": 720},
+      "annotation": {"text": "Lizard COPYRIGHT © XTALSOFT"}
+    },
+    {
+      "id": "egg-pc88-0115-ss0",
+      "path": "internet/project-egg/pc88/0115-kaleidias-perseus/ss0.jpg",
+      "suites": ["pc88", "title"],
+      "game": "Kaleidias Perseus",
+      "tags": ["pc88", "title", "stylized-font"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/console/img/ecsw/0115/ss0.jpg", "page_url": "https://www.amusement-center.com/project/egg/console/detail.php?id=0115"},
+      "image": {"sha256": "e1971a2ba48bcedd5937e04a67ac92665ea0ffcd2f25f952a2e862571275e8ac", "width": 1280, "height": 720},
+      "annotation": {"text": "COURAGEOUS PERSEUS"}
+    },
+    {
+      "id": "egg-x1-ecbr0005-1",
+      "path": "internet/project-egg/x1/ECBR0005-tritorn/1.png",
+      "suites": ["sharp-x1", "title"],
+      "game": "Tritorn",
+      "tags": ["sharp-x1", "title", "stylized-font", "native-resolution"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/game_image/ECBR0005/1.png", "page_url": "https://www.amusement-center.com/project/egg/game/?product_id=1729"},
+      "image": {"sha256": "f07fff2a9239e3b494d1df3e7f253b4deaa456261fd0a26154be97d83ecdd432", "width": 640, "height": 400},
+      "annotation": {"text": "TRITORN トリトーン A REAL TIME ROLE-PLAYING GAME Copyright (C) SEIN-SOFT"}
+    },
+    {
+      "id": "egg-x1-efal0134-5",
+      "path": "internet/project-egg/x1/EFAL0134-ys/5.png",
+      "suites": ["sharp-x1", "dialogue", "hud"],
+      "game": "Ys",
+      "tags": ["sharp-x1", "dialogue", "hud", "mixed-layout", "native-resolution"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/game_image/EFAL0134/5.png", "page_url": "https://www.amusement-center.com/project/egg/game/?product_id=1815"},
+      "image": {"sha256": "412c2644bed9cbff6a062396b4f005f4addc2e56b1020c1959acca3e7413c467", "width": 640, "height": 400},
+      "annotation": {"text": "\"イース\"は ずっとむかし このはしょにあった くにの なまえ。 そのむかしを かたるものが \"イース\"のほん です。 \"イース\"が ほろびたとき 6さつの その ほんを やみに きえたと ききます。 H.P 018/020 EXP 00162/00200 GOLD 01048 PLAYER ENEMY"}
+    },
+    {
+      "id": "egg-x1-efal0135-1",
+      "path": "internet/project-egg/x1/EFAL0135-romancia/1.png",
+      "suites": ["sharp-x1", "title"],
+      "game": "Romancia",
+      "tags": ["sharp-x1", "title", "stylized-font", "native-resolution"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/game_image/EFAL0135/1.png", "page_url": "https://www.amusement-center.com/project/egg/game/?product_id=1818"},
+      "image": {"sha256": "89a6324d70505381b900c7a7cbb2fcf1681f37b0dcf68ab3f5f18bf25315f0ce", "width": 640, "height": 400},
+      "annotation": {"text": "Romancia ロマンシア"}
+    },
+    {
+      "id": "egg-x1-efal0135-4",
+      "path": "internet/project-egg/x1/EFAL0135-romancia/4.png",
+      "suites": ["sharp-x1", "dialogue", "hud"],
+      "game": "Romancia",
+      "tags": ["sharp-x1", "dialogue", "hud", "mixed-layout", "native-resolution"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/game_image/EFAL0135/4.png", "page_url": "https://www.amusement-center.com/project/egg/game/?product_id=1818"},
+      "image": {"sha256": "44c69f33ea0c38e0be057c0d45f9bc228cf8561892063e840bb0cbb8229e8507", "width": 640, "height": 400},
+      "annotation": {
+        "text": "HP AP MP DP GP KR たび のかた びょうきになった わたしの 3ばんめのむすめの ために くすりを もってきて ください TIME 2916",
+        "notes": "Heart and status symbols are icons and intentionally excluded."
+      }
+    },
+    {
+      "id": "egg-x1-etae0054-1",
+      "path": "internet/project-egg/x1/ETAE0054-hydlide-isekai/1.png",
+      "suites": ["sharp-x1", "title"],
+      "game": "Hydlide (Isekai version)",
+      "tags": ["sharp-x1", "title", "stylized-font", "native-resolution"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/game_image/ETAE0054/1.png", "page_url": "https://www.amusement-center.com/project/egg/game/?product_id=1785"},
+      "image": {"sha256": "863e39081cb91597a5f683653edbc0c67c27ca205226739b2ad1a65eef68aad7", "width": 640, "height": 400},
+      "annotation": {"text": "ハイドライド"}
+    },
+    {
+      "id": "egg-x1-exta0008-1",
+      "path": "internet/project-egg/x1/EXTA0008-mugen-no-shinzou-ii/1.jpg",
+      "suites": ["sharp-x1", "title"],
+      "game": "Mugen no Shinzou II",
+      "tags": ["sharp-x1", "title", "stylized-font", "native-resolution"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/game_image/EXTA0008/1.jpg", "page_url": "https://www.amusement-center.com/project/egg/game/?product_id=133"},
+      "image": {"sha256": "3e293b352bc6e0def73392ce3621cacf5a2d2dceb2a9e3e71dca09496030038a", "width": 640, "height": 400},
+      "annotation": {"text": "夢幻の心臓II PUSH SPACE KEY"}
+    },
+    {
+      "id": "egg-x1-exta0008-2",
+      "path": "internet/project-egg/x1/EXTA0008-mugen-no-shinzou-ii/2.jpg",
+      "suites": ["sharp-x1", "dialogue", "hud"],
+      "game": "Mugen no Shinzou II",
+      "tags": ["sharp-x1", "dialogue", "hud", "mixed-layout", "native-resolution"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/game_image/EXTA0008/2.jpg", "page_url": "https://www.amusement-center.com/project/egg/game/?product_id=133"},
+      "image": {"sha256": "104e660dc0af08ceb4077f56cb38f2d3ac0bffbaeb57917cfed92c368cd5af62", "width": 640, "height": 400},
+      "annotation": {"text": "NAME H.P M.P ST both 50 20 G GOLD 150 FOOD 99 DAYS 1 TEN.KEY or SPACE :MOVE RETURN :COMMAND おう: わたしは おまえたちを べつの しょくぎょうに つけることが できる しかし いまは まだ だめだ ・・・ DIR?"}
+    },
+    {
+      "id": "egg-x1-exta0008-3",
+      "path": "internet/project-egg/x1/EXTA0008-mugen-no-shinzou-ii/3.jpg",
+      "suites": ["sharp-x1", "menu", "battle", "hud"],
+      "game": "Mugen no Shinzou II",
+      "tags": ["sharp-x1", "menu", "battle", "hud", "mixed-layout", "native-resolution"],
+      "source": {"url": "https://www.amusement-center.com/project/egg/game_image/EXTA0008/3.jpg", "page_url": "https://www.amusement-center.com/project/egg/game/?product_id=133"},
+      "image": {"sha256": "bd3bbc952c85423b38a46b8fc344693b590317bbf321998bd54ac7add53e046a", "width": 640, "height": 400},
+      "annotation": {"text": "NAME H.P M.P ST both 50 20 G GOLD 150 FOOD 92 DAYS 8 COMMAND こうげき する じゅもんを となえる どうぐを つかう ぼうぎょを する にげる ゴブリン 5 ゴブリンが あらわれた bothは なにを しますか?"}
+    }
+  ]
+}

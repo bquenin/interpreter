@@ -32,13 +32,63 @@ class BenchmarkError(RuntimeError):
     """A user-actionable benchmark error."""
 
 
-def load_json(path: Path) -> dict[str, Any]:
+def _read_json(path: Path) -> Any:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError as exc:
         raise BenchmarkError(f"File not found: {path}") from exc
     except json.JSONDecodeError as exc:
         raise BenchmarkError(f"Invalid JSON in {path}: {exc}") from exc
+
+
+def _load_sample_pack(manifest_path: Path, relative_path: str) -> list[dict[str, Any]]:
+    pack_path = (manifest_path.parent / relative_path).resolve()
+    manifest_directory = manifest_path.parent.resolve()
+    if manifest_directory not in pack_path.parents:
+        raise BenchmarkError(f"Sample pack must stay under {manifest_directory}: {relative_path}")
+
+    pack = _read_json(pack_path)
+    if not isinstance(pack, dict) or pack.get("schema_version") != 1:
+        raise BenchmarkError(f"Sample pack must be a schema-version-1 object: {pack_path}")
+    defaults = pack.get("defaults", {})
+    samples = pack.get("samples")
+    if not isinstance(defaults, dict) or not isinstance(samples, list):
+        raise BenchmarkError(f"Sample pack defaults/samples are malformed: {pack_path}")
+
+    expanded = []
+    for index, sample in enumerate(samples):
+        if not isinstance(sample, dict):
+            raise BenchmarkError(f"Sample pack entry {index} must be an object: {pack_path}")
+        merged = {**defaults, **sample}
+        for field in ("source", "image", "annotation"):
+            merged[field] = {**defaults.get(field, {}), **sample.get(field, {})}
+        default_notes = defaults.get("annotation", {}).get("notes")
+        sample_notes = sample.get("annotation", {}).get("notes")
+        if default_notes and sample_notes:
+            merged["annotation"]["notes"] = f"{default_notes} {sample_notes}"
+        for field in ("suites", "tags"):
+            merged[field] = list(dict.fromkeys([*defaults.get(field, []), *sample.get(field, [])]))
+        expanded.append(merged)
+    return expanded
+
+
+def load_json(path: Path) -> dict[str, Any]:
+    value = _read_json(path)
+    if not isinstance(value, dict):
+        raise BenchmarkError(f"Expected a JSON object in {path}")
+
+    sample_files = value.get("sample_files", [])
+    if not isinstance(sample_files, list) or not all(isinstance(item, str) and item for item in sample_files):
+        raise BenchmarkError(f"sample_files must be a string list in {path}")
+    if sample_files:
+        direct_samples = value.get("samples", [])
+        if not isinstance(direct_samples, list):
+            raise BenchmarkError(f"samples must be a list in {path}")
+        value["samples"] = [
+            *direct_samples,
+            *(sample for item in sample_files for sample in _load_sample_pack(path, item)),
+        ]
+    return value
 
 
 def write_json(path: Path, value: Any) -> None:

@@ -195,9 +195,8 @@ def _matrix(args: argparse.Namespace) -> None:
         raise BenchmarkError("uv is required for an isolated candidate run")
 
     # Keep the default focused on scoreable, real retro-game screenshots.
-    # Passing --suite explicitly replaces it. Community-clean joins the default
-    # only after its image-only references have been frozen.
-    suites = args.suites or ["legacy-smoke", "retro-real", "community-clean"]
+    # Passing --suite explicitly replaces it.
+    suites = args.suites or ["legacy-smoke", "retro-real", "retro-pc"]
     manifest = load_json(args.manifest)
     print("preparing corpus")
     prepare_corpus(
