@@ -127,7 +127,7 @@ Give reviewers only the CSV. They enter `A`, `B`, `TIE`, or `INVALID`; they shou
   --output benchmark\translation\results\human-ab-scored.json
 ```
 
-The scorer verifies that source text and either translation were not edited after randomization and reports a Wilson 95% interval for decisive preferences. Pass that JSON to `compare --blind-review ...`. Reference verification is a different task and must be blind to all model outputs; create its sheet before results are shown with `reference-packet`.
+The scorer verifies that source text and either translation were not edited after randomization and reports a Wilson 95% interval for decisive preferences. Reviewer-facing CSV cells are exported as text when a spreadsheet could interpret their prefix as a formula; the held key fingerprints both the canonical content and its safe CSV representation. Pass the score JSON to `compare --blind-review ...`. Reference verification is a different task and must be blind to all model outputs; create its sheet before results are shown with `reference-packet`.
 
 ## Production fuzzy-cache diagnostic
 

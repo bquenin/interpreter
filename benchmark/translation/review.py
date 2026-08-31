@@ -23,6 +23,21 @@ IMMUTABLE_FIELDS = (
     "translation_b",
 )
 REVIEW_FIELDS = (*IMMUTABLE_FIELDS, "preference", "severity", "notes")
+SPREADSHEET_FORMULA_PREFIXES = ("=", "+", "-", "@")
+
+
+def _spreadsheet_safe_cell(value: Any) -> Any:
+    """Encode a CSV cell as text without changing its canonical in-memory value."""
+    if not isinstance(value, str) or not value:
+        return value
+    stripped = value.lstrip(" \t\r\n")
+    if value.startswith(("'", "\t", "\r", "\n")) or stripped.startswith(SPREADSHEET_FORMULA_PREFIXES):
+        return f"'{value}"
+    return value
+
+
+def _spreadsheet_safe_row(row: dict[str, Any]) -> dict[str, Any]:
+    return {field: _spreadsheet_safe_cell(value) for field, value in row.items()}
 
 
 def _paired_samples(baseline: dict[str, Any], candidate: dict[str, Any], track: str) -> list[tuple[Any, Any]]:
@@ -91,13 +106,15 @@ def create_blind_packet(
         assignments[review_id] = {"sample_id": first["id"], "model_a": model_a, "model_b": model_b}
 
     packet_path.parent.mkdir(parents=True, exist_ok=True)
+    exported_rows = [_spreadsheet_safe_row(row) for row in rows]
     with packet_path.open("w", encoding="utf-8-sig", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=REVIEW_FIELDS)
         writer.writeheader()
-        writer.writerows(rows)
+        writer.writerows(exported_rows)
     immutable = [{field: row[field] for field in IMMUTABLE_FIELDS} for row in rows]
+    exported_immutable = [{field: row[field] for field in IMMUTABLE_FIELDS} for row in exported_rows]
     key = {
-        "schema_version": 1,
+        "schema_version": 2,
         "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "models": [baseline_id, candidate_id],
         "baseline_model_id": baseline_id,
@@ -105,6 +122,7 @@ def create_blind_packet(
         "track": track,
         "seed": seed,
         "packet_fingerprint": fingerprint(immutable),
+        "export_fingerprint": fingerprint(exported_immutable),
         "assignments": assignments,
     }
     write_json(key_path, key)
@@ -131,7 +149,7 @@ def score_blind_packet(packet_path: Path, key: dict[str, Any]) -> dict[str, Any]
     if not rows or tuple(rows[0]) != REVIEW_FIELDS:
         raise BenchmarkError("Blind review CSV columns changed or packet is empty")
     immutable = [{field: row[field] for field in IMMUTABLE_FIELDS} for row in rows]
-    if fingerprint(immutable) != key.get("packet_fingerprint"):
+    if fingerprint(immutable) != key.get("export_fingerprint"):
         raise BenchmarkError("Blind review packet source text or translations changed after randomization")
     assignments = key.get("assignments", {})
     if {row["review_id"] for row in rows} != set(assignments):
@@ -212,19 +230,21 @@ def create_reference_packet(
         writer.writeheader()
         for pair in sorted(pairs, key=lambda item: item["pair_id"]):
             writer.writerow(
-                {
-                    "pair_id": pair["pair_id"],
-                    "game": pair["game"],
-                    "platform": pair["platform"],
-                    "text_type": pair["text_type"],
-                    "length_bucket": pair["length_bucket"],
-                    "screen_source": pair["screen"],
-                    "normalized_source": pair.get("normalized") or "",
-                    "reference_1": pair["references"][0],
-                    "reference_2": pair["references"][1] if len(pair["references"]) > 1 else "",
-                    "decision": "",
-                    "corrected_reference": "",
-                    "notes": "",
-                }
+                _spreadsheet_safe_row(
+                    {
+                        "pair_id": pair["pair_id"],
+                        "game": pair["game"],
+                        "platform": pair["platform"],
+                        "text_type": pair["text_type"],
+                        "length_bucket": pair["length_bucket"],
+                        "screen_source": pair["screen"],
+                        "normalized_source": pair.get("normalized") or "",
+                        "reference_1": pair["references"][0],
+                        "reference_2": pair["references"][1] if len(pair["references"]) > 1 else "",
+                        "decision": "",
+                        "corrected_reference": "",
+                        "notes": "",
+                    }
+                )
             )
     return len(pairs)

@@ -288,3 +288,64 @@ def test_blind_packet_uses_separate_key_and_detects_mutation(tmp_path):
         writer.writerows(rows)
     with pytest.raises(benchlib.BenchmarkError, match="changed after randomization"):
         review.score_blind_packet(packet, key)
+
+
+@pytest.mark.parametrize("prefix", ["=", "+", "-", "@"])
+def test_blind_packet_escapes_formula_cells_without_changing_integrity(tmp_path, prefix):
+    baseline = _result("production", f"{prefix}baseline")
+    candidate = _result("candidate-model", f"{prefix}candidate")
+    baseline["samples"][0]["source"] = f"{prefix}source"
+    candidate["samples"][0]["source"] = f"{prefix}source"
+    packet = tmp_path / "packet.csv"
+    key_path = tmp_path / "key.json"
+
+    review.create_blind_packet(baseline, candidate, packet_path=packet, key_path=key_path)
+    key = json.loads(key_path.read_text(encoding="utf-8"))
+    with packet.open(encoding="utf-8-sig", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+
+    assert rows[0]["source"] == f"'{prefix}source"
+    assert rows[0]["translation_a"].startswith(f"'{prefix}")
+    assert rows[0]["translation_b"].startswith(f"'{prefix}")
+    assert key["packet_fingerprint"] != key["export_fingerprint"]
+    rows[0]["preference"] = "A"
+    with packet.open("w", encoding="utf-8-sig", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=review.REVIEW_FIELDS)
+        writer.writeheader()
+        writer.writerows(rows)
+    assert review.score_blind_packet(packet, key)["judgments"] == 1
+
+    rows[0]["source"] = f"''{prefix}source"
+    with packet.open("w", encoding="utf-8-sig", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=review.REVIEW_FIELDS)
+        writer.writeheader()
+        writer.writerows(rows)
+    with pytest.raises(benchlib.BenchmarkError, match="changed after randomization"):
+        review.score_blind_packet(packet, key)
+
+
+def test_reference_packet_escapes_all_formula_prefixes(tmp_path):
+    lock = {
+        "pairs": [
+            {
+                "pair_id": "game:1",
+                "game": "Game",
+                "platform": "Console",
+                "text_type": "dialogue",
+                "length_bucket": "short",
+                "screen": "=source",
+                "normalized": "+normalized",
+                "references": ["-reference", "@reference"],
+            }
+        ]
+    }
+    packet = tmp_path / "references.csv"
+
+    assert review.create_reference_packet(lock, packet_path=packet) == 1
+    with packet.open(encoding="utf-8-sig", newline="") as handle:
+        row = next(csv.DictReader(handle))
+
+    assert row["screen_source"] == "'=source"
+    assert row["normalized_source"] == "'+normalized"
+    assert row["reference_1"] == "'-reference"
+    assert row["reference_2"] == "'@reference"
