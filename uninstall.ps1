@@ -38,8 +38,8 @@ if (-not $uvExecutable -and (Test-Path -LiteralPath $defaultUvExecutable -PathTy
 
 # Resolve uv's configured directories when possible, while retaining defaults
 # for interrupted uv installs or environments that are no longer registered.
-$toolRoot = Join-Path $env:APPDATA "uv\tools"
-$toolBin = Join-Path $env:USERPROFILE ".local\bin"
+$toolRoot = if ($env:UV_TOOL_DIR) { $env:UV_TOOL_DIR } else { Join-Path $env:APPDATA "uv\tools" }
+$toolBin = if ($env:UV_TOOL_BIN_DIR) { $env:UV_TOOL_BIN_DIR } else { Join-Path $env:USERPROFILE ".local\bin" }
 if ($uvExecutable) {
     $reportedToolRoot = & $uvExecutable tool dir 2>$null
     if ($LASTEXITCODE -eq 0 -and $reportedToolRoot) {

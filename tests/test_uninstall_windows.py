@@ -179,14 +179,24 @@ exit /b 0
     assert not (user_profile / ".local" / "bin" / "interpreter-v2.exe").exists()
 
 
-def test_cleans_files_and_models_when_uv_is_unavailable(tmp_path: Path) -> None:
+@pytest.mark.parametrize("use_custom_tool_dirs", [False, True], ids=["default-dirs", "custom-dirs"])
+def test_cleans_files_and_models_when_uv_is_unavailable(tmp_path: Path, use_custom_tool_dirs: bool) -> None:
     environment, user_profile, app_data, local_app_data, model_hub = _base_environment(tmp_path)
     empty_path = tmp_path / "empty-path"
     empty_path.mkdir()
     environment["PATH"] = str(empty_path)
 
-    partial_environment = app_data / "uv" / "tools" / "interpreter-v2"
-    orphan_executable = user_profile / ".local" / "bin" / "interpreter-v2.exe"
+    if use_custom_tool_dirs:
+        tool_root = tmp_path / "custom-tool-root"
+        tool_bin = tmp_path / "custom-tool-bin"
+        environment["UV_TOOL_DIR"] = str(tool_root)
+        environment["UV_TOOL_BIN_DIR"] = str(tool_bin)
+    else:
+        tool_root = app_data / "uv" / "tools"
+        tool_bin = user_profile / ".local" / "bin"
+
+    partial_environment = tool_root / "interpreter-v2"
+    orphan_executable = tool_bin / "interpreter-v2.exe"
     install_cache = local_app_data / "interpreter-v2" / "uv-cache"
     _create_file(partial_environment / "partial-download.whl")
     _create_file(orphan_executable)
