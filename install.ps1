@@ -10,6 +10,7 @@ $ErrorActionPreference = 'Stop'
 Write-Host ""
 Write-Host "=== interpreter-v2 Installer ===" -ForegroundColor Cyan
 Write-Host "Offline screen translator for Japanese retro games"
+Write-Host "Plan for at least 6 GB of free disk space, including first-run model downloads." -ForegroundColor Gray
 Write-Host ""
 
 # Check if uv is installed
@@ -36,10 +37,23 @@ if (-not $uvPath) {
 Write-Host "[2/3] Installing interpreter-v2 from PyPI..." -ForegroundColor Yellow
 Write-Host "     (this may take a minute on first install)" -ForegroundColor Gray
 # Use Python 3.12 explicitly - onnxruntime doesn't have wheels for 3.14 yet
+# Keep the large package downloads in an interpreter-owned cache. This lets the
+# installer clean them after success or failure instead of leaving gigabytes in
+# uv's shared cache after an interrupted install.
+$installCacheDir = Join-Path $env:LOCALAPPDATA "interpreter-v2\uv-cache"
 # Temporarily allow errors so uv's progress output (on stderr) doesn't stop the script
 $ErrorActionPreference = 'Continue'
-uv tool install --force --upgrade --python 3.12 interpreter-v2
-$installExitCode = $LASTEXITCODE
+try {
+    uv tool install --force --upgrade --python 3.12 --cache-dir $installCacheDir interpreter-v2
+    $installExitCode = $LASTEXITCODE
+} finally {
+    # uv can clean its cache safely even when package installation failed. Fall
+    # back to direct removal because this directory belongs only to interpreter.
+    uv cache clean --cache-dir $installCacheDir 2>$null | Out-Null
+    if (Test-Path -LiteralPath $installCacheDir) {
+        Remove-Item -LiteralPath $installCacheDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
 $ErrorActionPreference = 'Stop'
 if ($installExitCode -ne 0) {
     Write-Host ""

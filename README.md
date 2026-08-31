@@ -17,6 +17,7 @@ Offline screen translator for Japanese retro games. Captures text from any windo
 ## Requirements
 
 - **Windows 10 version 1903+**, macOS, or Linux (X11/XWayland/Wayland)
+- At least 6 GB of free disk space for application dependencies and first-run model downloads
 
 ### Linux Notes
 
