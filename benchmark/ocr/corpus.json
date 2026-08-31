@@ -1,0 +1,938 @@
+{
+  "schema_version": 1,
+  "description": "Provenance-tracked OCR evaluation corpus for Japanese game screenshots. Binary assets are prepared locally and are not committed.",
+  "annotation_policy": {
+    "verified": "Transcribed and independently checked; eligible for promotion scoring.",
+    "single_review": "Existing transcription checked once; eligible for directional smoke scoring only.",
+    "draft": "Provisional transcription; executed only when requested and never scored.",
+    "unscored": "Robustness or provenance sample without complete ground truth."
+  },
+  "resources": {
+    "fonts": {
+      "dotgothic16": {
+        "filename": "DotGothic16-Regular.ttf",
+        "url": "https://raw.githubusercontent.com/fontworks-fonts/DotGothic16/14517183ab2f75e8bccafc5a0bff6685d268c687/fonts/ttf/DotGothic16-Regular.ttf",
+        "sha256": "155da8f318553c11d9dffc2affbc7c2114c6a46f9740bcf639ed5568af92be71",
+        "license": "SIL Open Font License 1.1",
+        "license_url": "https://github.com/fontworks-fonts/DotGothic16/blob/14517183ab2f75e8bccafc5a0bff6685d268c687/OFL.txt"
+      },
+      "pixelmplus12": {
+        "filename": "PixelMplus12-Regular.ttf",
+        "url": "https://raw.githubusercontent.com/itouhiro/PixelMplus/d89b95f04eeb95bf98bb09cb9234a2f99d186df5/PixelMplus12-Regular.ttf",
+        "sha256": "02f19467ea7cc235cc06c570b7f6c3b0a12a6f682bc8d74c43f2d323d97bcd12",
+        "license": "M+ FONT LICENSE",
+        "license_url": "https://github.com/itouhiro/PixelMplus/blob/d89b95f04eeb95bf98bb09cb9234a2f99d186df5/misc/mplus_bitmap_fonts/LICENSE_E"
+      }
+    }
+  },
+  "samples": [
+    {
+      "id": "legacy-top-01",
+      "path": "legacy/tales-of-phantasia/jp-capture-01.png",
+      "suites": ["legacy-smoke", "real", "dialogue"],
+      "role": "smoke",
+      "game": "Tales of Phantasia",
+      "tags": ["community-history", "dialogue", "single-game", "high-resolution"],
+      "source": {
+        "kind": "git",
+        "repository": "https://github.com/bquenin/interpreter",
+        "ref": "3dcf092b0bb6044ea50bd28dccc363c6178597ea",
+        "git_path": "benchmark/dataset_japanese/jp-capture-01.png",
+        "page_url": "https://github.com/bquenin/interpreter/tree/3dcf092b0bb6044ea50bd28dccc363c6178597ea/benchmark/dataset_japanese",
+        "license": "Third-party game screenshot; local evaluation only"
+      },
+      "image": {"sha256": "902c5b2014e2d99d5e42714bfadb7f82a5a5ac41e2d5e15b5731db86d8f6e813", "width": 1976, "height": 1488},
+      "annotation": {"status": "single_review", "text": "クレス「父さん、呼んだ?"}
+    },
+    {
+      "id": "legacy-top-02",
+      "path": "legacy/tales-of-phantasia/jp-capture-02.png",
+      "suites": ["legacy-smoke", "real", "dialogue"],
+      "role": "smoke",
+      "game": "Tales of Phantasia",
+      "tags": ["community-history", "dialogue", "single-game", "high-resolution"],
+      "source": {
+        "kind": "git",
+        "repository": "https://github.com/bquenin/interpreter",
+        "ref": "3dcf092b0bb6044ea50bd28dccc363c6178597ea",
+        "git_path": "benchmark/dataset_japanese/jp-capture-02.png",
+        "page_url": "https://github.com/bquenin/interpreter/tree/3dcf092b0bb6044ea50bd28dccc363c6178597ea/benchmark/dataset_japanese",
+        "license": "Third-party game screenshot; local evaluation only"
+      },
+      "image": {"sha256": "86cc11dafd509dc7ac4fd0579b40a404d2c33c4c95a0c5a23bae76f489bb572b", "width": 1976, "height": 1488},
+      "annotation": {"status": "single_review", "text": "クレスの父ミゲール「ああ。母さんの風邪の具合はどうだ?"}
+    },
+    {
+      "id": "legacy-top-03",
+      "path": "legacy/tales-of-phantasia/jp-capture-03.png",
+      "suites": ["legacy-smoke", "real", "dialogue"],
+      "role": "smoke",
+      "game": "Tales of Phantasia",
+      "tags": ["community-history", "dialogue", "single-game", "high-resolution"],
+      "source": {
+        "kind": "git",
+        "repository": "https://github.com/bquenin/interpreter",
+        "ref": "3dcf092b0bb6044ea50bd28dccc363c6178597ea",
+        "git_path": "benchmark/dataset_japanese/jp-capture-03.png",
+        "page_url": "https://github.com/bquenin/interpreter/tree/3dcf092b0bb6044ea50bd28dccc363c6178597ea/benchmark/dataset_japanese",
+        "license": "Third-party game screenshot; local evaluation only"
+      },
+      "image": {"sha256": "3d70374f6deec2f13ef836dad582772b7cabfd1ffadf05ab251987f1731287da", "width": 1976, "height": 1488},
+      "annotation": {"status": "single_review", "text": "クレス「熱も下がったみたいだし、もう大丈夫だよ。で、話って何?"}
+    },
+    {
+      "id": "legacy-top-04",
+      "path": "legacy/tales-of-phantasia/jp-capture-04.png",
+      "suites": ["legacy-smoke", "real", "dialogue"],
+      "role": "smoke",
+      "game": "Tales of Phantasia",
+      "tags": ["community-history", "dialogue", "single-game", "high-resolution"],
+      "source": {
+        "kind": "git",
+        "repository": "https://github.com/bquenin/interpreter",
+        "ref": "3dcf092b0bb6044ea50bd28dccc363c6178597ea",
+        "git_path": "benchmark/dataset_japanese/jp-capture-04.png",
+        "page_url": "https://github.com/bquenin/interpreter/tree/3dcf092b0bb6044ea50bd28dccc363c6178597ea/benchmark/dataset_japanese",
+        "license": "Third-party game screenshot; local evaluation only"
+      },
+      "image": {"sha256": "26cf818e879d4540fd57c7eba2b1c4e9f511ed4992d7adc2280d8107a334291e", "width": 1976, "height": 1488},
+      "annotation": {"status": "single_review", "text": "ミゲール「お前にやったペンダントについてな。"}
+    },
+    {
+      "id": "legacy-top-05",
+      "path": "legacy/tales-of-phantasia/jp-capture-05.png",
+      "suites": ["legacy-smoke", "real", "dialogue"],
+      "role": "smoke",
+      "game": "Tales of Phantasia",
+      "tags": ["community-history", "dialogue", "single-game", "high-resolution"],
+      "source": {
+        "kind": "git",
+        "repository": "https://github.com/bquenin/interpreter",
+        "ref": "3dcf092b0bb6044ea50bd28dccc363c6178597ea",
+        "git_path": "benchmark/dataset_japanese/jp-capture-05.png",
+        "page_url": "https://github.com/bquenin/interpreter/tree/3dcf092b0bb6044ea50bd28dccc363c6178597ea/benchmark/dataset_japanese",
+        "license": "Third-party game screenshot; local evaluation only"
+      },
+      "image": {"sha256": "049a1c9994c94b73d8ea9d4ab923122d6ef503386b447f0a740c342d79098a49", "width": 1976, "height": 1488},
+      "annotation": {"status": "single_review", "text": "クレス「ペンダント?ああ、15の誕生日にもらった……。あれがどうしたの?"}
+    },
+    {
+      "id": "legacy-top-06",
+      "path": "legacy/tales-of-phantasia/jp-capture-06.png",
+      "suites": ["legacy-smoke", "real", "dialogue"],
+      "role": "smoke",
+      "game": "Tales of Phantasia",
+      "tags": ["community-history", "dialogue", "single-game", "high-resolution"],
+      "source": {
+        "kind": "git",
+        "repository": "https://github.com/bquenin/interpreter",
+        "ref": "3dcf092b0bb6044ea50bd28dccc363c6178597ea",
+        "git_path": "benchmark/dataset_japanese/jp-capture-06.png",
+        "page_url": "https://github.com/bquenin/interpreter/tree/3dcf092b0bb6044ea50bd28dccc363c6178597ea/benchmark/dataset_japanese",
+        "license": "Third-party game screenshot; local evaluation only"
+      },
+      "image": {"sha256": "656f8fca3cb6219353f34050d117730e36f5400be549d864f6fc0bd709397e02", "width": 1976, "height": 1488},
+      "annotation": {"status": "single_review", "text": "チェスター「それじゃ狩りに行ってくるよ、アミィ。"}
+    },
+    {
+      "id": "legacy-top-07",
+      "path": "legacy/tales-of-phantasia/jp-capture-07.png",
+      "suites": ["legacy-smoke", "real", "dialogue"],
+      "role": "smoke",
+      "game": "Tales of Phantasia",
+      "tags": ["community-history", "dialogue", "single-game", "high-resolution"],
+      "source": {
+        "kind": "git",
+        "repository": "https://github.com/bquenin/interpreter",
+        "ref": "3dcf092b0bb6044ea50bd28dccc363c6178597ea",
+        "git_path": "benchmark/dataset_japanese/jp-capture-07.png",
+        "page_url": "https://github.com/bquenin/interpreter/tree/3dcf092b0bb6044ea50bd28dccc363c6178597ea/benchmark/dataset_japanese",
+        "license": "Third-party game screenshot; local evaluation only"
+      },
+      "image": {"sha256": "774001d069ae48fc38c3506575a6d11b4a3864322d8ec20a6583a42896e3dd9a", "width": 1976, "height": 1488},
+      "annotation": {"status": "single_review", "text": "アミィ「気をつけてね、お兄ちゃん。"}
+    },
+    {
+      "id": "legacy-top-08",
+      "path": "legacy/tales-of-phantasia/jp-capture-08.png",
+      "suites": ["legacy-smoke", "real", "dialogue"],
+      "role": "smoke",
+      "game": "Tales of Phantasia",
+      "tags": ["community-history", "dialogue", "single-game", "high-resolution"],
+      "source": {
+        "kind": "git",
+        "repository": "https://github.com/bquenin/interpreter",
+        "ref": "3dcf092b0bb6044ea50bd28dccc363c6178597ea",
+        "git_path": "benchmark/dataset_japanese/jp-capture-08.png",
+        "page_url": "https://github.com/bquenin/interpreter/tree/3dcf092b0bb6044ea50bd28dccc363c6178597ea/benchmark/dataset_japanese",
+        "license": "Third-party game screenshot; local evaluation only"
+      },
+      "image": {"sha256": "b2cd7645162b8337c4902f07873af082c0d11c2d17eb49dc19bf5665fd0b02d8", "width": 1976, "height": 1488},
+      "annotation": {"status": "single_review", "text": "チェスター「クレス、行くぞ!"}
+    },
+    {
+      "id": "legacy-top-09",
+      "path": "legacy/tales-of-phantasia/jp-capture-09.png",
+      "suites": ["legacy-smoke", "real", "dialogue"],
+      "role": "smoke",
+      "game": "Tales of Phantasia",
+      "tags": ["community-history", "dialogue", "single-game", "high-resolution"],
+      "source": {
+        "kind": "git",
+        "repository": "https://github.com/bquenin/interpreter",
+        "ref": "3dcf092b0bb6044ea50bd28dccc363c6178597ea",
+        "git_path": "benchmark/dataset_japanese/jp-capture-09.png",
+        "page_url": "https://github.com/bquenin/interpreter/tree/3dcf092b0bb6044ea50bd28dccc363c6178597ea/benchmark/dataset_japanese",
+        "license": "Third-party game screenshot; local evaluation only"
+      },
+      "image": {"sha256": "14df33109771cdfe638f024c55f696fa785036c8fb51546806c2dd5734705071", "width": 1976, "height": 1488},
+      "annotation": {"status": "single_review", "text": "ミゲール「あの声はチェスターか。"}
+    },
+    {
+      "id": "legacy-top-10",
+      "path": "legacy/tales-of-phantasia/jp-capture-10.png",
+      "suites": ["legacy-smoke", "real", "dialogue"],
+      "role": "smoke",
+      "game": "Tales of Phantasia",
+      "tags": ["community-history", "dialogue", "single-game", "high-resolution"],
+      "source": {
+        "kind": "git",
+        "repository": "https://github.com/bquenin/interpreter",
+        "ref": "3dcf092b0bb6044ea50bd28dccc363c6178597ea",
+        "git_path": "benchmark/dataset_japanese/jp-capture-10.png",
+        "page_url": "https://github.com/bquenin/interpreter/tree/3dcf092b0bb6044ea50bd28dccc363c6178597ea/benchmark/dataset_japanese",
+        "license": "Third-party game screenshot; local evaluation only"
+      },
+      "image": {"sha256": "c80be107d5f646df79678cf0a049f169fbbab3efc58ade03be63edefc3a9f222", "width": 1976, "height": 1488},
+      "annotation": {"status": "single_review", "text": "クレス「あ、父さんごめん。チェスターと約束してたんだ。"}
+    },
+    {
+      "id": "legacy-top-11",
+      "path": "legacy/tales-of-phantasia/jp-capture-11.png",
+      "suites": ["legacy-smoke", "real", "dialogue"],
+      "role": "smoke",
+      "game": "Tales of Phantasia",
+      "tags": ["community-history", "dialogue", "single-game", "high-resolution"],
+      "source": {
+        "kind": "git",
+        "repository": "https://github.com/bquenin/interpreter",
+        "ref": "3dcf092b0bb6044ea50bd28dccc363c6178597ea",
+        "git_path": "benchmark/dataset_japanese/jp-capture-11.png",
+        "page_url": "https://github.com/bquenin/interpreter/tree/3dcf092b0bb6044ea50bd28dccc363c6178597ea/benchmark/dataset_japanese",
+        "license": "Third-party game screenshot; local evaluation only"
+      },
+      "image": {"sha256": "2fb844f6b6247e6ec0aeb24472860432954a8184d5f19866f5d19f079ed0064a", "width": 1976, "height": 1488},
+      "annotation": {"status": "single_review", "text": "ミゲール「ああ。ペンダントのことは夕食の時にでも話そう。"}
+    },
+    {
+      "id": "legacy-top-12",
+      "path": "legacy/tales-of-phantasia/jp-capture-12.png",
+      "suites": ["legacy-smoke", "real", "dialogue"],
+      "role": "smoke",
+      "game": "Tales of Phantasia",
+      "tags": ["community-history", "dialogue", "single-game", "high-resolution"],
+      "source": {
+        "kind": "git",
+        "repository": "https://github.com/bquenin/interpreter",
+        "ref": "3dcf092b0bb6044ea50bd28dccc363c6178597ea",
+        "git_path": "benchmark/dataset_japanese/jp-capture-12.png",
+        "page_url": "https://github.com/bquenin/interpreter/tree/3dcf092b0bb6044ea50bd28dccc363c6178597ea/benchmark/dataset_japanese",
+        "license": "Third-party game screenshot; local evaluation only"
+      },
+      "image": {"sha256": "bfadba439a9d5a99e1c41f368d724014074228ab525e741a6d70a440768fe228", "width": 1976, "height": 1488},
+      "annotation": {"status": "single_review", "text": "クレス「はい。"}
+    },
+    {
+      "id": "legacy-top-13",
+      "path": "legacy/tales-of-phantasia/jp-capture-13.png",
+      "suites": ["legacy-smoke", "real", "dialogue"],
+      "role": "smoke",
+      "game": "Tales of Phantasia",
+      "tags": ["community-history", "dialogue", "single-game", "high-resolution"],
+      "source": {
+        "kind": "git",
+        "repository": "https://github.com/bquenin/interpreter",
+        "ref": "3dcf092b0bb6044ea50bd28dccc363c6178597ea",
+        "git_path": "benchmark/dataset_japanese/jp-capture-13.png",
+        "page_url": "https://github.com/bquenin/interpreter/tree/3dcf092b0bb6044ea50bd28dccc363c6178597ea/benchmark/dataset_japanese",
+        "license": "Third-party game screenshot; local evaluation only"
+      },
+      "image": {"sha256": "6b4b0f5066abd079a3911a71163aa9a944a44be65c0ee1337729450bc7463175", "width": 1976, "height": 1488},
+      "annotation": {"status": "single_review", "text": "トリスタン師匠、ゆっくりしてって下さい。"}
+    },
+    {
+      "id": "gh-176-overlay-animal-crossing",
+      "path": "community/issue-176/overlay-animal-crossing.png",
+      "suites": ["community-robustness", "real", "overlay-contamination"],
+      "role": "stress",
+      "game": "Animal Crossing",
+      "tags": ["english-overlay", "partly-obscured", "dialogue", "community-issue"],
+      "source": {
+        "kind": "url",
+        "url": "https://github.com/user-attachments/assets/b36624ff-6ee6-44e2-9f33-2a7afba9918b",
+        "page_url": "https://github.com/bquenin/interpreter/issues/176",
+        "author": "rtr46",
+        "license": "Third-party game screenshot; download-only; no redistribution grant"
+      },
+      "image": {"sha256": "605c531168ba63f2aaa2ab3198c9ca71e79f43e5709a66465614e41adcc042d9", "width": 630, "height": 436},
+      "annotation": {"status": "unscored", "notes": "Japanese is partly obscured by an English in-place overlay."}
+    },
+    {
+      "id": "gh-176-overlay-train-game",
+      "path": "community/issue-176/overlay-train-game.png",
+      "suites": ["community-robustness", "real", "overlay-contamination"],
+      "role": "stress",
+      "game": "Unknown train game",
+      "tags": ["english-overlay", "partly-obscured", "dialogue", "community-issue", "retro"],
+      "source": {
+        "kind": "url",
+        "url": "https://github.com/user-attachments/assets/b59cf2cb-0643-4933-bef8-dc0eeda79c45",
+        "page_url": "https://github.com/bquenin/interpreter/issues/176",
+        "author": "rtr46",
+        "license": "Third-party game screenshot; download-only; no redistribution grant"
+      },
+      "image": {"sha256": "1660e348ce83a660e2659fde74ed1222555562ac0d26756523c7d386bbbbc385", "width": 484, "height": 433},
+      "annotation": {"status": "unscored", "notes": "Japanese is partly obscured by an English in-place overlay."}
+    },
+    {
+      "id": "gh-176-dragon-knight-iii-menu-battle",
+      "path": "community/issue-176/dragon-knight-iii-menu-battle.png",
+      "suites": ["community-clean", "real", "menu", "dialogue", "hud"],
+      "role": "evaluation",
+      "game": "Dragon Knight III",
+      "tags": ["clean-frame", "pixel-font", "menu", "battle", "mixed-layout", "community-issue", "4k"],
+      "source": {
+        "kind": "url",
+        "url": "https://github.com/user-attachments/assets/d83d32a9-681b-4a20-993b-6b5e15856c1b",
+        "page_url": "https://github.com/bquenin/interpreter/issues/176#issuecomment-3795074820",
+        "author": "roushimsx",
+        "license": "Third-party game screenshot; download-only; no redistribution grant"
+      },
+      "image": {"sha256": "02d7bd3f8b4bce07988e6f338fe0ea6239aa2571fda32f9011e667bb5dd6025b", "width": 3840, "height": 2160},
+      "annotation": {
+        "status": "draft",
+        "text": "タケル 戦う 使う 逃げる ゴーレムが現れた！ ヒポグリフが現れた！",
+        "notes": "Needs an independent transcription and a decision about decorative HUD text."
+      }
+    },
+    {
+      "id": "gh-176-dragon-knight-iii-item",
+      "path": "community/issue-176/dragon-knight-iii-item.png",
+      "suites": ["community-clean", "real", "dialogue"],
+      "role": "evaluation",
+      "game": "Dragon Knight III",
+      "tags": ["clean-frame", "pixel-font", "dialogue", "portrait", "decorative-border", "community-issue", "4k"],
+      "source": {
+        "kind": "url",
+        "url": "https://github.com/user-attachments/assets/a2cd1535-ca19-4eed-ab4d-ec96a0ad28a8",
+        "page_url": "https://github.com/bquenin/interpreter/issues/176#issuecomment-3795074820",
+        "author": "roushimsx",
+        "license": "Third-party game screenshot; download-only; no redistribution grant"
+      },
+      "image": {"sha256": "fe23dc1464269b28c34d6d15fad4cfb8c3dc1dd779a9d08335264daede7c0750", "width": 3840, "height": 2160},
+      "annotation": {
+        "status": "draft",
+        "text": "タケルは魔法の鏡をもらった！！",
+        "notes": "Needs independent visual verification."
+      }
+    },
+    {
+      "id": "gh-176-dragon-knight-ii-mesanya",
+      "path": "community/issue-176/dragon-knight-ii-mesanya.png",
+      "suites": ["community-clean", "real", "dialogue"],
+      "role": "evaluation",
+      "game": "Dragon Knight II",
+      "tags": ["clean-frame", "pixel-font", "two-line-dialogue", "speaker-label", "community-issue", "4k"],
+      "source": {
+        "kind": "url",
+        "url": "https://github.com/user-attachments/assets/f817901c-8749-4976-b578-de72fc7daa3b",
+        "page_url": "https://github.com/bquenin/interpreter/issues/176#issuecomment-3795074820",
+        "author": "roushimsx",
+        "license": "Third-party game screenshot; download-only; no redistribution grant"
+      },
+      "image": {"sha256": "7fbf66a137d34cfe81916614b4faf042ba3bb543be58b63443109cf1d1cfe09a", "width": 3840, "height": 2160},
+      "annotation": {
+        "status": "draft",
+        "text": "【メサーニャ】お前の大切な書物などたった今、塔の中にばらまいてやったわ！！",
+        "notes": "Needs independent verification of brackets and punctuation."
+      }
+    },
+    {
+      "id": "gh-176-dragon-knight-ii-mummy",
+      "path": "community/issue-176/dragon-knight-ii-mummy.png",
+      "suites": ["community-clean", "real", "dialogue", "hud"],
+      "role": "evaluation",
+      "game": "Dragon Knight II",
+      "tags": ["clean-frame", "pixel-font", "battle", "hud", "mixed-script", "community-issue", "4k"],
+      "source": {
+        "kind": "url",
+        "url": "https://github.com/user-attachments/assets/fb6fc5e8-8283-448f-a775-79bb4bbce5de",
+        "page_url": "https://github.com/bquenin/interpreter/issues/176#issuecomment-3795074820",
+        "author": "roushimsx",
+        "license": "Third-party game screenshot; download-only; no redistribution grant"
+      },
+      "image": {"sha256": "aa891138da11de029e3b04b3e6d85e7b1fad7f15de5aa2b7e93199086b1aadab", "width": 3840, "height": 2160},
+      "annotation": {
+        "status": "draft",
+        "text": "マミーが現れた！！ タケル LV 01 HP020/020",
+        "notes": "Needs complete HUD transcription and independent verification."
+      }
+    },
+    {
+      "id": "gh-176-dragon-knight-ii-box",
+      "path": "community/issue-176/dragon-knight-ii-box.png",
+      "suites": ["community-clean", "real", "dialogue", "hud"],
+      "role": "evaluation",
+      "game": "Dragon Knight II",
+      "tags": ["clean-frame", "pixel-font", "dialogue", "inventory", "hud", "mixed-layout", "community-issue", "4k"],
+      "source": {
+        "kind": "url",
+        "url": "https://github.com/user-attachments/assets/14bd375b-350e-4dde-8d56-7588ceb0abf3",
+        "page_url": "https://github.com/bquenin/interpreter/issues/176#issuecomment-3795074820",
+        "author": "roushimsx",
+        "license": "Third-party game screenshot; download-only; no redistribution grant"
+      },
+      "image": {"sha256": "e254e6844fe59a843aadf707d7b48af2334a711b3b390b776ad22e16075e4e2e", "width": 3840, "height": 2160},
+      "annotation": {
+        "status": "draft",
+        "text": "ハカバノ カギ X08 Y00 【タケル】なんだ？・・・この古ぼけた箱は？",
+        "notes": "Needs complete HUD transcription and independent verification."
+      }
+    },
+    {
+      "id": "gh-176-configure-ocr-masked",
+      "path": "community/issue-176/configure-ocr-masked.png",
+      "suites": ["community-robustness", "real", "application-ui"],
+      "role": "stress",
+      "game": "Dragon Knight III",
+      "tags": ["configure-ocr-ui", "exclusion-mask", "detection-boxes", "english-overlay", "community-issue"],
+      "source": {
+        "kind": "url",
+        "url": "https://github.com/user-attachments/assets/4594f7e1-d8f8-477e-bd50-5e7b455250a5",
+        "page_url": "https://github.com/bquenin/interpreter/issues/176#issuecomment-3797158573",
+        "author": "roushimsx",
+        "license": "Third-party game screenshot inside application UI; download-only; no redistribution grant"
+      },
+      "image": {"sha256": "3fe15eb51e37c88c7fab3006e8eb1f76c58976622de2f84a71a12164281198e1", "width": 2988, "height": 2149},
+      "annotation": {"status": "unscored", "notes": "Application UI and annotations make this unsuitable for clean OCR scoring."}
+    },
+    {
+      "id": "gh-173-pcsx2-4k-overlay",
+      "path": "community/issue-173/pcsx2-4k-overlay.png",
+      "suites": ["community-robustness", "real", "overlay-contamination"],
+      "role": "stress",
+      "game": "Unknown PCSX2 game",
+      "tags": ["4k", "english-overlay", "partly-obscured", "dialogue", "community-issue"],
+      "source": {
+        "kind": "url",
+        "url": "https://github.com/user-attachments/assets/19271503-cdbd-4c25-a7d7-ab820081ae8d",
+        "page_url": "https://github.com/bquenin/interpreter/issues/173",
+        "author": "Littletiger",
+        "license": "Third-party game screenshot; download-only; no redistribution grant"
+      },
+      "image": {"sha256": "1d64aac54421a18db9747bb99e098fc5bda921ac20fc1a3a98a48525bd67ffa9", "width": 3840, "height": 2160},
+      "annotation": {"status": "unscored", "notes": "Japanese dialogue is partly covered by an English overlay."}
+    },
+    {
+      "id": "gh-149-srw-small-overlay",
+      "path": "community/issue-149/srw-small-overlay.png",
+      "suites": ["community-robustness", "real", "overlay-contamination"],
+      "role": "stress",
+      "game": "Super Robot Wars 4",
+      "tags": ["small-capture", "english-overlay", "text-heavy", "community-issue"],
+      "source": {
+        "kind": "url",
+        "url": "https://github.com/user-attachments/assets/9d634c13-2e78-4650-9a3c-df6da64e0b9a",
+        "page_url": "https://github.com/bquenin/interpreter/issues/149#issuecomment-4948804513",
+        "author": "Ds886",
+        "license": "Third-party game screenshot; download-only; no redistribution grant"
+      },
+      "image": {"sha256": "b343c8cffbf6a1880bfc7a9a500da08aa944f99d687552bb303b8af3676693b5", "width": 483, "height": 300},
+      "annotation": {"status": "unscored", "notes": "English translations cover most Japanese lines."}
+    },
+    {
+      "id": "gh-149-srw-configure-ocr",
+      "path": "community/issue-149/srw-configure-ocr.png",
+      "suites": ["community-robustness", "real", "application-ui", "text-heavy"],
+      "role": "stress",
+      "game": "Super Robot Wars 4",
+      "tags": ["configure-ocr-ui", "detection-boxes", "mojibake", "text-heavy", "community-issue"],
+      "source": {
+        "kind": "url",
+        "url": "https://github.com/user-attachments/assets/843ceb47-7ff0-4d23-8163-8abc86ab9d54",
+        "page_url": "https://github.com/bquenin/interpreter/issues/149#issuecomment-4948804513",
+        "author": "Ds886",
+        "license": "Third-party game screenshot inside application UI; download-only; no redistribution grant"
+      },
+      "image": {"sha256": "be2afd9ade2aa843e5011115cd00b81cbd4782fc875dcf94fdf6fa9c0a5a1cf8", "width": 1006, "height": 738},
+      "annotation": {"status": "unscored", "notes": "Application UI and detection boxes make this a diagnostic performance case."}
+    },
+    {
+      "id": "web-lightvn-dialogue",
+      "path": "internet/lightvn/dialogue.png",
+      "suites": ["internet", "real", "dialogue"],
+      "role": "evaluation",
+      "game": "Light.vn sample",
+      "tags": ["open-source-engine", "visual-novel", "dialogue", "outline-font", "window-decoration"],
+      "source": {
+        "kind": "url",
+        "url": "https://raw.githubusercontent.com/hsdk123/Light.vn/6a052916171c6357770b615120021159cb29e31f/screenshots/light_ssA00.png",
+        "page_url": "https://github.com/hsdk123/Light.vn/blob/6a052916171c6357770b615120021159cb29e31f/screenshots/light_ssA00.png",
+        "author": "Light.vn project",
+        "license": "Repository permits free engine use; screenshot redistribution not explicit, so download-only"
+      },
+      "image": {"sha256": "4b74431c7c4c512fb052c43d25f0fccfbff8ee46e1f3321369123f840e2634ed", "width": 1040, "height": 614},
+      "annotation": {
+        "status": "draft",
+        "text": "こんにちは、Light.vn（ライト・ヴィエン）です。このサンプルを始めて見る方たちは先ずエディターであるLightEditor.exe上で起動させる事をお勧めします。",
+        "notes": "Needs independent transcription review."
+      }
+    },
+    {
+      "id": "web-lightvn-backlog",
+      "path": "internet/lightvn/backlog.png",
+      "suites": ["internet", "real", "backlog", "text-heavy"],
+      "role": "evaluation",
+      "game": "Light.vn sample",
+      "tags": ["open-source-engine", "visual-novel", "backlog", "text-heavy", "mixed-script", "low-contrast"],
+      "source": {
+        "kind": "url",
+        "url": "https://raw.githubusercontent.com/hsdk123/Light.vn/6a052916171c6357770b615120021159cb29e31f/screenshots/light_ssA01.png",
+        "page_url": "https://github.com/hsdk123/Light.vn/blob/6a052916171c6357770b615120021159cb29e31f/screenshots/light_ssA01.png",
+        "author": "Light.vn project",
+        "license": "Repository permits free engine use; screenshot redistribution not explicit, so download-only"
+      },
+      "image": {"sha256": "7b8b8ad9ffc21de7db88c436a0f8439fc44d938ed5fe8f4a1c2012f133fb0080", "width": 1040, "height": 614},
+      "annotation": {
+        "status": "draft",
+        "text": "バグ等に思われる物を発見したり、何らかの機能が足りない、あるいはこれを具現して欲しいーという機能がありましたらLight.vnのgithub page「https://github.com/hsdk123/Light.vn」、又製作者のツイッター「@daegon137」に是非ご連絡ください。ちなみにエディターの下にＦＰＳ（ノベルアップデート速度）情報もありますので急に下がったり、特に５０以下に落ちた場合は是非ともフィードバックをお願い致します。では、具体的なチュートリアルに移りましょうかー。",
+        "notes": "Needs independent transcription review, including dimmed menu text."
+      }
+    },
+    {
+      "id": "web-meikiocr-demo",
+      "path": "internet/vendor-demo/meikiocr-example.jpg",
+      "suites": ["internet", "vendor-demo", "dialogue"],
+      "role": "diagnostic",
+      "game": "Ace Attorney",
+      "tags": ["vendor-demo", "likely-evaluation-leakage", "dialogue", "modern-font", "hud"],
+      "source": {
+        "kind": "url",
+        "url": "https://huggingface.co/spaces/rtr46/meikiocr/resolve/main/example.jpg",
+        "page_url": "https://github.com/rtr46/meikiocr",
+        "author": "rtr46 / underlying game publisher",
+        "license": "Model demo containing a third-party game screenshot; download-only"
+      },
+      "image": {"sha256": "f3e99582c5e34263d36d85a8553038dd7a6602bdbca1c7f2f6a2bffbc20c5e7b", "width": 1920, "height": 1080},
+      "annotation": {
+        "status": "draft",
+        "text": "ナルホド こ、こんなにドキドキするの、小学校の学級裁判のとき以来です。 オプション 法廷記録",
+        "notes": "Never use for promotion: this is the model author's own demo and may overlap training or tuning."
+      }
+    },
+    {
+      "id": "web-commons-final-lolita-settings",
+      "path": "internet/wikimedia/final-lolita-settings.png",
+      "suites": ["internet", "public-domain", "retro-pc88"],
+      "role": "diagnostic",
+      "game": "Final Lolita: Darkside of Software",
+      "tags": ["public-domain", "pc88", "pixel-font", "mixed-script", "mature-source"],
+      "source": {
+        "kind": "url",
+        "url": "https://upload.wikimedia.org/wikipedia/commons/3/3d/Final_Lolita_Darkside_of_Software_%28%E3%83%95%E3%82%A1%E3%82%A4%E3%83%8A%E3%83%AB%E3%83%AD%E3%83%AA%E3%83%BC%E3%82%BF%29_screenshot.png",
+        "page_url": "https://commons.wikimedia.org/wiki/File:Final_Lolita_Darkside_of_Software_(%E3%83%95%E3%82%A1%E3%82%A4%E3%83%8A%E3%83%AB%E3%83%AD%E3%83%AA%E3%83%BC%E3%82%BF)_screenshot.png",
+        "author": "PSK; uploaded to MobyGames by Unicorn Lynx; Wikimedia user Trade",
+        "license": "Public domain (PD-text), per Wikimedia file page"
+      },
+      "image": {"sha256": "ec12b182ef4a85be14a5c5edeef1631b5601f3c01f45fa959be7c3ea44c334e9", "width": 640, "height": 400},
+      "annotation": {"status": "unscored", "notes": "Rare public-domain PC-88 text sample; transcription still required."}
+    },
+    {
+      "id": "web-commons-geko-command-log",
+      "path": "internet/wikimedia/geko-command-log.png",
+      "suites": ["internet", "public-domain", "retro-pc88", "text-heavy"],
+      "role": "diagnostic",
+      "game": "Lolita 2: Gekō Chase",
+      "tags": ["public-domain", "pc88", "pixel-font", "text-heavy", "mixed-script", "mature-source"],
+      "source": {
+        "kind": "url",
+        "url": "https://upload.wikimedia.org/wikipedia/commons/c/c1/Lolita_2_Gek%C5%8D_Chase_%28%E3%83%AD%E3%83%AA%E3%83%BC%E3%82%BF_2_%28%E4%B8%8B%E6%A0%A1%E3%83%81%E3%82%A7%E3%82%A4%E3%82%B9%29_screenshot_2.png",
+        "page_url": "https://commons.wikimedia.org/wiki/File:Lolita_2_Gek%C5%8D_Chase_(%E3%83%AD%E3%83%AA%E3%83%BC%E3%82%BF_2_(%E4%B8%8B%E6%A0%A1%E3%83%81%E3%82%A7%E3%82%A4%E3%82%B9)_screenshot_2.png",
+        "author": "PSK; uploaded to MobyGames by Unicorn Lynx; Wikimedia user Trade",
+        "license": "Public domain (PD-text), per Wikimedia file page"
+      },
+      "image": {"sha256": "e0098b55964a814c7fb71bf6a3e39be4498109ee4ffc9b2d52b3c124b8d12ffe", "width": 640, "height": 400},
+      "annotation": {"status": "unscored", "notes": "Rare public-domain PC-88 text-heavy sample; transcription still required."}
+    },
+    {
+      "id": "web-commons-geko-parser",
+      "path": "internet/wikimedia/geko-parser.png",
+      "suites": ["internet", "public-domain", "retro-pc88"],
+      "role": "diagnostic",
+      "game": "Lolita 2: Gekō Chase",
+      "tags": ["public-domain", "pc88", "pixel-font", "mixed-script", "mature-source"],
+      "source": {
+        "kind": "url",
+        "url": "https://upload.wikimedia.org/wikipedia/commons/3/3c/Lolita_2_Gek%C5%8D_Chase_%28%E3%83%AD%E3%83%AA%E3%83%BC%E3%82%BF_2_%28%E4%B8%8B%E6%A0%A1%E3%83%81%E3%82%A7%E3%82%A4%E3%82%B9%29_screenshot_3.png",
+        "page_url": "https://commons.wikimedia.org/wiki/File:Lolita_2_Gek%C5%8D_Chase_(%E3%83%AD%E3%83%AA%E3%82%BF_2_(%E4%B8%8B%E6%A0%A1%E3%83%81%E3%82%A7%E3%82%A4%E3%82%B9)_screenshot_3.png",
+        "author": "PSK; uploaded to MobyGames by Unicorn Lynx; Wikimedia user Trade",
+        "license": "Public domain (PD-text), per Wikimedia file page"
+      },
+      "image": {"sha256": "e5029f51a3614f170bf95eb72efe225e48b07d5a892d214311899fa92dc40b8f", "width": 640, "height": 400},
+      "annotation": {"status": "unscored", "notes": "Mostly Latin text with a retro renderer; useful only as a diagnostic."}
+    },
+    {
+      "id": "web-commons-geko-game-over",
+      "path": "internet/wikimedia/geko-game-over.png",
+      "suites": ["internet", "public-domain", "retro-pc88"],
+      "role": "diagnostic",
+      "game": "Lolita 2: Gekō Chase",
+      "tags": ["public-domain", "pc88", "pixel-font", "mixed-script", "mature-source"],
+      "source": {
+        "kind": "url",
+        "url": "https://upload.wikimedia.org/wikipedia/commons/e/ed/Lolita_2_Gek%C5%8D_Chase_%28%E3%83%AD%E3%83%AA%E3%83%BC%E3%82%BF_2_%28%E4%B8%8B%E6%A0%A1%E3%83%81%E3%82%A7%E3%82%A4%E3%82%B9%29_screenshot.png",
+        "page_url": "https://commons.wikimedia.org/wiki/File:Lolita_2_Gek%C5%8D_Chase_(%E3%83%AD%E3%83%AA%E3%82%BF_2_(%E4%B8%8B%E6%A0%A1%E3%83%81%E3%82%A7%E3%82%A4%E3%82%B9)_screenshot.png",
+        "author": "PSK; uploaded to MobyGames by Unicorn Lynx; Wikimedia user Trade",
+        "license": "Public domain (PD-text), per Wikimedia file page"
+      },
+      "image": {"sha256": "03e3e6b97475ae0913e56ae6ddca5652e58528a4c0d36a3c7ff6282eb3384fb3", "width": 640, "height": 400},
+      "annotation": {"status": "unscored", "notes": "Mixed Japanese/Latin retro text; transcription still required."}
+    },
+    {
+      "id": "web-commons-ao-oni-title",
+      "path": "internet/wikimedia/ao-oni-title.png",
+      "suites": ["internet", "public-domain", "non-japanese"],
+      "role": "diagnostic",
+      "game": "Ao Oni",
+      "tags": ["public-domain", "menu", "latin-only", "negative-japanese"],
+      "source": {
+        "kind": "url",
+        "url": "https://upload.wikimedia.org/wikipedia/commons/6/63/Ao_oni_title_screen.png",
+        "page_url": "https://commons.wikimedia.org/wiki/File:Ao_oni_title_screen.png",
+        "author": "noprops / Wikimedia uploader",
+        "license": "Public domain, per Wikimedia file page"
+      },
+      "image": {"sha256": "fa43d20550283d405117c72955078d5da5f342474417dd4814e901720384c362", "width": 640, "height": 480},
+      "annotation": {"status": "unscored", "notes": "Latin-only menu for false-Japanese diagnostic testing."}
+    },
+    {
+      "id": "synthetic-modern-dialogue",
+      "path": "synthetic/modern-dialogue.png",
+      "suites": ["synthetic", "dialogue"],
+      "role": "diagnostic",
+      "game": "Synthetic controls",
+      "tags": ["generated", "dialogue", "two-lines", "modern-font"],
+      "source": {
+        "kind": "generated",
+        "license": "Generated benchmark image; MIT project code; DotGothic16 under OFL-1.1",
+        "generator": {
+          "canvas": [1280, 720],
+          "background": "scene",
+          "font": "dotgothic16",
+          "boxes": [
+            {"xy": [70, 420, 1210, 680], "fill": "#101827", "outline": "#e5d6a7", "width": 4}
+          ],
+          "lines": [
+            {"text": "リナ", "xy": [120, 445], "size": 32, "fill": "#7cc8ff"},
+            {"text": "この遺跡には古い秘密が眠っている。\n気をつけて進みましょう。", "xy": [120, 500], "size": 38, "fill": "#f8f6eb", "spacing": 14}
+          ]
+        }
+      },
+      "image": {"width": 1280, "height": 720},
+      "annotation": {"status": "verified", "text": "リナ この遺跡には古い秘密が眠っている。 気をつけて進みましょう。"}
+    },
+    {
+      "id": "synthetic-retro-nearest-dialogue",
+      "path": "synthetic/retro-nearest-dialogue.png",
+      "suites": ["synthetic", "dialogue", "retro"],
+      "role": "diagnostic",
+      "game": "Synthetic controls",
+      "tags": ["generated", "dialogue", "pixel-font", "nearest-upscale", "low-resolution-source"],
+      "source": {
+        "kind": "generated",
+        "license": "Generated benchmark image; MIT project code; PixelMplus under M+ FONT LICENSE",
+        "generator": {
+          "native_canvas": [320, 240],
+          "canvas": [1280, 960],
+          "resampling": "nearest",
+          "background": "scene",
+          "font": "pixelmplus12",
+          "boxes": [
+            {"xy": [7, 153, 313, 233], "fill": "#05050a", "outline": "#f2f2e8", "width": 1}
+          ],
+          "lines": [
+            {"text": "アレン", "xy": [15, 159], "size": 12, "fill": "#ffd75a"},
+            {"text": "北の森へ向かおう。\n仲間が待っている！", "xy": [15, 177], "size": 14, "fill": "#ffffff", "spacing": 3}
+          ]
+        }
+      },
+      "image": {"width": 1280, "height": 960},
+      "annotation": {"status": "verified", "text": "アレン 北の森へ向かおう。 仲間が待っている！"}
+    },
+    {
+      "id": "synthetic-retro-menu",
+      "path": "synthetic/retro-menu.png",
+      "suites": ["synthetic", "menu", "retro"],
+      "role": "diagnostic",
+      "game": "Synthetic controls",
+      "tags": ["generated", "menu", "pixel-font", "stacked-items"],
+      "source": {
+        "kind": "generated",
+        "license": "Generated benchmark image; MIT project code; PixelMplus under M+ FONT LICENSE",
+        "generator": {
+          "canvas": [960, 540],
+          "background": "black",
+          "font": "pixelmplus12",
+          "boxes": [
+            {"xy": [260, 70, 700, 475], "fill": "#101733", "outline": "#f1d35c", "width": 5}
+          ],
+          "lines": [
+            {"text": "冒険の書", "xy": [375, 105], "size": 34, "fill": "#f7db63"},
+            {"text": "▶ はじめから", "xy": [335, 200], "size": 30, "fill": "#ffffff"},
+            {"text": "つづきから", "xy": [370, 265], "size": 30, "fill": "#b9c8e8"},
+            {"text": "設定", "xy": [430, 330], "size": 30, "fill": "#b9c8e8"},
+            {"text": "終了", "xy": [430, 395], "size": 30, "fill": "#b9c8e8"}
+          ]
+        }
+      },
+      "image": {"width": 960, "height": 540},
+      "annotation": {"status": "verified", "text": "冒険の書 はじめから つづきから 設定 終了"}
+    },
+    {
+      "id": "synthetic-hud-dialogue",
+      "path": "synthetic/hud-dialogue.png",
+      "suites": ["synthetic", "dialogue", "hud"],
+      "role": "diagnostic",
+      "game": "Synthetic controls",
+      "tags": ["generated", "mixed-layout", "hud", "dialogue", "digits"],
+      "source": {
+        "kind": "generated",
+        "license": "Generated benchmark image; MIT project code; DotGothic16 under OFL-1.1",
+        "generator": {
+          "canvas": [1280, 720],
+          "background": "scene",
+          "font": "dotgothic16",
+          "boxes": [
+            {"xy": [35, 25, 545, 110], "fill": "#151525", "outline": "#74d6a0", "width": 3},
+            {"xy": [75, 500, 1205, 680], "fill": "#12121c", "outline": "#d9d9d9", "width": 3}
+          ],
+          "lines": [
+            {"text": "勇者  LV 18  HP 245/300", "xy": [65, 48], "size": 28, "fill": "#a8ffc2"},
+            {"text": "スライムが現れた！", "xy": [125, 535], "size": 38, "fill": "#ffffff"},
+            {"text": "どうする？", "xy": [125, 595], "size": 38, "fill": "#ffffff"}
+          ]
+        }
+      },
+      "image": {"width": 1280, "height": 720},
+      "annotation": {"status": "verified", "text": "勇者 LV 18 HP 245/300 スライムが現れた！ どうする？"}
+    },
+    {
+      "id": "synthetic-low-contrast",
+      "path": "synthetic/low-contrast.png",
+      "suites": ["synthetic", "dialogue", "low-contrast"],
+      "role": "diagnostic",
+      "game": "Synthetic controls",
+      "tags": ["generated", "low-contrast", "dialogue", "gradient-background"],
+      "source": {
+        "kind": "generated",
+        "license": "Generated benchmark image; MIT project code; DotGothic16 under OFL-1.1",
+        "generator": {
+          "canvas": [1280, 720],
+          "background": "gradient",
+          "font": "dotgothic16",
+          "boxes": [
+            {"xy": [90, 455, 1190, 650], "fill": "#3c4966", "outline": "#6e7994", "width": 2}
+          ],
+          "lines": [
+            {"text": "霧が深くなってきた……", "xy": [145, 500], "size": 40, "fill": "#7f8aa3"},
+            {"text": "足音だけが近づいてくる。", "xy": [145, 565], "size": 40, "fill": "#8994ab"}
+          ]
+        }
+      },
+      "image": {"width": 1280, "height": 720},
+      "annotation": {"status": "verified", "text": "霧が深くなってきた…… 足音だけが近づいてくる。"}
+    },
+    {
+      "id": "synthetic-outlined-scene-text",
+      "path": "synthetic/outlined-scene-text.png",
+      "suites": ["synthetic", "scene-text"],
+      "role": "diagnostic",
+      "game": "Synthetic controls",
+      "tags": ["generated", "outline", "text-over-scene", "quest-notification"],
+      "source": {
+        "kind": "generated",
+        "license": "Generated benchmark image; MIT project code; DotGothic16 under OFL-1.1",
+        "generator": {
+          "canvas": [1280, 720],
+          "background": "scene",
+          "font": "dotgothic16",
+          "lines": [
+            {"text": "新しい目的地が追加されました", "xy": [225, 80], "size": 42, "fill": "#fff4b0", "stroke_width": 4, "stroke_fill": "#111111"},
+            {"text": "古代の塔へ向かえ", "xy": [370, 145], "size": 48, "fill": "#ffffff", "stroke_width": 4, "stroke_fill": "#111111"}
+          ]
+        }
+      },
+      "image": {"width": 1280, "height": 720},
+      "annotation": {"status": "verified", "text": "新しい目的地が追加されました 古代の塔へ向かえ"}
+    },
+    {
+      "id": "synthetic-small-text-1080p",
+      "path": "synthetic/small-text-1080p.png",
+      "suites": ["synthetic", "small-text", "hud"],
+      "role": "diagnostic",
+      "game": "Synthetic controls",
+      "tags": ["generated", "small-text", "1080p", "hud", "downsampling-stress"],
+      "source": {
+        "kind": "generated",
+        "license": "Generated benchmark image; MIT project code; PixelMplus under M+ FONT LICENSE",
+        "generator": {
+          "canvas": [1920, 1080],
+          "background": "scene",
+          "font": "pixelmplus12",
+          "boxes": [
+            {"xy": [1260, 35, 1880, 150], "fill": "#10151c", "outline": "#aab7c4", "width": 2},
+            {"xy": [90, 930, 1830, 1045], "fill": "#11151d", "outline": "#aab7c4", "width": 2}
+          ],
+          "lines": [
+            {"text": "地下迷宮  B12F  金貨 003580", "xy": [1300, 65], "size": 18, "fill": "#dce5ee"},
+            {"text": "小さな文字でも正確に読めますか？", "xy": [135, 958], "size": 20, "fill": "#e8edf2"}
+          ]
+        }
+      },
+      "image": {"width": 1920, "height": 1080},
+      "annotation": {"status": "verified", "text": "地下迷宮 B12F 金貨 003580 小さな文字でも正確に読めますか？"}
+    },
+    {
+      "id": "synthetic-mixed-punctuation",
+      "path": "synthetic/mixed-punctuation.png",
+      "suites": ["synthetic", "mixed-script"],
+      "role": "diagnostic",
+      "game": "Synthetic controls",
+      "tags": ["generated", "punctuation", "digits", "latin", "kana", "kanji"],
+      "source": {
+        "kind": "generated",
+        "license": "Generated benchmark image; MIT project code; DotGothic16 under OFL-1.1",
+        "generator": {
+          "canvas": [1280, 720],
+          "background": "black",
+          "font": "dotgothic16",
+          "boxes": [
+            {"xy": [95, 155, 1185, 555], "fill": "#161b29", "outline": "#d4b75d", "width": 4}
+          ],
+          "lines": [
+            {"text": "セーブデータ No.03", "xy": [155, 205], "size": 42, "fill": "#f4d96c"},
+            {"text": "場所：王都アルカディア", "xy": [155, 285], "size": 38, "fill": "#ffffff"},
+            {"text": "時間 12:34:56／達成率 87.5％", "xy": [155, 355], "size": 38, "fill": "#ffffff"},
+            {"text": "上書きしますか？（はい／いいえ）", "xy": [155, 445], "size": 38, "fill": "#ffffff"}
+          ]
+        }
+      },
+      "image": {"width": 1280, "height": 720},
+      "annotation": {"status": "verified", "text": "セーブデータ No.03 場所：王都アルカディア 時間 12:34:56／達成率 87.5％ 上書きしますか？（はい／いいえ）"}
+    },
+    {
+      "id": "synthetic-vertical-dialogue",
+      "path": "synthetic/vertical-dialogue.png",
+      "suites": ["synthetic", "vertical"],
+      "role": "diagnostic",
+      "game": "Synthetic controls",
+      "tags": ["generated", "vertical-text", "right-to-left-columns", "beta-capability"],
+      "source": {
+        "kind": "generated",
+        "license": "Generated benchmark image; MIT project code; DotGothic16 under OFL-1.1",
+        "generator": {
+          "canvas": [960, 720],
+          "background": "scene",
+          "font": "dotgothic16",
+          "boxes": [
+            {"xy": [505, 60, 845, 660], "fill": "#f2ead8", "outline": "#473b31", "width": 4}
+          ],
+          "lines": [
+            {"text": "月明かりが道を照らす。", "xy": [755, 100], "size": 32, "fill": "#29231f", "direction": "vertical", "spacing": 39},
+            {"text": "静かな夜だった。", "xy": [675, 100], "size": 32, "fill": "#29231f", "direction": "vertical", "spacing": 39},
+            {"text": "風の音だけが聞こえる。", "xy": [595, 100], "size": 32, "fill": "#29231f", "direction": "vertical", "spacing": 39}
+          ]
+        }
+      },
+      "image": {"width": 960, "height": 720},
+      "annotation": {"status": "verified", "text": "月明かりが道を照らす。 静かな夜だった。 風の音だけが聞こえる。"}
+    },
+    {
+      "id": "synthetic-no-text-negative",
+      "path": "synthetic/no-text-negative.png",
+      "suites": ["synthetic", "negative"],
+      "role": "diagnostic",
+      "game": "Synthetic controls",
+      "tags": ["generated", "no-text", "false-positive-control", "scene"],
+      "source": {
+        "kind": "generated",
+        "license": "Generated benchmark image; MIT project code",
+        "generator": {
+          "canvas": [1280, 720],
+          "background": "scene",
+          "lines": []
+        }
+      },
+      "image": {"width": 1280, "height": 720},
+      "annotation": {"status": "verified", "text": ""}
+    },
+    {
+      "id": "synthetic-menu-and-dialogue",
+      "path": "synthetic/menu-and-dialogue.png",
+      "suites": ["synthetic", "menu", "dialogue", "mixed-layout"],
+      "role": "diagnostic",
+      "game": "Synthetic controls",
+      "tags": ["generated", "menu", "dialogue", "multiple-regions", "clustering-stress"],
+      "source": {
+        "kind": "generated",
+        "license": "Generated benchmark image; MIT project code; DotGothic16 under OFL-1.1",
+        "generator": {
+          "canvas": [1280, 720],
+          "background": "scene",
+          "font": "dotgothic16",
+          "boxes": [
+            {"xy": [60, 115, 370, 425], "fill": "#111625", "outline": "#d9c170", "width": 3},
+            {"xy": [405, 470, 1215, 675], "fill": "#111625", "outline": "#d9c170", "width": 3}
+          ],
+          "lines": [
+            {"text": "どうぐ", "xy": [145, 145], "size": 34, "fill": "#f2d77c"},
+            {"text": "薬草", "xy": [125, 225], "size": 34, "fill": "#ffffff"},
+            {"text": "魔法の鍵", "xy": [100, 290], "size": 34, "fill": "#ffffff"},
+            {"text": "たいまつ", "xy": [110, 355], "size": 34, "fill": "#ffffff"},
+            {"text": "この扉には鍵がかかっている。\nどの道具を使いますか？", "xy": [455, 510], "size": 34, "fill": "#ffffff", "spacing": 12}
+          ]
+        }
+      },
+      "image": {"width": 1280, "height": 720},
+      "annotation": {"status": "verified", "text": "どうぐ 薬草 魔法の鍵 たいまつ この扉には鍵がかかっている。 どの道具を使いますか？"}
+    },
+    {
+      "id": "synthetic-retro-bilinear-dialogue",
+      "path": "synthetic/retro-bilinear-dialogue.png",
+      "suites": ["synthetic", "dialogue", "retro", "blurred"],
+      "role": "diagnostic",
+      "game": "Synthetic controls",
+      "tags": ["generated", "dialogue", "pixel-font", "bilinear-upscale", "soft-edges"],
+      "source": {
+        "kind": "generated",
+        "license": "Generated benchmark image; MIT project code; PixelMplus under M+ FONT LICENSE",
+        "generator": {
+          "native_canvas": [320, 240],
+          "canvas": [1280, 960],
+          "resampling": "bilinear",
+          "background": "scene",
+          "font": "pixelmplus12",
+          "boxes": [
+            {"xy": [8, 155, 312, 232], "fill": "#090912", "outline": "#e5e5df", "width": 1}
+          ],
+          "lines": [
+            {"text": "ミナ", "xy": [16, 161], "size": 12, "fill": "#8fd8ff"},
+            {"text": "本当にここで合っているの？\n地図をもう一度見せて。", "xy": [16, 179], "size": 13, "fill": "#ffffff", "spacing": 3}
+          ]
+        }
+      },
+      "image": {"width": 1280, "height": 960},
+      "annotation": {"status": "verified", "text": "ミナ 本当にここで合っているの？ 地図をもう一度見せて。"}
+    }
+  ]
+}
