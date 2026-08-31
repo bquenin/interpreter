@@ -366,6 +366,55 @@ def _statistical_outcome(paired: dict[str, Any]) -> str:
     return "inconclusive"
 
 
+_WORKLOAD_CONFIGURATION_FIELDS = (
+    "pipeline",
+    "join",
+    "confidence_threshold",
+    "repeats",
+    "warmups",
+    "seed",
+    "suite_filter",
+    "role_filter",
+    "include_unscored",
+)
+
+
+def _comparison_workload(result: dict[str, Any], label: str) -> dict[str, Any]:
+    configuration = result.get("configuration")
+    if not isinstance(configuration, dict):
+        raise BenchmarkError(f"{label} report has no benchmark configuration")
+
+    missing = [field for field in _WORKLOAD_CONFIGURATION_FIELDS if field not in configuration]
+    if missing:
+        raise BenchmarkError(f"{label} report is missing workload configuration: {', '.join(missing)}")
+
+    workload = {field: configuration[field] for field in _WORKLOAD_CONFIGURATION_FIELDS}
+    for field in ("suite_filter", "role_filter"):
+        values = workload[field]
+        if not isinstance(values, list) or not all(isinstance(value, str) for value in values):
+            raise BenchmarkError(f"{label} report has an invalid {field}")
+        workload[field] = sorted(values)
+    return workload
+
+
+def _selected_sample_ids(result: dict[str, Any], label: str) -> list[str]:
+    samples = result.get("samples")
+    if not isinstance(samples, list):
+        raise BenchmarkError(f"{label} report has no sample results")
+
+    sample_ids = []
+    for index, sample in enumerate(samples):
+        sample_id = sample.get("id") if isinstance(sample, dict) else None
+        if not isinstance(sample_id, str) or not sample_id:
+            raise BenchmarkError(f"{label} report sample {index} has no valid ID")
+        sample_ids.append(sample_id)
+
+    duplicates = sorted(sample_id for sample_id, count in Counter(sample_ids).items() if count > 1)
+    if duplicates:
+        raise BenchmarkError(f"{label} report contains duplicate sample IDs: {', '.join(duplicates)}")
+    return sample_ids
+
+
 def compare_results(
     baseline: dict[str, Any],
     candidate: dict[str, Any],
@@ -382,6 +431,28 @@ def compare_results(
         "ocr_source_sha256"
     ):
         raise BenchmarkError("Cannot compare runs made with different Interpreter OCR pipeline source")
+
+    baseline_workload = _comparison_workload(baseline, "Baseline")
+    candidate_workload = _comparison_workload(candidate, "Candidate")
+    if baseline_workload != candidate_workload:
+        changed = sorted(field for field in baseline_workload if baseline_workload[field] != candidate_workload[field])
+        raise BenchmarkError(f"Cannot compare runs made with different workload configuration: {', '.join(changed)}")
+
+    baseline_ids = _selected_sample_ids(baseline, "Baseline")
+    candidate_ids = _selected_sample_ids(candidate, "Candidate")
+    if baseline_ids != candidate_ids:
+        baseline_set = set(baseline_ids)
+        candidate_set = set(candidate_ids)
+        missing = sorted(baseline_set - candidate_set)
+        extra = sorted(candidate_set - baseline_set)
+        details = []
+        if missing:
+            details.append(f"missing from candidate: {', '.join(missing)}")
+        if extra:
+            details.append(f"candidate-only: {', '.join(extra)}")
+        if not details:
+            details.append("sample order differs")
+        raise BenchmarkError(f"Cannot compare runs with different selected sample IDs ({'; '.join(details)})")
 
     paired = bootstrap_cer_delta(
         baseline["samples"],

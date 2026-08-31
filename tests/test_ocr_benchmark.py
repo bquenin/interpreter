@@ -5,10 +5,13 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 OCR_BENCHMARK_DIR = Path(__file__).resolve().parents[1] / "benchmark" / "ocr"
 sys.path.insert(0, str(OCR_BENCHMARK_DIR))
 
 from benchlib import (  # noqa: E402
+    BenchmarkError,
     bootstrap_cer_delta,
     edit_counts,
     load_json,
@@ -17,6 +20,7 @@ from benchlib import (  # noqa: E402
     select_samples,
     validate_manifest,
 )
+from runner import compare_results  # noqa: E402
 
 
 def test_normalize_text_uses_nfkc_and_ignores_whitespace() -> None:
@@ -84,3 +88,40 @@ def test_bootstrap_detects_a_consistently_better_candidate() -> None:
     result = bootstrap_cer_delta(baseline, candidate, iterations=500, seed=7)
     assert result["delta"] < 0
     assert result["ci95"][1] < 0
+
+
+def _comparison_report(sample_ids: list[str], **configuration_overrides: object) -> dict:
+    configuration = {
+        "pipeline": "src/interpreter/ocr.py::OCR.extract_text_regions",
+        "join": "single ASCII space between non-empty regions",
+        "confidence_threshold": 0.3,
+        "repeats": 5,
+        "warmups": 1,
+        "seed": 1729,
+        "suite_filter": ["real"],
+        "role_filter": [],
+        "include_unscored": False,
+        **configuration_overrides,
+    }
+    return {
+        "configuration": configuration,
+        "corpus": {"manifest_sha256": "manifest"},
+        "application": {"ocr_source_sha256": "ocr-source"},
+        "samples": [{"id": sample_id} for sample_id in sample_ids],
+    }
+
+
+def test_compare_rejects_different_workload_configuration() -> None:
+    baseline = _comparison_report(["one"], repeats=5)
+    candidate = _comparison_report(["one"], repeats=3)
+
+    with pytest.raises(BenchmarkError, match="different workload configuration: repeats"):
+        compare_results(baseline, candidate)
+
+
+def test_compare_rejects_different_selected_samples() -> None:
+    baseline = _comparison_report(["one", "two"])
+    candidate = _comparison_report(["one", "three"])
+
+    with pytest.raises(BenchmarkError, match="different selected sample IDs"):
+        compare_results(baseline, candidate)
