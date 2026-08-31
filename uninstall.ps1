@@ -90,9 +90,8 @@ if (Test-Path -LiteralPath $toolEnvironment) {
 }
 
 # New installers use this dedicated cache so it can always be removed without
-# disturbing other uv users. Older installers used uv's shared cache, so clean
-# the interpreter dependency entries there as a migration step. Cache cleaning
-# never changes packages already installed in other environments.
+# disturbing other uv users. Older installers used uv's shared cache; prune only
+# entries uv knows are unreachable and leave reusable downloads alone.
 Write-Host "[3/4] Removing package downloads..." -ForegroundColor Yellow
 $installCacheDir = Join-Path $env:LOCALAPPDATA "interpreter-v2\uv-cache"
 if (Test-Path -LiteralPath $installCacheDir) {
@@ -100,72 +99,23 @@ if (Test-Path -LiteralPath $installCacheDir) {
 }
 
 if ($uvExecutable) {
-    $interpreterPackages = @(
-        "annotated-doc",
-        "anyio",
-        "certifi",
-        "charset-normalizer",
-        "click",
-        "colorama",
-        "ctranslate2",
-        "filelock",
-        "flatbuffers",
-        "fsspec",
-        "h11",
-        "hf-xet",
-        "httpcore",
-        "httpx",
-        "huggingface-hub",
-        "idna",
-        "interpreter-v2",
-        "markdown-it-py",
-        "mdurl",
-        "meikiocr",
-        "mss",
-        "numpy",
-        "nvidia-cublas-cu12",
-        "nvidia-cuda-nvrtc-cu12",
-        "nvidia-cudnn-cu12",
-        "onnxruntime",
-        "opencv-python",
-        "opencv-python-headless",
-        "packaging",
-        "pillow",
-        "protobuf",
-        "pygetwindow",
-        "pygments",
-        "pynput",
-        "pyrect",
-        "pyside6",
-        "pyside6-addons",
-        "pyside6-essentials",
-        "pyyaml",
-        "requests",
-        "rich",
-        "sentencepiece",
-        "setuptools",
-        "shellingham",
-        "shiboken6",
-        "six",
-        "structlog",
-        "tqdm",
-        "typer",
-        "typing-extensions",
-        "urllib3",
-        "windows-capture-interpreter"
-    )
-
     $ErrorActionPreference = 'Continue'
-    & $uvExecutable cache clean $interpreterPackages
-    $cleanExitCode = $LASTEXITCODE
     & $uvExecutable cache prune
     $pruneExitCode = $LASTEXITCODE
     $ErrorActionPreference = 'Stop'
 
-    if ($cleanExitCode -eq 0 -and $pruneExitCode -eq 0) {
-        Write-Host "     Cached interpreter packages removed" -ForegroundColor Green
+    if ($pruneExitCode -eq 0) {
+        Write-Host "     Unreachable uv cache entries removed" -ForegroundColor Green
     } else {
         Write-Host "     Some uv cache entries could not be removed; close other uv processes and retry" -ForegroundColor Red
+    }
+
+    $sharedCacheDir = & $uvExecutable cache dir 2>$null
+    if ($LASTEXITCODE -eq 0 -and $sharedCacheDir) {
+        $sharedCacheDir = ($sharedCacheDir | Select-Object -Last 1).Trim()
+        Write-Host "     Older installers may have left reusable downloads in uv's shared cache:" -ForegroundColor Gray
+        Write-Host "     $sharedCacheDir" -ForegroundColor Gray
+        Write-Host "     Run 'uv cache clean' to clear it, including downloads cached by other uv projects." -ForegroundColor Gray
     }
 } else {
     $defaultCacheDir = if ($env:UV_CACHE_DIR) { $env:UV_CACHE_DIR } else { Join-Path $env:LOCALAPPDATA "uv\cache" }

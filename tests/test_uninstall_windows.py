@@ -140,8 +140,7 @@ exit /b 0
 
     uv_commands = command_log.read_text(encoding="utf-8").splitlines()
     assert "tool uninstall interpreter-v2" in uv_commands
-    cache_clean_command = next(command for command in uv_commands if command.startswith("cache clean "))
-    assert "interpreter-v2" in cache_clean_command.split()
+    assert not any(command.startswith("cache clean ") for command in uv_commands)
     assert "cache prune" in uv_commands
 
 
