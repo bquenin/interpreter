@@ -1,0 +1,126 @@
+{
+  "schema_version": 1,
+  "models": {
+    "production": {
+      "label": "Interpreter production Sugoi V4",
+      "adapter": "production",
+      "repo_id": "entai2965/sugoi-v4-ja-en-ctranslate2",
+      "revision": "71d67eb8e73ec2f5aaefc0689e03a4eb843d3a2b",
+      "license": "Model repository does not declare a standard license; review required",
+      "deployment_status": "license_review_required",
+      "packages": [],
+      "generation": {
+        "beam_size": 5,
+        "max_decoding_length": 256
+      }
+    },
+    "quickmt": {
+      "label": "QuickMT Japanese-English 200M",
+      "adapter": "quickmt",
+      "repo_id": "quickmt/quickmt-ja-en",
+      "revision": "e9ae594ff322d95254d730867c6166b25fd2c704",
+      "license": "CC-BY-4.0",
+      "deployment_status": "attribution_required",
+      "packages": [
+        "ctranslate2==4.6.2",
+        "sentencepiece==0.2.1",
+        "huggingface-hub==1.2.3",
+        "nvidia-cublas-cu12==12.9.1.4",
+        "nvidia-cudnn-cu12==9.17.1.4"
+      ],
+      "generation": {
+        "beam_size": 5,
+        "max_decoding_length": 256
+      }
+    },
+    "lfm2-350m": {
+      "label": "LFM2 350M EN-JP MT",
+      "adapter": "lfm2",
+      "repo_id": "LiquidAI/LFM2-350M-ENJP-MT",
+      "revision": "80367784d525777ad7565b24534ba5810eeac59f",
+      "license": "LFM Open License v1.0",
+      "deployment_status": "license_review_required",
+      "packages": [
+        "torch==2.9.1",
+        "transformers==4.57.6",
+        "sentencepiece==0.2.1",
+        "huggingface-hub==0.36.0",
+        "hf-xet==1.6.0"
+      ],
+      "uv_indexes": ["https://download.pytorch.org/whl/cu128"],
+      "generation": {
+        "do_sample": true,
+        "max_new_tokens": 256,
+        "temperature": 0.5,
+        "top_p": 1.0,
+        "min_p": 0.1,
+        "repetition_penalty": 1.05
+      }
+    },
+    "hy-mt-1.8b": {
+      "label": "Tencent HY-MT 1.5 1.8B",
+      "adapter": "hy_mt",
+      "repo_id": "tencent/HY-MT1.5-1.8B",
+      "revision": "dbad03788f49709801014c95d481a514c272ca52",
+      "license": "Tencent Hunyuan Community License",
+      "deployment_status": "license_review_required",
+      "packages": [
+        "torch==2.9.1",
+        "transformers==4.57.6",
+        "sentencepiece==0.2.1",
+        "huggingface-hub==0.36.0",
+        "hf-xet==1.6.0"
+      ],
+      "uv_indexes": ["https://download.pytorch.org/whl/cu128"],
+      "generation": {
+        "do_sample": true,
+        "max_new_tokens": 256,
+        "temperature": 0.7,
+        "top_k": 20,
+        "top_p": 0.6,
+        "repetition_penalty": 1.05
+      }
+    },
+    "riva-4b-v2": {
+      "label": "NVIDIA Riva Translate 4B v2",
+      "adapter": "riva",
+      "repo_id": "nvidia/Riva-Translate-4B-Instruct-v2",
+      "revision": "040d958b128018ff0bed2542a7b51005e9ea563c",
+      "license": "NVIDIA Open Model License; Apache-2.0 additional information",
+      "deployment_status": "license_review_required",
+      "packages": [
+        "torch==2.9.1",
+        "transformers==4.57.6",
+        "sentencepiece==0.2.1",
+        "huggingface-hub==0.36.0",
+        "hf-xet==1.6.0"
+      ],
+      "uv_indexes": ["https://download.pytorch.org/whl/cu128"],
+      "generation": {
+        "do_sample": false,
+        "max_new_tokens": 256
+      }
+    },
+    "translategemma-4b": {
+      "label": "Google TranslateGemma 4B",
+      "adapter": "translategemma",
+      "repo_id": "google/translategemma-4b-it",
+      "revision": "10042cb0e6e7fdce748996a71dc3dc432a4e0c89",
+      "license": "Gemma Terms of Use; Hugging Face access approval required",
+      "deployment_status": "license_review_required",
+      "gated": true,
+      "packages": [
+        "torch==2.9.1",
+        "transformers==4.57.6",
+        "sentencepiece==0.2.1",
+        "huggingface-hub==0.36.0",
+        "hf-xet==1.6.0"
+      ],
+      "uv_indexes": ["https://download.pytorch.org/whl/cu128"],
+      "generation": {
+        "do_sample": false,
+        "max_new_tokens": 256
+      }
+    }
+  }
+}

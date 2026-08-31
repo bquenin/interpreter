@@ -1,0 +1,236 @@
+{
+  "schema_version": 1,
+  "corpus_id": "retro-ja-en-v1",
+  "sampling_seed": "interpreter-translation-benchmark-v1",
+  "maximum_source_characters": 160,
+  "length_buckets": {
+    "short": [1, 15],
+    "medium": [16, 45],
+    "long": [46, 160]
+  },
+  "sources": [
+    {
+      "id": "famicom-detective-club-girl",
+      "game": "Famicom Detective Club: The Girl Who Stands Behind",
+      "platform": "Famicom Disk System",
+      "release_year": 1989,
+      "genre": "adventure",
+      "parser": "nintendo_fixed",
+      "repository": "https://github.com/sudgy/nintendo_translations",
+      "commit": "39f7fb43549ebc428f6216c27cbd81ed738ba3c2",
+      "provenance_url": "https://github.com/sudgy/nintendo_translations/tree/39f7fb43549ebc428f6216c27cbd81ed738ba3c2",
+      "license": "MIT (repository); original game text remains third-party game content",
+      "reference_status": "single_source_review",
+      "files": {
+        "messages": {
+          "path": "girl_messages.txt",
+          "url": "https://raw.githubusercontent.com/sudgy/nintendo_translations/39f7fb43549ebc428f6216c27cbd81ed738ba3c2/girl_messages.txt",
+          "sha256": "ec3facb64eee1a67f1a3dcd23f94f8ff712849395a4290750b47396ced00edd5"
+        },
+        "options": {
+          "path": "girl_options.txt",
+          "url": "https://raw.githubusercontent.com/sudgy/nintendo_translations/39f7fb43549ebc428f6216c27cbd81ed738ba3c2/girl_options.txt",
+          "sha256": "6c9aeea50e8d11e1a68b9ee0deb491958a1965ee6f1cc70a2cff2e8e9d9f656d"
+        }
+      },
+      "quotas": {
+        "dialogue": {"short": 6, "medium": 8, "long": 8},
+        "menu": {"short": 8, "medium": 0, "long": 0}
+      }
+    },
+    {
+      "id": "famicom-detective-club-heir",
+      "game": "Famicom Detective Club: The Missing Heir",
+      "platform": "Famicom Disk System",
+      "release_year": 1988,
+      "genre": "adventure",
+      "parser": "nintendo_fixed",
+      "repository": "https://github.com/sudgy/nintendo_translations",
+      "commit": "39f7fb43549ebc428f6216c27cbd81ed738ba3c2",
+      "provenance_url": "https://github.com/sudgy/nintendo_translations/tree/39f7fb43549ebc428f6216c27cbd81ed738ba3c2",
+      "license": "MIT (repository); original game text remains third-party game content",
+      "reference_status": "single_source_review",
+      "files": {
+        "messages": {
+          "path": "heir_messages.txt",
+          "url": "https://raw.githubusercontent.com/sudgy/nintendo_translations/39f7fb43549ebc428f6216c27cbd81ed738ba3c2/heir_messages.txt",
+          "sha256": "d42c7e45d39300d2a0bb6299249e63a5db47abadc3ba9be7b67d57f468d1fe9e"
+        },
+        "options": {
+          "path": "heir_options.txt",
+          "url": "https://raw.githubusercontent.com/sudgy/nintendo_translations/39f7fb43549ebc428f6216c27cbd81ed738ba3c2/heir_options.txt",
+          "sha256": "6dea1e7d4cc9bb1f22cef6c1752cdd9750c800ceecec310894106af78630d899"
+        }
+      },
+      "quotas": {
+        "dialogue": {"short": 6, "medium": 8, "long": 8},
+        "menu": {"short": 8, "medium": 0, "long": 0}
+      }
+    },
+    {
+      "id": "shin-onigashima",
+      "game": "Famicom Mukashibanashi: Shin Onigashima",
+      "platform": "Famicom Disk System",
+      "release_year": 1987,
+      "genre": "adventure",
+      "parser": "nintendo_variable",
+      "repository": "https://github.com/sudgy/nintendo_translations",
+      "commit": "39f7fb43549ebc428f6216c27cbd81ed738ba3c2",
+      "provenance_url": "https://github.com/sudgy/nintendo_translations/tree/39f7fb43549ebc428f6216c27cbd81ed738ba3c2",
+      "license": "MIT (repository); original game text remains third-party game content",
+      "reference_status": "single_source_review",
+      "files": {
+        "messages": {
+          "path": "onigashima_messages.txt",
+          "url": "https://raw.githubusercontent.com/sudgy/nintendo_translations/39f7fb43549ebc428f6216c27cbd81ed738ba3c2/onigashima_messages.txt",
+          "sha256": "b7027a6519e0f13d6bad2eab1ecc5f9be2d8e7fcfbe4cb70cf604d34be78c266"
+        },
+        "options": {
+          "path": "onigashima_options.txt",
+          "url": "https://raw.githubusercontent.com/sudgy/nintendo_translations/39f7fb43549ebc428f6216c27cbd81ed738ba3c2/onigashima_options.txt",
+          "sha256": "b1bd75481f367de72b8974c2a2e8f66c54fa3181243a937397e4a511a2c28abb"
+        }
+      },
+      "quotas": {
+        "dialogue": {"short": 6, "medium": 8, "long": 8},
+        "menu": {"short": 8, "medium": 0, "long": 0}
+      }
+    },
+    {
+      "id": "time-twist",
+      "game": "Time Twist: Rekishi no Katasumi de",
+      "platform": "Famicom Disk System",
+      "release_year": 1991,
+      "genre": "adventure",
+      "parser": "nintendo_variable",
+      "repository": "https://github.com/sudgy/nintendo_translations",
+      "commit": "39f7fb43549ebc428f6216c27cbd81ed738ba3c2",
+      "provenance_url": "https://github.com/sudgy/nintendo_translations/tree/39f7fb43549ebc428f6216c27cbd81ed738ba3c2",
+      "license": "MIT (repository); original game text remains third-party game content",
+      "reference_status": "single_source_review",
+      "files": {
+        "messages": {
+          "path": "time_twist_messages.txt",
+          "url": "https://raw.githubusercontent.com/sudgy/nintendo_translations/39f7fb43549ebc428f6216c27cbd81ed738ba3c2/time_twist_messages.txt",
+          "sha256": "ea97c9cd14c9fa95bc55ef2321d88797a5c3e67799248dca3ab1c9879c8f34ab"
+        },
+        "options": {
+          "path": "time_twist_options.txt",
+          "url": "https://raw.githubusercontent.com/sudgy/nintendo_translations/39f7fb43549ebc428f6216c27cbd81ed738ba3c2/time_twist_options.txt",
+          "sha256": "5e069b676d1808f316e02a40c9a06c1544a3f1056ae91302603224f5538a6bb0"
+        }
+      },
+      "quotas": {
+        "dialogue": {"short": 6, "medium": 8, "long": 8},
+        "menu": {"short": 8, "medium": 0, "long": 0}
+      }
+    },
+    {
+      "id": "yuyuki",
+      "game": "Famicom Mukashibanashi: Yūyūki",
+      "platform": "Famicom Disk System",
+      "release_year": 1989,
+      "genre": "adventure",
+      "parser": "nintendo_variable",
+      "repository": "https://github.com/sudgy/nintendo_translations",
+      "commit": "39f7fb43549ebc428f6216c27cbd81ed738ba3c2",
+      "provenance_url": "https://github.com/sudgy/nintendo_translations/tree/39f7fb43549ebc428f6216c27cbd81ed738ba3c2",
+      "license": "MIT (repository); original game text remains third-party game content",
+      "reference_status": "single_source_review",
+      "files": {
+        "messages": {
+          "path": "yuyuki_messages.txt",
+          "url": "https://raw.githubusercontent.com/sudgy/nintendo_translations/39f7fb43549ebc428f6216c27cbd81ed738ba3c2/yuyuki_messages.txt",
+          "sha256": "67f480056d65826bf772c72b00882d0b1e5b34846d7b6e7a5c53c7b4297956ca"
+        },
+        "options": {
+          "path": "yuyuki_options.txt",
+          "url": "https://raw.githubusercontent.com/sudgy/nintendo_translations/39f7fb43549ebc428f6216c27cbd81ed738ba3c2/yuyuki_options.txt",
+          "sha256": "8a732adb656c16c53751e30b8e9fa63720620d3ea04c66307037c74cbeec6c3a"
+        }
+      },
+      "quotas": {
+        "dialogue": {"short": 6, "medium": 8, "long": 8},
+        "menu": {"short": 8, "medium": 0, "long": 0}
+      }
+    },
+    {
+      "id": "phantasy-star",
+      "game": "Phantasy Star",
+      "platform": "Sega Master System",
+      "release_year": 1987,
+      "genre": "role-playing game",
+      "parser": "phantasy_star",
+      "repository": "https://github.com/maxim-zhao/psrp",
+      "commit": "2a327b7163eb7864c004ac2f46a00e66a88d2e1d",
+      "provenance_url": "https://github.com/maxim-zhao/psrp/tree/2a327b7163eb7864c004ac2f46a00e66a88d2e1d",
+      "license": "Evaluation only; repository states translated files may not be sold commercially without authorization",
+      "reference_status": "source_review_with_alternate",
+      "files": {
+        "messages": {
+          "path": "script.yaml",
+          "url": "https://raw.githubusercontent.com/maxim-zhao/psrp/2a327b7163eb7864c004ac2f46a00e66a88d2e1d/psrp/script.yaml",
+          "sha256": "0ea02e0db83a292b640dbaffd1aa4127673de74baca93736625dd26322ed8382"
+        },
+        "options": {
+          "path": "menus.yaml",
+          "url": "https://raw.githubusercontent.com/maxim-zhao/psrp/2a327b7163eb7864c004ac2f46a00e66a88d2e1d/psrp/menus.yaml",
+          "sha256": "58152552d482e59e1db194f16d5004a84cf123a2febd904b1171b42b589cb57d"
+        }
+      },
+      "quotas": {
+        "dialogue": {"short": 6, "medium": 10, "long": 8},
+        "menu": {"short": 6, "medium": 2, "long": 1}
+      }
+    },
+    {
+      "id": "metal-slader-glory",
+      "game": "Metal Slader Glory: Director's Cut",
+      "platform": "Super Famicom",
+      "release_year": 2000,
+      "genre": "adventure",
+      "parser": "metal_slader",
+      "repository": "https://github.com/romh-acking/metal-slader-glory-sfc-en",
+      "commit": "beb3e86dec0fd928ac165eaa7b9bfe29358b03ea",
+      "provenance_url": "https://github.com/romh-acking/metal-slader-glory-sfc-en/tree/beb3e86dec0fd928ac165eaa7b9bfe29358b03ea",
+      "license": "GPL-3.0 (repository); original game text remains third-party game content",
+      "reference_status": "single_source_review",
+      "files": {
+        "messages": {
+          "path": "Script.json",
+          "url": "https://raw.githubusercontent.com/romh-acking/metal-slader-glory-sfc-en/beb3e86dec0fd928ac165eaa7b9bfe29358b03ea/script/Script.json",
+          "sha256": "d6ee490372397e1d2e893b3911915f0fb9595e1ee12fa384aa4e0c568fb37ed4"
+        }
+      },
+      "quotas": {
+        "dialogue": {"short": 6, "medium": 10, "long": 8},
+        "menu": {"short": 11, "medium": 0, "long": 0}
+      }
+    },
+    {
+      "id": "dragon-slayer-legend-of-heroes",
+      "game": "Dragon Slayer: The Legend of Heroes",
+      "platform": "NEC PC-9801",
+      "release_year": 1989,
+      "genre": "role-playing game",
+      "parser": "ds6_pc98",
+      "repository": "https://github.com/nleseul/ds6_pc98_trans",
+      "commit": "2d32f8f93afa50dbe8003521624194a91a6f86a9",
+      "provenance_url": "https://github.com/nleseul/ds6_pc98_trans/tree/2d32f8f93afa50dbe8003521624194a91a6f86a9",
+      "license": "Unlicense (repository); original game text remains third-party game content",
+      "reference_status": "single_source_review",
+      "files": {
+        "archive": {
+          "path": "ds6_pc98_trans.zip",
+          "url": "https://codeload.github.com/nleseul/ds6_pc98_trans/zip/2d32f8f93afa50dbe8003521624194a91a6f86a9",
+          "sha256": "6c8ec3e10428470f4bc6cf98f11c198add6c2edc5172cdc4eed8f2ae13862136"
+        }
+      },
+      "quotas": {
+        "dialogue": {"short": 8, "medium": 12, "long": 10},
+        "menu": {"short": 10, "medium": 0, "long": 0},
+        "system": {"short": 4, "medium": 4, "long": 2}
+      }
+    }
+  ]
+}
