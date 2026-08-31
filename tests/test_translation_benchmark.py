@@ -59,6 +59,9 @@ def test_corpus_cleaning_removes_controls_but_preserves_visible_punctuation():
     raw = r"\LineWidthPortraitShowing/(CODE 21 Elina:) えっ(LINE)本当[！？]{82}(End quote)(STOP)"
     assert corpus._clean_metal(raw) == "えっ 本当！？"
     assert corpus._clean_phantasy("<line>アリサ<wait><player>") == ""
+    assert corpus._clean_nintendo("悪事がある｜ 契約まで") == "悪事がある 契約まで"
+    assert benchlib.has_japanese("・・・「!?」") is False
+    assert benchlib.has_japanese("忠！！") is True
 
     screen_raw = "<X1e>セリオス<X04>こんにちは。<RETN>"
     reference_raw = "<X1e>Selios<X04>Hello.<RETN>"
@@ -241,6 +244,16 @@ def test_comparison_rejects_changed_source_even_when_ids_match(fake_sacrebleu):
     candidate = _result("candidate-model", "candidate")
     candidate["samples"][0]["source"] = "さようなら"
     with pytest.raises(benchlib.BenchmarkError, match="sample records differ"):
+        metrics.compare_results(baseline, candidate, bootstrap_iterations=10)
+
+
+def test_comparison_rejects_mismatched_comet_configuration(fake_sacrebleu):
+    baseline = _result("production", "baseline")
+    candidate = _result("candidate-model", "candidate")
+    for result, revision in ((baseline, "first"), (candidate, "second")):
+        result["samples"][0]["metrics"] = {"comet": 0.5}
+        result["metrics"] = {"comet": {"revision": revision}}
+    with pytest.raises(benchlib.BenchmarkError, match="different COMET configurations"):
         metrics.compare_results(baseline, candidate, bootstrap_iterations=10)
 
 

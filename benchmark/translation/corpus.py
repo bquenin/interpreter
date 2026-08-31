@@ -89,6 +89,12 @@ def _clean_reference(text: str | None) -> str:
     return collapse_whitespace(text)
 
 
+def _clean_nintendo(text: str | None) -> str:
+    # The source projects' game writers explicitly discard U+FF5C. It marks a
+    # layout boundary in the dump and is never drawn as a player-visible glyph.
+    return collapse_whitespace((text or "").replace("｜", " "))
+
+
 def _clean_phantasy(text: str | None, *, menu: bool = False) -> str:
     if not text:
         return ""
@@ -236,9 +242,9 @@ def _parse_nintendo_messages(
             source,
             f"message-{index:06d}",
             "dialogue",
-            "\n".join(screen),
-            "\n".join(normalized),
-            ["\n".join(reference)],
+            _clean_nintendo("\n".join(screen)),
+            _clean_nintendo("\n".join(normalized)),
+            [_clean_nintendo("\n".join(reference))],
             registry,
             ["messages"],
         )
@@ -257,9 +263,9 @@ def _parse_nintendo_options(source: dict[str, Any], path: Path, registry: dict[s
             source,
             f"option-{index // 2:06d}",
             "menu",
-            lines[index],
+            _clean_nintendo(lines[index]),
             "",
-            [lines[index + 1]],
+            [_clean_nintendo(lines[index + 1])],
             registry,
             ["options"],
         )

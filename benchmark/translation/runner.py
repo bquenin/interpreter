@@ -48,7 +48,7 @@ def _git_metadata(repo_root: Path) -> dict[str, Any]:
 
 
 def _benchmark_source_metadata(benchmark_dir: Path) -> dict[str, str]:
-    names = ("adapters.py", "benchlib.py", "corpus.py", "runner.py")
+    names = ("adapters.py", "benchlib.py", "benchmark.py", "corpus.py", "runner.py")
     return {name: sha256_file(benchmark_dir / name) for name in names}
 
 

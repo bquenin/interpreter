@@ -26,6 +26,11 @@ COMET_ENCODER_REPO_ID = "xlm-roberta-large"
 COMET_ENCODER_REVISION = "c23d21b0620b635a76227c604d44e43a9f0ee389"
 
 
+def _scoring_source_metadata() -> dict[str, str]:
+    directory = Path(__file__).resolve().parent
+    return {name: sha256_file(directory / name) for name in ("benchlib.py", "metrics.py")}
+
+
 def _sacrebleu_metrics():
     try:
         import sacrebleu
@@ -213,6 +218,7 @@ def score_results(
         result["metrics"] = {
             "scored_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "source_sha256": sha256_file(Path(__file__)),
+            "source_files_sha256": _scoring_source_metadata(),
             "primary": "macro mean of per-sample chrF++ against all available references",
             "secondary": "first-reference corpus chrF++ and BLEU; optional reference-based COMET",
             "versions": versions,
@@ -307,6 +313,16 @@ def _validate_comparison_contract(baseline: dict[str, Any], candidate: dict[str,
     candidate_records = [{field: sample.get(field) for field in identity_fields} for sample in candidate["samples"]]
     if baseline_records != candidate_records:
         raise BenchmarkError("Cannot compare reports whose ordered sample records differ")
+
+    baseline_has_comet = any("comet" in sample.get("metrics", {}) for sample in baseline["samples"])
+    candidate_has_comet = any("comet" in sample.get("metrics", {}) for sample in candidate["samples"])
+    if baseline_has_comet != candidate_has_comet:
+        raise BenchmarkError("Cannot compare reports when only one contains COMET sample scores")
+    if baseline_has_comet:
+        baseline_comet = baseline.get("metrics", {}).get("comet")
+        candidate_comet = candidate.get("metrics", {}).get("comet")
+        if not baseline_comet or fingerprint(baseline_comet) != fingerprint(candidate_comet):
+            raise BenchmarkError("Cannot compare reports scored with different COMET configurations")
 
 
 def _outcome(paired: dict[str, Any]) -> str:

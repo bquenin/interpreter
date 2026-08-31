@@ -32,7 +32,9 @@ REFERENCE_STATUSES = {
     "independently_verified",
 }
 
-_JAPANESE_RE = re.compile(r"[\u3040-\u30ff\u3400-\u9fff]")
+# Script characters, intentionally excluding punctuation such as the katakana
+# middle dot (U+30FB). Punctuation-only output is not untranslated Japanese.
+_JAPANESE_RE = re.compile(r"[\u3041-\u3096\u309d-\u309f\u30a1-\u30fa\u30fd-\u30ff\u3400-\u9fff\uff66-\uff9d]")
 _NUMBER_RE = re.compile(r"(?<![A-Za-z0-9])\d+(?:[.,]\d+)*(?![A-Za-z0-9])")
 _WHITESPACE_RE = re.compile(r"\s+")
 
