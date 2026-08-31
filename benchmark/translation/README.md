@@ -2,6 +2,8 @@
 
 This benchmark compares Japanese-to-English models before any production model is replaced. It keeps model inference, corpus creation, automatic scoring, and human review separate so a candidate cannot influence the test set or grade itself.
 
+The latest reproducible run and decision are recorded in [`RESULTS.md`](RESULTS.md).
+
 The primary workload is the text that a player would actually send from an old Japanese game: kana-heavy writing, unusual spacing, short menu labels, speaker names, punctuation, and longer dialogue. The runner calls the exact production `src/interpreter/translate.py::Translator.translate` implementation for the baseline, including the application's GPU bootstrap and output normalization. It clears the fuzzy translation cache before every measured call so every score and timing measures the model rather than a previous corpus entry.
 
 ## Frozen corpus
