@@ -38,7 +38,8 @@ def test_corpus_manifest_is_valid_and_readiness_is_explicit() -> None:
     manifest = load_json(OCR_BENCHMARK_DIR / "corpus.json")
     assert validate_manifest(manifest) == []
     assert len(manifest["samples"]) == 48
-    assert len(select_samples(manifest)) == 27
+    assert len(select_samples(manifest)) == 37
+    assert len(select_samples(manifest, suites=["legacy-smoke", "retro-real", "community-clean"])) == 33
     assert len(select_samples(manifest, include_unscored=True)) == 48
     assert {sample["source"]["kind"] for sample in manifest["samples"]} <= {"url", "git"}
     assert all("synthetic" not in sample["id"] for sample in manifest["samples"])

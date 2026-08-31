@@ -292,9 +292,9 @@
       },
       "image": {"sha256": "02d7bd3f8b4bce07988e6f338fe0ea6239aa2571fda32f9011e667bb5dd6025b", "width": 3840, "height": 2160},
       "annotation": {
-        "status": "draft",
-        "text": "タケル 戦う 使う 逃げる ゴーレムが現れた！ ヒポグリフが現れた！",
-        "notes": "Needs an independent transcription and a decision about decorative HUD text."
+        "status": "single_review",
+        "text": "タケル 戦う 使う 逃げる ゴーレムが現れた！ ヒポグリフが現れた！ タケル Lv 3 HP 33 MP 0",
+        "notes": "Image-only manual transcription from the exact downloaded pixels; the decorative frame logo is excluded. Requires an independent blind second review."
       }
     },
     {
@@ -313,9 +313,9 @@
       },
       "image": {"sha256": "fe23dc1464269b28c34d6d15fad4cfb8c3dc1dd779a9d08335264daede7c0750", "width": 3840, "height": 2160},
       "annotation": {
-        "status": "draft",
+        "status": "single_review",
         "text": "タケルは魔法の鏡をもらった！！",
-        "notes": "Needs independent visual verification."
+        "notes": "Image-only manual transcription from the exact downloaded pixels; the decorative frame logo and continuation marker are excluded. Requires an independent blind second review."
       }
     },
     {
@@ -334,9 +334,9 @@
       },
       "image": {"sha256": "7fbf66a137d34cfe81916614b4faf042ba3bb543be58b63443109cf1d1cfe09a", "width": 3840, "height": 2160},
       "annotation": {
-        "status": "draft",
+        "status": "single_review",
         "text": "【メサーニャ】お前の大切な書物などたった今、塔の中にばらまいてやったわ！！",
-        "notes": "Needs independent verification of brackets and punctuation."
+        "notes": "Image-only manual transcription from the exact downloaded pixels; brackets and punctuation are preserved as rendered. Requires an independent blind second review."
       }
     },
     {
@@ -355,9 +355,9 @@
       },
       "image": {"sha256": "aa891138da11de029e3b04b3e6d85e7b1fad7f15de5aa2b7e93199086b1aadab", "width": 3840, "height": 2160},
       "annotation": {
-        "status": "draft",
+        "status": "single_review",
         "text": "マミーが現れた！！ タケル LV 01 HP020/020",
-        "notes": "Needs complete HUD transcription and independent verification."
+        "notes": "Image-only manual transcription from the exact downloaded pixels, including the visible HUD. Requires an independent blind second review."
       }
     },
     {
@@ -376,9 +376,9 @@
       },
       "image": {"sha256": "e254e6844fe59a843aadf707d7b48af2334a711b3b390b776ad22e16075e4e2e", "width": 3840, "height": 2160},
       "annotation": {
-        "status": "draft",
-        "text": "ハカバノ カギ X08 Y00 【タケル】なんだ？・・・この古ぼけた箱は？",
-        "notes": "Needs complete HUD transcription and independent verification."
+        "status": "single_review",
+        "text": "ハカバ ノ チカ X08 Y00 タケル LV02 HP018/025 EXP 00012 【タケル】なんだ？・・・この古ぼけた箱は？",
+        "notes": "Image-only manual transcription from the exact downloaded pixels, including the location and HUD. Requires an independent blind second review."
       }
     },
     {
@@ -465,9 +465,9 @@
       },
       "image": {"sha256": "4b74431c7c4c512fb052c43d25f0fccfbff8ee46e1f3321369123f840e2634ed", "width": 1040, "height": 614},
       "annotation": {
-        "status": "draft",
+        "status": "single_review",
         "text": "こんにちは、Light.vn（ライト・ヴィエン）です。このサンプルを始めて見る方たちは先ずエディターであるLightEditor.exe上で起動させる事をお勧めします。",
-        "notes": "Needs independent transcription review."
+        "notes": "Image-only manual transcription from the exact downloaded pixels; window chrome and the continuation marker are excluded. Requires an independent blind second review."
       }
     },
     {
@@ -507,9 +507,9 @@
       },
       "image": {"sha256": "f3e99582c5e34263d36d85a8553038dd7a6602bdbca1c7f2f6a2bffbc20c5e7b", "width": 1920, "height": 1080},
       "annotation": {
-        "status": "draft",
+        "status": "single_review",
         "text": "ナルホド こ、こんなにドキドキするの、小学校の学級裁判のとき以来です。 オプション 法廷記録",
-        "notes": "Never use for promotion: this is the model author's own demo and may overlap training or tuning."
+        "notes": "Image-only manual transcription from the exact downloaded pixels; keycap icons are excluded. Requires an independent blind second review. Never use for promotion because this model-author demo may overlap training or tuning."
       }
     },
     {
@@ -527,7 +527,11 @@
         "license": "Public domain (PD-text), per Wikimedia file page"
       },
       "image": {"sha256": "ec12b182ef4a85be14a5c5edeef1631b5601f3c01f45fa959be7c3ea44c334e9", "width": 640, "height": 400},
-      "annotation": {"status": "unscored", "notes": "Rare public-domain PC-88 text sample; transcription still required."}
+      "annotation": {
+        "status": "single_review",
+        "text": "POWER = 30 ARM LEVEL= 30 DEFENCE = 30 TECHNIQUE= 10 コレデ ヨロシイ デスカ (Y/N)",
+        "notes": "Image-only manual transcription from the exact downloaded pixels using nearest-neighbor zoom only. Requires an independent blind second review."
+      }
     },
     {
       "id": "web-commons-geko-command-log",
@@ -544,7 +548,11 @@
         "license": "Public domain (PD-text), per Wikimedia file page"
       },
       "image": {"sha256": "e0098b55964a814c7fb71bf6a3e39be4498109ee4ffc9b2d52b3c124b8d12ffe", "width": 640, "height": 400},
-      "annotation": {"status": "unscored", "notes": "Rare public-domain PC-88 text-heavy sample; transcription still required."}
+      "annotation": {
+        "status": "single_review",
+        "text": "ミナミ ニ ミチ ガ アリマス. ヒガシ ニ カベ ガ アリマス. ニシ ニ ミチ ガ アリマス. ENTER COMMAND : S Ok キタ ニ ミチ ガ アリマス. ミナミ ニ ミチ ガ アリマス. ヒガシ ニ カベ ガ アリマス. ニシ ニ カベ ガ アリマス. ENTER COMMAND : S Ok キタ ニ ミチ ガ アリマス. ミナミ ニ カワ ガ アリマス. ヒガシ ニ ミチ ガ アリマス. ニシ ニ ミチ ガ アリマス. ショウジョ ガ イマス. ENTER COMMAND : _",
+        "notes": "Image-only manual transcription from the exact downloaded pixels using nearest-neighbor zoom only; the rendered baseline-dot sentence terminators are represented as ASCII periods. Requires an independent blind second review."
+      }
     },
     {
       "id": "web-commons-geko-parser",
@@ -1197,8 +1205,9 @@
         "height": 390
       },
       "annotation": {
-        "status": "unscored",
-        "notes": "Real Mega Drive dialogue retained as a diagnostic until the exact count of elongated marks is independently annotated."
+        "status": "single_review",
+        "text": "アルル「わぁーーーーーーい！！」",
+        "notes": "Image-only manual transcription from the exact downloaded pixels; nearest-neighbor inspection confirms six elongated marks. Requires an independent blind second review."
       }
     }
   ]

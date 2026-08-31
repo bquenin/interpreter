@@ -7,11 +7,11 @@ The current corpus manifest has 48 entries, all captured from real games or game
 | Group | Images | Ground truth today | Purpose |
 | --- | ---: | --- | --- |
 | Historical benchmark branch | 13 | single review | Directional regression smoke test; one game only |
-| Community GitHub issues | 11 | 5 draft, 6 unscored | Real failures, 4K frames, menus/HUD, overlays, and app-UI contamination |
-| Curated SFC/Mega Drive sources | 16 | 14 single review, 2 unscored | Dragon Quest I, Chrono Trigger, Shining Force, Landstalker, Phantasy Star IV, and Madō Monogatari I |
-| Other external internet sources | 8 | 3 draft, 5 unscored | Visual-novel, PC-88, non-Japanese, and vendor-demo diagnostics |
+| Community GitHub issues | 11 | 5 single review, 6 unscored | Real failures, 4K frames, menus/HUD, overlays, and app-UI contamination |
+| Curated SFC/Mega Drive sources | 16 | 15 single review, 1 unscored | Dragon Quest I, Chrono Trigger, Shining Force, Landstalker, Phantasy Star IV, and Madō Monogatari I |
+| Other external internet sources | 8 | 4 single review, 1 draft, 3 unscored | Visual-novel, PC-88, non-Japanese, and vendor-demo diagnostics |
 
-The 27 scoreable samples are all real screenshots. They are enough to test the machinery and find obvious regressions, but not enough to approve a model replacement. In particular, there are currently zero independently verified real evaluation samples.
+The 37 scoreable samples are all real screenshots. They are enough to test the machinery and find obvious regressions, but not enough to approve a model replacement. In particular, there are currently zero independently verified real evaluation samples.
 
 ## Quick start
 
@@ -19,11 +19,11 @@ From the repository root on Windows:
 
 ~~~powershell
 .\.venv\Scripts\python.exe benchmark\ocr\benchmark.py inventory
-.\.venv\Scripts\python.exe benchmark\ocr\benchmark.py prepare --suite legacy-smoke --suite retro-real
+.\.venv\Scripts\python.exe benchmark\ocr\benchmark.py prepare --suite legacy-smoke --suite retro-real --suite community-clean
 .\.venv\Scripts\python.exe benchmark\ocr\benchmark.py matrix
 ~~~
 
-The matrix command runs the installed baseline directly from .venv, forces its Hugging Face cache offline by default, then runs meikiocr==0.3.4 in a separate uv isolated/no-project environment and a separate model cache. It does not alter the application environment or dependency lock. Results go to the ignored benchmark/ocr/results directory.
+The default matrix covers 33 scoreable game screenshots from the historical, curated-retro, and clean-community suites. It runs the installed baseline directly from .venv, forces its Hugging Face cache offline by default, then runs meikiocr==0.3.4 in a separate uv isolated/no-project environment and a separate model cache. It does not alter the application environment or dependency lock. Results go to the ignored benchmark/ocr/results directory.
 
 Test another API-compatible package/version with:
 
@@ -39,6 +39,9 @@ To run the issue and internet diagnostics too:
 ~~~
 
 Draft and unscored images are timed and their predictions/regions are recorded, but they are never included in CER.
+The four scoreable internet diagnostics can be added with `--suite internet`, but the vendor demo and diagnostic-only samples must not decide promotion.
+
+Ground-truth transcription must be blind to benchmark output. A reference is frozen from the exact downloaded image before either the baseline or candidate is run. Reviewers may use lossless nearest-neighbor zoom to inspect the same pixels, but must not consult either model's prediction, a translation overlay, a walkthrough, or source text to fill uncertain or hidden characters. If the visible pixels do not determine the target text or a mixed layout has no defensible linear reading order, the image stays unscored.
 
 ## What is measured
 
@@ -88,12 +91,13 @@ The other outside batch includes two pinned screenshots from the [Light.vn repos
 For an image to become verified:
 
 1. Keep the untouched full capture; create a separate sample if a crop or exclusion mask is part of the test.
-2. Transcribe every Japanese character plus associated Latin letters/digits that the application should pass through. Do not transcribe decorative icons such as selection arrows.
-3. Preserve visible punctuation and elongated/repetition marks. Do not silently correct spelling in the game.
-4. Mark partly hidden text, translation overlays, OCR boxes, and Interpreter UI as unscored robustness data rather than guessing.
-5. Have a second reviewer compare the transcription at native resolution. Record any intentional exclusions in annotation.notes.
-6. Balance the verified set across dialogue, menus, battle/HUD, mixed layouts, tiny/blurred text, stylized fonts, vertical text, and no-text negatives.
-7. Reserve a private holdout captured after candidate selection; public demos and model-project examples must never decide promotion.
+2. Freeze an image-only transcription before inspecting output from any model under test. Never seed or correct a reference with a baseline or candidate prediction.
+3. Transcribe every Japanese character plus associated Latin letters/digits that the application should pass through. Do not transcribe decorative icons such as selection arrows.
+4. Preserve visible punctuation and elongated/repetition marks. Do not silently correct spelling in the game or reconstruct text from external scripts or context.
+5. Mark partly hidden text, translation overlays, OCR boxes, Interpreter UI, and ambiguous mixed-layout ordering as unscored robustness data rather than guessing.
+6. Have a second reviewer compare the transcription against the exact image without seeing model output. Record any intentional exclusions in annotation.notes.
+7. Balance the verified set across dialogue, menus, battle/HUD, mixed layouts, tiny/blurred text, stylized fonts, vertical text, and no-text negatives.
+8. Reserve a private holdout captured after candidate selection; public demos and model-project examples must never decide promotion.
 
 Exact duplicates are rejected by SHA-256 today. Before the corpus grows substantially, add perceptual duplicate detection so adjacent video frames do not create false confidence.
 
