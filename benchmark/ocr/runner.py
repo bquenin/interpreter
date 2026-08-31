@@ -388,7 +388,9 @@ def _comparison_workload(result: dict[str, Any], label: str) -> dict[str, Any]:
     if missing:
         raise BenchmarkError(f"{label} report is missing workload configuration: {', '.join(missing)}")
 
-    workload = {field: configuration[field] for field in _WORKLOAD_CONFIGURATION_FIELDS}
+    # Preserve unknown fields so a future workload option cannot be silently
+    # ignored by an older comparison contract.
+    workload = dict(configuration)
     for field in ("suite_filter", "role_filter"):
         values = workload[field]
         if not isinstance(values, list) or not all(isinstance(value, str) for value in values):
@@ -415,6 +417,30 @@ def _selected_sample_ids(result: dict[str, Any], label: str) -> list[str]:
     return sample_ids
 
 
+def _local_corpus_files(result: dict[str, Any], label: str, sample_ids: list[str]) -> dict[str, Any]:
+    local_files = result.get("corpus", {}).get("local_files")
+    if not isinstance(local_files, dict):
+        raise BenchmarkError(f"{label} report has no local corpus file metadata")
+
+    expected_ids = set(sample_ids)
+    actual_ids = set(local_files)
+    if actual_ids != expected_ids:
+        missing = sorted(expected_ids - actual_ids)
+        extra = sorted(actual_ids - expected_ids)
+        details = []
+        if missing:
+            details.append(f"missing: {', '.join(missing)}")
+        if extra:
+            details.append(f"unexpected: {', '.join(extra)}")
+        raise BenchmarkError(f"{label} report local corpus files do not match its samples ({'; '.join(details)})")
+
+    for sample_id in sample_ids:
+        metadata = local_files[sample_id]
+        if not isinstance(metadata, dict) or not isinstance(metadata.get("sha256"), str) or not metadata["sha256"]:
+            raise BenchmarkError(f"{label} report has invalid local corpus metadata for {sample_id}")
+    return local_files
+
+
 def compare_results(
     baseline: dict[str, Any],
     candidate: dict[str, Any],
@@ -425,17 +451,39 @@ def compare_results(
     max_p95_ms: float = 500.0,
     max_latency_regression: float = 0.25,
 ) -> dict[str, Any]:
-    if baseline.get("corpus", {}).get("manifest_sha256") != candidate.get("corpus", {}).get("manifest_sha256"):
+    for label, result in (("Baseline", baseline), ("Candidate", candidate)):
+        if result.get("schema_version") != 1:
+            raise BenchmarkError(f"{label} report does not use schema version 1")
+
+    baseline_manifest = baseline.get("corpus", {}).get("manifest_sha256")
+    candidate_manifest = candidate.get("corpus", {}).get("manifest_sha256")
+    if not isinstance(baseline_manifest, str) or not baseline_manifest:
+        raise BenchmarkError("Baseline report has no corpus manifest hash")
+    if not isinstance(candidate_manifest, str) or not candidate_manifest:
+        raise BenchmarkError("Candidate report has no corpus manifest hash")
+    if baseline_manifest != candidate_manifest:
         raise BenchmarkError("Cannot compare runs made from different corpus manifests")
-    if baseline.get("application", {}).get("ocr_source_sha256") != candidate.get("application", {}).get(
-        "ocr_source_sha256"
-    ):
+
+    baseline_ocr_source = baseline.get("application", {}).get("ocr_source_sha256")
+    candidate_ocr_source = candidate.get("application", {}).get("ocr_source_sha256")
+    if not isinstance(baseline_ocr_source, str) or not baseline_ocr_source:
+        raise BenchmarkError("Baseline report has no Interpreter OCR source hash")
+    if not isinstance(candidate_ocr_source, str) or not candidate_ocr_source:
+        raise BenchmarkError("Candidate report has no Interpreter OCR source hash")
+    if baseline_ocr_source != candidate_ocr_source:
         raise BenchmarkError("Cannot compare runs made with different Interpreter OCR pipeline source")
 
     baseline_workload = _comparison_workload(baseline, "Baseline")
     candidate_workload = _comparison_workload(candidate, "Candidate")
     if baseline_workload != candidate_workload:
-        changed = sorted(field for field in baseline_workload if baseline_workload[field] != candidate_workload[field])
+        fields = baseline_workload.keys() | candidate_workload.keys()
+        changed = sorted(
+            field
+            for field in fields
+            if field not in baseline_workload
+            or field not in candidate_workload
+            or baseline_workload[field] != candidate_workload[field]
+        )
         raise BenchmarkError(f"Cannot compare runs made with different workload configuration: {', '.join(changed)}")
 
     baseline_ids = _selected_sample_ids(baseline, "Baseline")
@@ -453,6 +501,12 @@ def compare_results(
         if not details:
             details.append("sample order differs")
         raise BenchmarkError(f"Cannot compare runs with different selected sample IDs ({'; '.join(details)})")
+
+    baseline_files = _local_corpus_files(baseline, "Baseline", baseline_ids)
+    candidate_files = _local_corpus_files(candidate, "Candidate", candidate_ids)
+    if baseline_files != candidate_files:
+        changed = [sample_id for sample_id in baseline_ids if baseline_files[sample_id] != candidate_files[sample_id]]
+        raise BenchmarkError(f"Cannot compare runs made from different local corpus files: {', '.join(changed)}")
 
     paired = bootstrap_cer_delta(
         baseline["samples"],

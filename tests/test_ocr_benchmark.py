@@ -104,8 +104,14 @@ def _comparison_report(sample_ids: list[str], **configuration_overrides: object)
         **configuration_overrides,
     }
     return {
+        "schema_version": 1,
         "configuration": configuration,
-        "corpus": {"manifest_sha256": "manifest"},
+        "corpus": {
+            "manifest_sha256": "manifest",
+            "local_files": {
+                sample_id: {"sha256": f"hash-{sample_id}", "width": 320, "height": 240} for sample_id in sample_ids
+            },
+        },
         "application": {"ocr_source_sha256": "ocr-source"},
         "samples": [{"id": sample_id} for sample_id in sample_ids],
     }
@@ -119,9 +125,26 @@ def test_compare_rejects_different_workload_configuration() -> None:
         compare_results(baseline, candidate)
 
 
+def test_compare_rejects_unknown_future_workload_difference() -> None:
+    baseline = _comparison_report(["one"])
+    candidate = _comparison_report(["one"], future_option=True)
+
+    with pytest.raises(BenchmarkError, match="different workload configuration: future_option"):
+        compare_results(baseline, candidate)
+
+
 def test_compare_rejects_different_selected_samples() -> None:
     baseline = _comparison_report(["one", "two"])
     candidate = _comparison_report(["one", "three"])
 
     with pytest.raises(BenchmarkError, match="different selected sample IDs"):
+        compare_results(baseline, candidate)
+
+
+def test_compare_rejects_different_local_corpus_files() -> None:
+    baseline = _comparison_report(["one"])
+    candidate = _comparison_report(["one"])
+    candidate["corpus"]["local_files"]["one"]["sha256"] = "different-image"
+
+    with pytest.raises(BenchmarkError, match="different local corpus files: one"):
         compare_results(baseline, candidate)

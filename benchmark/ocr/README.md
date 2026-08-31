@@ -58,7 +58,7 @@ Text is normalized with Unicode NFKC and whitespace is ignored. Content and punc
 
 Every report records the Interpreter OCR source hash, Git commit/dirty state, package versions, ONNX provider, platform, manifest fingerprint, every local image hash, and the resolved model snapshot and ONNX SHA-256 where available.
 
-Comparison fails closed unless both reports have the same corpus and OCR-source hashes, workload-defining configuration, and ordered sample IDs. This keeps paired CER, exact match, latency, errors, and promotion-gate counts on one identical workload.
+Comparison fails closed unless both reports have the same manifest, local-file, and OCR-source hashes, workload-defining configuration, and ordered sample IDs. This keeps paired CER, exact match, latency, errors, and promotion-gate counts on one identical workload.
 
 ## Promotion rule
 
