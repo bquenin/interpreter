@@ -108,8 +108,8 @@ def validate_manifest(manifest: dict[str, Any]) -> list[str]:
             errors.append(f"{prefix}.role must be one of {sorted(KNOWN_ROLES)}")
 
         source = sample.get("source")
-        if not isinstance(source, dict) or source.get("kind") not in {"url", "git", "generated"}:
-            errors.append(f"{prefix}.source.kind must be url, git, or generated")
+        if not isinstance(source, dict) or source.get("kind") not in {"url", "git"}:
+            errors.append(f"{prefix}.source.kind must be url or git")
         elif source["kind"] == "url":
             if not str(source.get("url", "")).startswith("https://"):
                 errors.append(f"{prefix}.source.url must use https")
@@ -121,9 +121,6 @@ def validate_manifest(manifest: dict[str, Any]) -> list[str]:
             for field in ("ref", "git_path", "repository"):
                 if not source.get(field):
                     errors.append(f"{prefix}.source.{field} is required")
-        elif source["kind"] == "generated" and not isinstance(source.get("generator"), dict):
-            errors.append(f"{prefix}.source.generator must be an object")
-
         annotation = sample.get("annotation")
         if not isinstance(annotation, dict):
             errors.append(f"{prefix}.annotation must be an object")

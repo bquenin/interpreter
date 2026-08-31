@@ -2,16 +2,16 @@
 
 This benchmark compares OCR models before the application dependency is changed. It exercises the exact production path in src/interpreter/ocr.py, including BGRA-to-RGB conversion, MeikiOCR inference, confidence filtering, deduplication, spatial clustering, and the worker's space-joined region output.
 
-The current corpus manifest has 44 entries:
+The current corpus manifest has 48 entries, all captured from real games or game projects:
 
 | Group | Images | Ground truth today | Purpose |
 | --- | ---: | --- | --- |
 | Historical benchmark branch | 13 | single review | Directional regression smoke test; one game only |
 | Community GitHub issues | 11 | 5 draft, 6 unscored | Real failures, 4K frames, menus/HUD, overlays, and app-UI contamination |
-| External internet sources | 8 | 3 draft, 5 unscored | Visual-novel, PC-88, non-Japanese, and vendor-demo diagnostics |
-| Deterministic controls | 12 | verified by construction | Pixel/modern fonts, menu/dialogue/HUD, low contrast, scaling, vertical text, and a no-text negative |
+| Curated SFC/Mega Drive sources | 16 | 14 single review, 2 unscored | Dragon Quest I, Chrono Trigger, Shining Force, Landstalker, Phantasy Star IV, and Madō Monogatari I |
+| Other external internet sources | 8 | 3 draft, 5 unscored | Visual-novel, PC-88, non-Japanese, and vendor-demo diagnostics |
 
-Only the 13 historical samples and 12 generated controls are scoreable initially. That is enough to test the machinery and find obvious regressions, but not enough to approve a model replacement. In particular, there are currently zero independently verified real evaluation samples.
+The 27 scoreable samples are all real screenshots. They are enough to test the machinery and find obvious regressions, but not enough to approve a model replacement. In particular, there are currently zero independently verified real evaluation samples.
 
 ## Quick start
 
@@ -19,7 +19,7 @@ From the repository root on Windows:
 
 ~~~powershell
 .\.venv\Scripts\python.exe benchmark\ocr\benchmark.py inventory
-.\.venv\Scripts\python.exe benchmark\ocr\benchmark.py prepare --suite legacy-smoke --suite synthetic
+.\.venv\Scripts\python.exe benchmark\ocr\benchmark.py prepare --suite legacy-smoke --suite retro-real
 .\.venv\Scripts\python.exe benchmark\ocr\benchmark.py matrix
 ~~~
 
@@ -69,7 +69,9 @@ The limits are CLI options, but lowering the corpus requirements simply to obtai
 
 ## Building the real corpus
 
-The source registry is corpus.json. The prepare command downloads or extracts images into the ignored data directory, verifies fixed SHA-256 hashes and dimensions, downloads pinned open-font resources, generates deterministic controls, and writes data/corpus.lock.json.
+The source registry is corpus.json. The prepare command downloads or extracts images into the ignored data directory, verifies fixed SHA-256 hashes and dimensions, and writes data/corpus.lock.json.
+
+Synthetic images are deliberately excluded. The manifest validator accepts only HTTPS downloads and screenshots extracted from repository history; the benchmark has no image generator. Font rendering, artificial backgrounds, and constructed layouts do not represent the capture, scaling, compression, or typography distribution this application sees.
 
 Third-party game screenshots are deliberately not committed. Their manifest entries retain the issue/file URL, uploader, hash, dimensions, and redistribution status. Even public-domain Wikimedia files use the same local-fetch path so the repository contains no mixed-origin image bundle.
 
@@ -79,7 +81,9 @@ The first community batch came from:
 - Interpreter issue [#173](https://github.com/bquenin/interpreter/issues/173): one 4K PCSX2 frame with an existing English overlay.
 - Interpreter issue [#149](https://github.com/bquenin/interpreter/issues/149): two Super Robot Wars diagnostic/configuration captures.
 
-The outside batch includes two pinned screenshots from the [Light.vn repository](https://github.com/hsdk123/Light.vn), four individually marked public-domain PC-88 text screenshots from [Wikimedia Commons](https://commons.wikimedia.org/wiki/Category:Japanese-language_video_game_screenshots), a public-domain non-Japanese menu negative, and MeikiOCR's own [demo image](https://github.com/rtr46/meikiocr). The vendor demo is diagnostic only because training/tuning overlap is plausible.
+The retro outside batch includes 12 commit-pinned Super Famicom captures from Jo-Mako's archived JRPG reading corpus: six Dragon Quest I frames and six Chrono Trigger frames. The Dragon Quest source-authored transcriptions were checked against the selected images. The archived Chrono transcript index does not reliably match its image numbering, so those frames were transcribed visually and explicitly remain single-review. Four additional Mega Drive captures come from official SEGA pages for Shining Force, Landstalker, Phantasy Star IV, and Madō Monogatari I.
+
+The other outside batch includes two pinned screenshots from the [Light.vn repository](https://github.com/hsdk123/Light.vn), four individually marked public-domain PC-88 text screenshots from [Wikimedia Commons](https://commons.wikimedia.org/wiki/Category:Japanese-language_video_game_screenshots), a public-domain non-Japanese menu negative, and MeikiOCR's own [demo image](https://github.com/rtr46/meikiocr). The vendor demo is diagnostic only because training/tuning overlap is plausible.
 
 For an image to become verified:
 
@@ -96,7 +100,7 @@ Exact duplicates are rejected by SHA-256 today. Before the corpus grows substant
 ## Current limitations
 
 - The existing 13-image set is a single Tales of Phantasia sequence and its inherited ground truth has only one review.
-- Generated controls are excellent for controlled regressions but are not representative enough to determine model quality.
+- Every currently scoreable transcription still has only one independent review; none can satisfy the promotion gate yet.
 - Bounding boxes are retained in result JSON, but the initial promotion metric is end-to-end text CER. Region-level IoU/precision/recall should be added once real boxes are double-annotated.
 - Public issue and internet images are useful evaluation material, not a genuinely secret holdout.
 - The built-in runner targets MeikiOCR-compatible packages. A different OCR architecture should emit the same result schema and use the existing compare command, while preserving identical application post-processing where applicable.

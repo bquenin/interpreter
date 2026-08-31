@@ -59,7 +59,7 @@ def build_parser() -> argparse.ArgumentParser:
     inventory = subparsers.add_parser("inventory", help="Summarize corpus composition and annotation readiness")
     inventory.add_argument("--manifest", type=_path, default=DEFAULT_MANIFEST)
 
-    prepare = subparsers.add_parser("prepare", help="Download/extract/generate the local ignored corpus")
+    prepare = subparsers.add_parser("prepare", help="Download or extract the local ignored screenshot corpus")
     _add_corpus_arguments(prepare)
 
     validate = subparsers.add_parser("validate", help="Validate manifest and any selected local files")
@@ -194,9 +194,9 @@ def _matrix(args: argparse.Namespace) -> None:
     if not uv:
         raise BenchmarkError("uv is required for an isolated candidate run")
 
-    # Keep the fast default honest: these are the currently scoreable smoke and
-    # synthetic diagnostic suites. Passing --suite explicitly replaces it.
-    suites = args.suites or ["legacy-smoke", "synthetic"]
+    # Keep the default focused on scoreable, real retro-game screenshots.
+    # Passing --suite explicitly replaces it.
+    suites = args.suites or ["legacy-smoke", "retro-real"]
     manifest = load_json(args.manifest)
     print("preparing corpus")
     prepare_corpus(

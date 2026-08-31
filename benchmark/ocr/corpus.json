@@ -7,24 +7,6 @@
     "draft": "Provisional transcription; executed only when requested and never scored.",
     "unscored": "Robustness or provenance sample without complete ground truth."
   },
-  "resources": {
-    "fonts": {
-      "dotgothic16": {
-        "filename": "DotGothic16-Regular.ttf",
-        "url": "https://raw.githubusercontent.com/fontworks-fonts/DotGothic16/14517183ab2f75e8bccafc5a0bff6685d268c687/fonts/ttf/DotGothic16-Regular.ttf",
-        "sha256": "155da8f318553c11d9dffc2affbc7c2114c6a46f9740bcf639ed5568af92be71",
-        "license": "SIL Open Font License 1.1",
-        "license_url": "https://github.com/fontworks-fonts/DotGothic16/blob/14517183ab2f75e8bccafc5a0bff6685d268c687/OFL.txt"
-      },
-      "pixelmplus12": {
-        "filename": "PixelMplus12-Regular.ttf",
-        "url": "https://raw.githubusercontent.com/itouhiro/PixelMplus/d89b95f04eeb95bf98bb09cb9234a2f99d186df5/PixelMplus12-Regular.ttf",
-        "sha256": "02f19467ea7cc235cc06c570b7f6c3b0a12a6f682bc8d74c43f2d323d97bcd12",
-        "license": "M+ FONT LICENSE",
-        "license_url": "https://github.com/itouhiro/PixelMplus/blob/d89b95f04eeb95bf98bb09cb9234a2f99d186df5/misc/mplus_bitmap_fonts/LICENSE_E"
-      }
-    }
-  },
   "samples": [
     {
       "id": "legacy-top-01",
@@ -616,323 +598,608 @@
       "annotation": {"status": "unscored", "notes": "Latin-only menu for false-Japanese diagnostic testing."}
     },
     {
-      "id": "synthetic-modern-dialogue",
-      "path": "synthetic/modern-dialogue.png",
-      "suites": ["synthetic", "dialogue"],
-      "role": "diagnostic",
-      "game": "Synthetic controls",
-      "tags": ["generated", "dialogue", "two-lines", "modern-font"],
+      "id": "web-jomako-dq1-001",
+      "path": "internet/retro-sfc/dragon-quest-i/001.jpg",
+      "suites": [
+        "retro-real",
+        "real",
+        "dialogue",
+        "sfc"
+      ],
+      "role": "evaluation",
+      "game": "Dragon Quest I (Super Famicom)",
+      "tags": [
+        "retro",
+        "pixel-font",
+        "dialogue",
+        "sfc",
+        "speaker-label",
+        "three-lines"
+      ],
       "source": {
-        "kind": "generated",
-        "license": "Generated benchmark image; MIT project code; DotGothic16 under OFL-1.1",
-        "generator": {
-          "canvas": [1280, 720],
-          "background": "scene",
-          "font": "dotgothic16",
-          "boxes": [
-            {"xy": [70, 420, 1210, 680], "fill": "#101827", "outline": "#e5d6a7", "width": 4}
-          ],
-          "lines": [
-            {"text": "リナ", "xy": [120, 445], "size": 32, "fill": "#7cc8ff"},
-            {"text": "この遺跡には古い秘密が眠っている。\n気をつけて進みましょう。", "xy": [120, 500], "size": 38, "fill": "#f8f6eb", "spacing": 14}
-          ]
-        }
+        "kind": "url",
+        "url": "https://raw.githubusercontent.com/Jo-Mako-Anki/Jo-Mako-Anki.github.io/750276c32be9207d92028ccc44474181e969b83e/assets/scripts/dq01/DQ1J%20(1).jpg",
+        "page_url": "https://github.com/Jo-Mako-Anki/Jo-Mako-Anki.github.io/blob/750276c32be9207d92028ccc44474181e969b83e/assets/scripts/dq01/DQ1J%20(1).jpg",
+        "author": "Jo-Mako",
+        "license": "Copyrighted game screenshot; download-only for local evaluation; no redistribution grant",
+        "transcript_url": "https://github.com/Jo-Mako-Anki/Jo-Mako-Anki.github.io/blob/750276c32be9207d92028ccc44474181e969b83e/webpages/resources/jrpg/dragon-quest_01.html#L93"
       },
-      "image": {"width": 1280, "height": 720},
-      "annotation": {"status": "verified", "text": "リナ この遺跡には古い秘密が眠っている。 気をつけて進みましょう。"}
+      "image": {
+        "sha256": "d465231346815d1077fc4a7f6729db74e0191f733244ff5080da417282525761",
+        "width": 384,
+        "height": 359
+      },
+      "annotation": {
+        "status": "single_review",
+        "text": "王「おお アンキ！ 勇者ロトの 血をひきし者よ！ そなたが来るのを 待っておった。",
+        "notes": "Source-authored transcript checked against the screenshot once; requires an independent review. Decorative NPC asterisk is excluded."
+      }
     },
     {
-      "id": "synthetic-retro-nearest-dialogue",
-      "path": "synthetic/retro-nearest-dialogue.png",
-      "suites": ["synthetic", "dialogue", "retro"],
-      "role": "diagnostic",
-      "game": "Synthetic controls",
-      "tags": ["generated", "dialogue", "pixel-font", "nearest-upscale", "low-resolution-source"],
+      "id": "web-jomako-dq1-050",
+      "path": "internet/retro-sfc/dragon-quest-i/050.jpg",
+      "suites": [
+        "retro-real",
+        "real",
+        "dialogue",
+        "sfc"
+      ],
+      "role": "evaluation",
+      "game": "Dragon Quest I (Super Famicom)",
+      "tags": [
+        "retro",
+        "pixel-font",
+        "dialogue",
+        "sfc",
+        "npc",
+        "three-lines"
+      ],
       "source": {
-        "kind": "generated",
-        "license": "Generated benchmark image; MIT project code; PixelMplus under M+ FONT LICENSE",
-        "generator": {
-          "native_canvas": [320, 240],
-          "canvas": [1280, 960],
-          "resampling": "nearest",
-          "background": "scene",
-          "font": "pixelmplus12",
-          "boxes": [
-            {"xy": [7, 153, 313, 233], "fill": "#05050a", "outline": "#f2f2e8", "width": 1}
-          ],
-          "lines": [
-            {"text": "アレン", "xy": [15, 159], "size": 12, "fill": "#ffd75a"},
-            {"text": "北の森へ向かおう。\n仲間が待っている！", "xy": [15, 177], "size": 14, "fill": "#ffffff", "spacing": 3}
-          ]
-        }
+        "kind": "url",
+        "url": "https://raw.githubusercontent.com/Jo-Mako-Anki/Jo-Mako-Anki.github.io/750276c32be9207d92028ccc44474181e969b83e/assets/scripts/dq01/DQ1J%20(50).jpg",
+        "page_url": "https://github.com/Jo-Mako-Anki/Jo-Mako-Anki.github.io/blob/750276c32be9207d92028ccc44474181e969b83e/assets/scripts/dq01/DQ1J%20(50).jpg",
+        "author": "Jo-Mako",
+        "license": "Copyrighted game screenshot; download-only for local evaluation; no redistribution grant",
+        "transcript_url": "https://github.com/Jo-Mako-Anki/Jo-Mako-Anki.github.io/blob/750276c32be9207d92028ccc44474181e969b83e/webpages/resources/jrpg/dragon-quest_01.html#L134"
       },
-      "image": {"width": 1280, "height": 960},
-      "annotation": {"status": "verified", "text": "アレン 北の森へ向かおう。 仲間が待っている！"}
+      "image": {
+        "sha256": "636e6d3c459204129419592888b198ceac35c8a8cc276e6cf2c4303adb2994c5",
+        "width": 384,
+        "height": 359
+      },
+      "annotation": {
+        "status": "single_review",
+        "text": "「そうすれば 勇者としての レベルが 次々と上がり 強くなってゆくだろう。",
+        "notes": "Source-authored transcript checked against the screenshot once; requires an independent review. Decorative NPC asterisk is excluded."
+      }
     },
     {
-      "id": "synthetic-retro-menu",
-      "path": "synthetic/retro-menu.png",
-      "suites": ["synthetic", "menu", "retro"],
-      "role": "diagnostic",
-      "game": "Synthetic controls",
-      "tags": ["generated", "menu", "pixel-font", "stacked-items"],
+      "id": "web-jomako-dq1-100",
+      "path": "internet/retro-sfc/dragon-quest-i/100.jpg",
+      "suites": [
+        "retro-real",
+        "real",
+        "dialogue",
+        "sfc"
+      ],
+      "role": "evaluation",
+      "game": "Dragon Quest I (Super Famicom)",
+      "tags": [
+        "retro",
+        "pixel-font",
+        "dialogue",
+        "sfc",
+        "npc",
+        "three-lines"
+      ],
       "source": {
-        "kind": "generated",
-        "license": "Generated benchmark image; MIT project code; PixelMplus under M+ FONT LICENSE",
-        "generator": {
-          "canvas": [960, 540],
-          "background": "black",
-          "font": "pixelmplus12",
-          "boxes": [
-            {"xy": [260, 70, 700, 475], "fill": "#101733", "outline": "#f1d35c", "width": 5}
-          ],
-          "lines": [
-            {"text": "冒険の書", "xy": [375, 105], "size": 34, "fill": "#f7db63"},
-            {"text": "▶ はじめから", "xy": [335, 200], "size": 30, "fill": "#ffffff"},
-            {"text": "つづきから", "xy": [370, 265], "size": 30, "fill": "#b9c8e8"},
-            {"text": "設定", "xy": [430, 330], "size": 30, "fill": "#b9c8e8"},
-            {"text": "終了", "xy": [430, 395], "size": 30, "fill": "#b9c8e8"}
-          ]
-        }
+        "kind": "url",
+        "url": "https://raw.githubusercontent.com/Jo-Mako-Anki/Jo-Mako-Anki.github.io/750276c32be9207d92028ccc44474181e969b83e/assets/scripts/dq01/DQ1J%20(100).jpg",
+        "page_url": "https://github.com/Jo-Mako-Anki/Jo-Mako-Anki.github.io/blob/750276c32be9207d92028ccc44474181e969b83e/assets/scripts/dq01/DQ1J%20(100).jpg",
+        "author": "Jo-Mako",
+        "license": "Copyrighted game screenshot; download-only for local evaluation; no redistribution grant",
+        "transcript_url": "https://github.com/Jo-Mako-Anki/Jo-Mako-Anki.github.io/blob/750276c32be9207d92028ccc44474181e969b83e/webpages/resources/jrpg/dragon-quest_01.html#L173"
       },
-      "image": {"width": 960, "height": 540},
-      "annotation": {"status": "verified", "text": "冒険の書 はじめから つづきから 設定 終了"}
+      "image": {
+        "sha256": "5006dfb8b0a1076a33d4b2323cde29e64e25a2e7053307cea8cb4a9bd04fba14",
+        "width": 384,
+        "height": 359
+      },
+      "annotation": {
+        "status": "single_review",
+        "text": "「橋を渡って 遠くへ行くほど 恐ろしい まものたちが おそってくるだろう。",
+        "notes": "Source-authored transcript checked against the screenshot once; requires an independent review. Decorative NPC asterisk is excluded."
+      }
     },
     {
-      "id": "synthetic-hud-dialogue",
-      "path": "synthetic/hud-dialogue.png",
-      "suites": ["synthetic", "dialogue", "hud"],
-      "role": "diagnostic",
-      "game": "Synthetic controls",
-      "tags": ["generated", "mixed-layout", "hud", "dialogue", "digits"],
+      "id": "web-jomako-dq1-145",
+      "path": "internet/retro-sfc/dragon-quest-i/145.jpg",
+      "suites": [
+        "retro-real",
+        "real",
+        "dialogue",
+        "sfc"
+      ],
+      "role": "evaluation",
+      "game": "Dragon Quest I (Super Famicom)",
+      "tags": [
+        "retro",
+        "pixel-font",
+        "dialogue",
+        "sfc",
+        "npc",
+        "ellipsis"
+      ],
       "source": {
-        "kind": "generated",
-        "license": "Generated benchmark image; MIT project code; DotGothic16 under OFL-1.1",
-        "generator": {
-          "canvas": [1280, 720],
-          "background": "scene",
-          "font": "dotgothic16",
-          "boxes": [
-            {"xy": [35, 25, 545, 110], "fill": "#151525", "outline": "#74d6a0", "width": 3},
-            {"xy": [75, 500, 1205, 680], "fill": "#12121c", "outline": "#d9d9d9", "width": 3}
-          ],
-          "lines": [
-            {"text": "勇者  LV 18  HP 245/300", "xy": [65, 48], "size": 28, "fill": "#a8ffc2"},
-            {"text": "スライムが現れた！", "xy": [125, 535], "size": 38, "fill": "#ffffff"},
-            {"text": "どうする？", "xy": [125, 595], "size": 38, "fill": "#ffffff"}
-          ]
-        }
+        "kind": "url",
+        "url": "https://raw.githubusercontent.com/Jo-Mako-Anki/Jo-Mako-Anki.github.io/750276c32be9207d92028ccc44474181e969b83e/assets/scripts/dq01/DQ1J%20(145).jpg",
+        "page_url": "https://github.com/Jo-Mako-Anki/Jo-Mako-Anki.github.io/blob/750276c32be9207d92028ccc44474181e969b83e/assets/scripts/dq01/DQ1J%20(145).jpg",
+        "author": "Jo-Mako",
+        "license": "Copyrighted game screenshot; download-only for local evaluation; no redistribution grant",
+        "transcript_url": "https://github.com/Jo-Mako-Anki/Jo-Mako-Anki.github.io/blob/750276c32be9207d92028ccc44474181e969b83e/webpages/resources/jrpg/dragon-quest_01.html#L213"
       },
-      "image": {"width": 1280, "height": 720},
-      "annotation": {"status": "verified", "text": "勇者 LV 18 HP 245/300 スライムが現れた！ どうする？"}
+      "image": {
+        "sha256": "0215928f426a8e6e631fee44639a8d5e0935de8be40d7fbb6cf21ce7ee784d34",
+        "width": 384,
+        "height": 359
+      },
+      "annotation": {
+        "status": "single_review",
+        "text": "「やはり 店屋では 手に入らないのだろうか…。",
+        "notes": "Source-authored transcript checked against the screenshot once; requires an independent review. Decorative NPC asterisk is excluded."
+      }
     },
     {
-      "id": "synthetic-low-contrast",
-      "path": "synthetic/low-contrast.png",
-      "suites": ["synthetic", "dialogue", "low-contrast"],
-      "role": "diagnostic",
-      "game": "Synthetic controls",
-      "tags": ["generated", "low-contrast", "dialogue", "gradient-background"],
+      "id": "web-jomako-dq1-200",
+      "path": "internet/retro-sfc/dragon-quest-i/200.jpg",
+      "suites": [
+        "retro-real",
+        "real",
+        "dialogue",
+        "sfc"
+      ],
+      "role": "evaluation",
+      "game": "Dragon Quest I (Super Famicom)",
+      "tags": [
+        "retro",
+        "pixel-font",
+        "dialogue",
+        "sfc",
+        "speaker-label",
+        "two-lines"
+      ],
       "source": {
-        "kind": "generated",
-        "license": "Generated benchmark image; MIT project code; DotGothic16 under OFL-1.1",
-        "generator": {
-          "canvas": [1280, 720],
-          "background": "gradient",
-          "font": "dotgothic16",
-          "boxes": [
-            {"xy": [90, 455, 1190, 650], "fill": "#3c4966", "outline": "#6e7994", "width": 2}
-          ],
-          "lines": [
-            {"text": "霧が深くなってきた……", "xy": [145, 500], "size": 40, "fill": "#7f8aa3"},
-            {"text": "足音だけが近づいてくる。", "xy": [145, 565], "size": 40, "fill": "#8994ab"}
-          ]
-        }
+        "kind": "url",
+        "url": "https://raw.githubusercontent.com/Jo-Mako-Anki/Jo-Mako-Anki.github.io/750276c32be9207d92028ccc44474181e969b83e/assets/scripts/dq01/DQ1J%20(200).jpg",
+        "page_url": "https://github.com/Jo-Mako-Anki/Jo-Mako-Anki.github.io/blob/750276c32be9207d92028ccc44474181e969b83e/assets/scripts/dq01/DQ1J%20(200).jpg",
+        "author": "Jo-Mako",
+        "license": "Copyrighted game screenshot; download-only for local evaluation; no redistribution grant",
+        "transcript_url": "https://github.com/Jo-Mako-Anki/Jo-Mako-Anki.github.io/blob/750276c32be9207d92028ccc44474181e969b83e/webpages/resources/jrpg/dragon-quest_01.html#L260"
       },
-      "image": {"width": 1280, "height": 720},
-      "annotation": {"status": "verified", "text": "霧が深くなってきた…… 足音だけが近づいてくる。"}
+      "image": {
+        "sha256": "7c42d7baf571b77b125cb018120bb65661cfc09ec57cb3272fcf781d07d4e367",
+        "width": 384,
+        "height": 359
+      },
+      "annotation": {
+        "status": "single_review",
+        "text": "ロッコ「ボクは ナナへの 言いわけを 考えなくっちゃ。",
+        "notes": "Source-authored transcript checked against the screenshot once; requires an independent review. Decorative NPC asterisk is excluded."
+      }
     },
     {
-      "id": "synthetic-outlined-scene-text",
-      "path": "synthetic/outlined-scene-text.png",
-      "suites": ["synthetic", "scene-text"],
-      "role": "diagnostic",
-      "game": "Synthetic controls",
-      "tags": ["generated", "outline", "text-over-scene", "quest-notification"],
+      "id": "web-jomako-dq1-300",
+      "path": "internet/retro-sfc/dragon-quest-i/300.jpg",
+      "suites": [
+        "retro-real",
+        "real",
+        "dialogue",
+        "sfc"
+      ],
+      "role": "evaluation",
+      "game": "Dragon Quest I (Super Famicom)",
+      "tags": [
+        "retro",
+        "pixel-font",
+        "dialogue",
+        "sfc",
+        "npc",
+        "three-lines",
+        "ellipsis"
+      ],
       "source": {
-        "kind": "generated",
-        "license": "Generated benchmark image; MIT project code; DotGothic16 under OFL-1.1",
-        "generator": {
-          "canvas": [1280, 720],
-          "background": "scene",
-          "font": "dotgothic16",
-          "lines": [
-            {"text": "新しい目的地が追加されました", "xy": [225, 80], "size": 42, "fill": "#fff4b0", "stroke_width": 4, "stroke_fill": "#111111"},
-            {"text": "古代の塔へ向かえ", "xy": [370, 145], "size": 48, "fill": "#ffffff", "stroke_width": 4, "stroke_fill": "#111111"}
-          ]
-        }
+        "kind": "url",
+        "url": "https://raw.githubusercontent.com/Jo-Mako-Anki/Jo-Mako-Anki.github.io/750276c32be9207d92028ccc44474181e969b83e/assets/scripts/dq01/DQ1J%20(300).jpg",
+        "page_url": "https://github.com/Jo-Mako-Anki/Jo-Mako-Anki.github.io/blob/750276c32be9207d92028ccc44474181e969b83e/assets/scripts/dq01/DQ1J%20(300).jpg",
+        "author": "Jo-Mako",
+        "license": "Copyrighted game screenshot; download-only for local evaluation; no redistribution grant",
+        "transcript_url": "https://github.com/Jo-Mako-Anki/Jo-Mako-Anki.github.io/blob/750276c32be9207d92028ccc44474181e969b83e/webpages/resources/jrpg/dragon-quest_01.html#L341"
       },
-      "image": {"width": 1280, "height": 720},
-      "annotation": {"status": "verified", "text": "新しい目的地が追加されました 古代の塔へ向かえ"}
+      "image": {
+        "sha256": "5ea86cba8b7851e6bd8e13ce0f9444d1a041510e9b510cbbd4753f03a6ffa4d7",
+        "width": 384,
+        "height": 359
+      },
+      "annotation": {
+        "status": "single_review",
+        "text": "「アンキよ。 わしは 長い間 待っておった。 そなたのような 若者が 現れることを…。",
+        "notes": "Source-authored transcript checked against the screenshot once; requires an independent review. Decorative NPC asterisk is excluded."
+      }
     },
     {
-      "id": "synthetic-small-text-1080p",
-      "path": "synthetic/small-text-1080p.png",
-      "suites": ["synthetic", "small-text", "hud"],
-      "role": "diagnostic",
-      "game": "Synthetic controls",
-      "tags": ["generated", "small-text", "1080p", "hud", "downsampling-stress"],
+      "id": "web-jomako-chrono-100",
+      "path": "internet/retro-sfc/chrono-trigger/100.jpg",
+      "suites": [
+        "retro-real",
+        "real",
+        "dialogue",
+        "sfc"
+      ],
+      "role": "evaluation",
+      "game": "Chrono Trigger",
+      "tags": [
+        "retro",
+        "pixel-font",
+        "dialogue",
+        "sfc",
+        "npc",
+        "three-lines",
+        "ellipsis"
+      ],
       "source": {
-        "kind": "generated",
-        "license": "Generated benchmark image; MIT project code; PixelMplus under M+ FONT LICENSE",
-        "generator": {
-          "canvas": [1920, 1080],
-          "background": "scene",
-          "font": "pixelmplus12",
-          "boxes": [
-            {"xy": [1260, 35, 1880, 150], "fill": "#10151c", "outline": "#aab7c4", "width": 2},
-            {"xy": [90, 930, 1830, 1045], "fill": "#11151d", "outline": "#aab7c4", "width": 2}
-          ],
-          "lines": [
-            {"text": "地下迷宮  B12F  金貨 003580", "xy": [1300, 65], "size": 18, "fill": "#dce5ee"},
-            {"text": "小さな文字でも正確に読めますか？", "xy": [135, 958], "size": 20, "fill": "#e8edf2"}
-          ]
-        }
+        "kind": "url",
+        "url": "https://raw.githubusercontent.com/Jo-Mako-Anki/Jo-Mako-Anki.github.io/750276c32be9207d92028ccc44474181e969b83e/assets/scripts/chrono/Chrono%20Trigger%20(100).jpg",
+        "page_url": "https://github.com/Jo-Mako-Anki/Jo-Mako-Anki.github.io/blob/750276c32be9207d92028ccc44474181e969b83e/assets/scripts/chrono/Chrono%20Trigger%20(100).jpg",
+        "author": "Jo-Mako",
+        "license": "Copyrighted game screenshot; download-only for local evaluation; no redistribution grant"
       },
-      "image": {"width": 1920, "height": 1080},
-      "annotation": {"status": "verified", "text": "地下迷宮 B12F 金貨 003580 小さな文字でも正確に読めますか？"}
+      "image": {
+        "sha256": "1a55fbdae75ac09b9a17012a5790568abbc1e2d6239faa02c07769e071da6758",
+        "width": 411,
+        "height": 360
+      },
+      "annotation": {
+        "status": "single_review",
+        "text": "この海いきに、なぞの大うずが 現われる時があるんだ……。 一体あのうずはなんなのだろう？",
+        "notes": "Manually transcribed from the screenshot; requires an independent review. The archived upstream script index was not used as ground truth because its image numbering is inconsistent."
+      }
     },
     {
-      "id": "synthetic-mixed-punctuation",
-      "path": "synthetic/mixed-punctuation.png",
-      "suites": ["synthetic", "mixed-script"],
-      "role": "diagnostic",
-      "game": "Synthetic controls",
-      "tags": ["generated", "punctuation", "digits", "latin", "kana", "kanji"],
+      "id": "web-jomako-chrono-250",
+      "path": "internet/retro-sfc/chrono-trigger/250.jpg",
+      "suites": [
+        "retro-real",
+        "real",
+        "dialogue",
+        "sfc"
+      ],
+      "role": "evaluation",
+      "game": "Chrono Trigger",
+      "tags": [
+        "retro",
+        "pixel-font",
+        "dialogue",
+        "sfc",
+        "speaker-label",
+        "three-lines",
+        "ellipsis"
+      ],
       "source": {
-        "kind": "generated",
-        "license": "Generated benchmark image; MIT project code; DotGothic16 under OFL-1.1",
-        "generator": {
-          "canvas": [1280, 720],
-          "background": "black",
-          "font": "dotgothic16",
-          "boxes": [
-            {"xy": [95, 155, 1185, 555], "fill": "#161b29", "outline": "#d4b75d", "width": 4}
-          ],
-          "lines": [
-            {"text": "セーブデータ No.03", "xy": [155, 205], "size": 42, "fill": "#f4d96c"},
-            {"text": "場所：王都アルカディア", "xy": [155, 285], "size": 38, "fill": "#ffffff"},
-            {"text": "時間 12:34:56／達成率 87.5％", "xy": [155, 355], "size": 38, "fill": "#ffffff"},
-            {"text": "上書きしますか？（はい／いいえ）", "xy": [155, 445], "size": 38, "fill": "#ffffff"}
-          ]
-        }
+        "kind": "url",
+        "url": "https://raw.githubusercontent.com/Jo-Mako-Anki/Jo-Mako-Anki.github.io/750276c32be9207d92028ccc44474181e969b83e/assets/scripts/chrono/Chrono%20Trigger%20(250).jpg",
+        "page_url": "https://github.com/Jo-Mako-Anki/Jo-Mako-Anki.github.io/blob/750276c32be9207d92028ccc44474181e969b83e/assets/scripts/chrono/Chrono%20Trigger%20(250).jpg",
+        "author": "Jo-Mako",
+        "license": "Copyrighted game screenshot; download-only for local evaluation; no redistribution grant"
       },
-      "image": {"width": 1280, "height": 720},
-      "annotation": {"status": "verified", "text": "セーブデータ No.03 場所：王都アルカディア 時間 12:34:56／達成率 87.5％ 上書きしますか？（はい／いいえ）"}
+      "image": {
+        "sha256": "8a9d89e8e92c4d428503a2a2f0a9f5fd3e934f887ece53a4ba211455f274653d",
+        "width": 411,
+        "height": 360
+      },
+      "annotation": {
+        "status": "single_review",
+        "text": "ルッカ「あのコは…… ……んっ？ そういえばあのコ どこかで見たことがあるような？",
+        "notes": "Manually transcribed from the screenshot; requires an independent review. The archived upstream script index was not used as ground truth because its image numbering is inconsistent."
+      }
     },
     {
-      "id": "synthetic-vertical-dialogue",
-      "path": "synthetic/vertical-dialogue.png",
-      "suites": ["synthetic", "vertical"],
-      "role": "diagnostic",
-      "game": "Synthetic controls",
-      "tags": ["generated", "vertical-text", "right-to-left-columns", "beta-capability"],
+      "id": "web-jomako-chrono-400",
+      "path": "internet/retro-sfc/chrono-trigger/400.jpg",
+      "suites": [
+        "retro-real",
+        "real",
+        "dialogue",
+        "sfc"
+      ],
+      "role": "evaluation",
+      "game": "Chrono Trigger",
+      "tags": [
+        "retro",
+        "pixel-font",
+        "dialogue",
+        "sfc",
+        "npc",
+        "two-lines",
+        "kanji"
+      ],
       "source": {
-        "kind": "generated",
-        "license": "Generated benchmark image; MIT project code; DotGothic16 under OFL-1.1",
-        "generator": {
-          "canvas": [960, 720],
-          "background": "scene",
-          "font": "dotgothic16",
-          "boxes": [
-            {"xy": [505, 60, 845, 660], "fill": "#f2ead8", "outline": "#473b31", "width": 4}
-          ],
-          "lines": [
-            {"text": "月明かりが道を照らす。", "xy": [755, 100], "size": 32, "fill": "#29231f", "direction": "vertical", "spacing": 39},
-            {"text": "静かな夜だった。", "xy": [675, 100], "size": 32, "fill": "#29231f", "direction": "vertical", "spacing": 39},
-            {"text": "風の音だけが聞こえる。", "xy": [595, 100], "size": 32, "fill": "#29231f", "direction": "vertical", "spacing": 39}
-          ]
-        }
+        "kind": "url",
+        "url": "https://raw.githubusercontent.com/Jo-Mako-Anki/Jo-Mako-Anki.github.io/750276c32be9207d92028ccc44474181e969b83e/assets/scripts/chrono/Chrono%20Trigger%20(400).jpg",
+        "page_url": "https://github.com/Jo-Mako-Anki/Jo-Mako-Anki.github.io/blob/750276c32be9207d92028ccc44474181e969b83e/assets/scripts/chrono/Chrono%20Trigger%20(400).jpg",
+        "author": "Jo-Mako",
+        "license": "Copyrighted game screenshot; download-only for local evaluation; no redistribution grant"
       },
-      "image": {"width": 960, "height": 720},
-      "annotation": {"status": "verified", "text": "月明かりが道を照らす。 静かな夜だった。 風の音だけが聞こえる。"}
+      "image": {
+        "sha256": "e07d7c0c84ce4d22814f2489470a92d0348915d0d7a3e21896ea3892e73e4bee",
+        "width": 411,
+        "height": 360
+      },
+      "annotation": {
+        "status": "single_review",
+        "text": "あのヤロウ、てめえ達だけが戦ってると 思ってやがる！",
+        "notes": "Manually transcribed from the screenshot; requires an independent review. The archived upstream script index was not used as ground truth because its image numbering is inconsistent."
+      }
     },
     {
-      "id": "synthetic-no-text-negative",
-      "path": "synthetic/no-text-negative.png",
-      "suites": ["synthetic", "negative"],
-      "role": "diagnostic",
-      "game": "Synthetic controls",
-      "tags": ["generated", "no-text", "false-positive-control", "scene"],
+      "id": "web-jomako-chrono-550",
+      "path": "internet/retro-sfc/chrono-trigger/550.jpg",
+      "suites": [
+        "retro-real",
+        "real",
+        "dialogue",
+        "sfc"
+      ],
+      "role": "evaluation",
+      "game": "Chrono Trigger",
+      "tags": [
+        "retro",
+        "pixel-font",
+        "dialogue",
+        "sfc",
+        "speaker-label",
+        "short-line"
+      ],
       "source": {
-        "kind": "generated",
-        "license": "Generated benchmark image; MIT project code",
-        "generator": {
-          "canvas": [1280, 720],
-          "background": "scene",
-          "lines": []
-        }
+        "kind": "url",
+        "url": "https://raw.githubusercontent.com/Jo-Mako-Anki/Jo-Mako-Anki.github.io/750276c32be9207d92028ccc44474181e969b83e/assets/scripts/chrono/Chrono%20Trigger%20(550).jpg",
+        "page_url": "https://github.com/Jo-Mako-Anki/Jo-Mako-Anki.github.io/blob/750276c32be9207d92028ccc44474181e969b83e/assets/scripts/chrono/Chrono%20Trigger%20(550).jpg",
+        "author": "Jo-Mako",
+        "license": "Copyrighted game screenshot; download-only for local evaluation; no redistribution grant"
       },
-      "image": {"width": 1280, "height": 720},
-      "annotation": {"status": "verified", "text": ""}
+      "image": {
+        "sha256": "7b501c7778c0765a8f8986c2979e04f65fdfebfb011d0355342437c11a98350d",
+        "width": 411,
+        "height": 360
+      },
+      "annotation": {
+        "status": "single_review",
+        "text": "マール「マールでいいってば！",
+        "notes": "Manually transcribed from the screenshot; requires an independent review. The archived upstream script index was not used as ground truth because its image numbering is inconsistent."
+      }
     },
     {
-      "id": "synthetic-menu-and-dialogue",
-      "path": "synthetic/menu-and-dialogue.png",
-      "suites": ["synthetic", "menu", "dialogue", "mixed-layout"],
-      "role": "diagnostic",
-      "game": "Synthetic controls",
-      "tags": ["generated", "menu", "dialogue", "multiple-regions", "clustering-stress"],
+      "id": "web-jomako-chrono-700",
+      "path": "internet/retro-sfc/chrono-trigger/700.jpg",
+      "suites": [
+        "retro-real",
+        "real",
+        "dialogue",
+        "sfc"
+      ],
+      "role": "evaluation",
+      "game": "Chrono Trigger",
+      "tags": [
+        "retro",
+        "pixel-font",
+        "dialogue",
+        "sfc",
+        "npc",
+        "three-lines",
+        "mixed-script"
+      ],
       "source": {
-        "kind": "generated",
-        "license": "Generated benchmark image; MIT project code; DotGothic16 under OFL-1.1",
-        "generator": {
-          "canvas": [1280, 720],
-          "background": "scene",
-          "font": "dotgothic16",
-          "boxes": [
-            {"xy": [60, 115, 370, 425], "fill": "#111625", "outline": "#d9c170", "width": 3},
-            {"xy": [405, 470, 1215, 675], "fill": "#111625", "outline": "#d9c170", "width": 3}
-          ],
-          "lines": [
-            {"text": "どうぐ", "xy": [145, 145], "size": 34, "fill": "#f2d77c"},
-            {"text": "薬草", "xy": [125, 225], "size": 34, "fill": "#ffffff"},
-            {"text": "魔法の鍵", "xy": [100, 290], "size": 34, "fill": "#ffffff"},
-            {"text": "たいまつ", "xy": [110, 355], "size": 34, "fill": "#ffffff"},
-            {"text": "この扉には鍵がかかっている。\nどの道具を使いますか？", "xy": [455, 510], "size": 34, "fill": "#ffffff", "spacing": 12}
-          ]
-        }
+        "kind": "url",
+        "url": "https://raw.githubusercontent.com/Jo-Mako-Anki/Jo-Mako-Anki.github.io/750276c32be9207d92028ccc44474181e969b83e/assets/scripts/chrono/Chrono%20Trigger%20(700).jpg",
+        "page_url": "https://github.com/Jo-Mako-Anki/Jo-Mako-Anki.github.io/blob/750276c32be9207d92028ccc44474181e969b83e/assets/scripts/chrono/Chrono%20Trigger%20(700).jpg",
+        "author": "Jo-Mako",
+        "license": "Copyrighted game screenshot; download-only for local evaluation; no redistribution grant"
       },
-      "image": {"width": 1280, "height": 720},
-      "annotation": {"status": "verified", "text": "どうぐ 薬草 魔法の鍵 たいまつ この扉には鍵がかかっている。 どの道具を使いますか？"}
+      "image": {
+        "sha256": "bfbb0d351423ded6bfe45b794a3f3eb1adc990a9d09f5948ff2ced586dba76ae",
+        "width": 411,
+        "height": 360
+      },
+      "annotation": {
+        "status": "single_review",
+        "text": "僕の父さんは、トルースの町で グッズマーケットをけいえいしているんだ。 近くに来たら、ぜひたずねてきてよ。",
+        "notes": "Manually transcribed from the screenshot; requires an independent review. The archived upstream script index was not used as ground truth because its image numbering is inconsistent."
+      }
     },
     {
-      "id": "synthetic-retro-bilinear-dialogue",
-      "path": "synthetic/retro-bilinear-dialogue.png",
-      "suites": ["synthetic", "dialogue", "retro", "blurred"],
-      "role": "diagnostic",
-      "game": "Synthetic controls",
-      "tags": ["generated", "dialogue", "pixel-font", "bilinear-upscale", "soft-edges"],
+      "id": "web-jomako-chrono-1000",
+      "path": "internet/retro-sfc/chrono-trigger/1000.jpg",
+      "suites": [
+        "retro-real",
+        "real",
+        "dialogue",
+        "sfc"
+      ],
+      "role": "evaluation",
+      "game": "Chrono Trigger",
+      "tags": [
+        "retro",
+        "pixel-font",
+        "dialogue",
+        "sfc",
+        "speaker-label",
+        "two-lines",
+        "ellipsis"
+      ],
       "source": {
-        "kind": "generated",
-        "license": "Generated benchmark image; MIT project code; PixelMplus under M+ FONT LICENSE",
-        "generator": {
-          "native_canvas": [320, 240],
-          "canvas": [1280, 960],
-          "resampling": "bilinear",
-          "background": "scene",
-          "font": "pixelmplus12",
-          "boxes": [
-            {"xy": [8, 155, 312, 232], "fill": "#090912", "outline": "#e5e5df", "width": 1}
-          ],
-          "lines": [
-            {"text": "ミナ", "xy": [16, 161], "size": 12, "fill": "#8fd8ff"},
-            {"text": "本当にここで合っているの？\n地図をもう一度見せて。", "xy": [16, 179], "size": 13, "fill": "#ffffff", "spacing": 3}
-          ]
-        }
+        "kind": "url",
+        "url": "https://raw.githubusercontent.com/Jo-Mako-Anki/Jo-Mako-Anki.github.io/750276c32be9207d92028ccc44474181e969b83e/assets/scripts/chrono/Chrono%20Trigger%20(1000).jpg",
+        "page_url": "https://github.com/Jo-Mako-Anki/Jo-Mako-Anki.github.io/blob/750276c32be9207d92028ccc44474181e969b83e/assets/scripts/chrono/Chrono%20Trigger%20(1000).jpg",
+        "author": "Jo-Mako",
+        "license": "Copyrighted game screenshot; download-only for local evaluation; no redistribution grant"
       },
-      "image": {"width": 1280, "height": 960},
-      "annotation": {"status": "verified", "text": "ミナ 本当にここで合っているの？ 地図をもう一度見せて。"}
+      "image": {
+        "sha256": "0f684239734127aa0051abe976f430c92bae7793bc0323706f5983791f18e372",
+        "width": 411,
+        "height": 360
+      },
+      "annotation": {
+        "status": "single_review",
+        "text": "ルッカ「私達の力で、どこまで出来るか わからないけど……ね。",
+        "notes": "Manually transcribed from the screenshot; requires an independent review. The archived upstream script index was not used as ground truth because its image numbering is inconsistent."
+      }
+    },
+    {
+      "id": "web-sega-shining-force-dialogue",
+      "path": "internet/retro-megadrive/shining-force/dialogue.jpg",
+      "suites": [
+        "retro-real",
+        "real",
+        "dialogue",
+        "megadrive"
+      ],
+      "role": "evaluation",
+      "game": "Shining Force",
+      "tags": [
+        "retro",
+        "pixel-font",
+        "dialogue",
+        "megadrive",
+        "official-source",
+        "three-lines"
+      ],
+      "source": {
+        "kind": "url",
+        "url": "https://www.sega.jp/mdmini/img/img_shining-force-1_01.jpg",
+        "page_url": "https://www.sega.jp/mdmini/soft/shining-force-1.html",
+        "author": "SEGA",
+        "license": "Copyrighted game screenshot; download-only for local evaluation; no redistribution grant"
+      },
+      "image": {
+        "sha256": "44a2778d81e3e2177a1dc2de359d09512614f32d9346ba96ba2b5df19ef9b0a8",
+        "width": 550,
+        "height": 390
+      },
+      "annotation": {
+        "status": "single_review",
+        "text": "うーん、ほんとに すげえや！ オイラ とんでもないヤツを ともだちに しちまったな",
+        "notes": "Manually transcribed from the official SEGA-hosted screenshot; requires an independent review."
+      }
+    },
+    {
+      "id": "web-sega-landstalker-dialogue",
+      "path": "internet/retro-megadrive/landstalker/dialogue.jpg",
+      "suites": [
+        "retro-real",
+        "real",
+        "dialogue",
+        "megadrive"
+      ],
+      "role": "evaluation",
+      "game": "Landstalker",
+      "tags": [
+        "retro",
+        "pixel-font",
+        "dialogue",
+        "megadrive",
+        "official-source",
+        "three-lines"
+      ],
+      "source": {
+        "kind": "url",
+        "url": "https://www.sega.jp/mdmini/img/img_landstalker_01.jpg",
+        "page_url": "https://www.sega.jp/mdmini/soft/landstalker.html",
+        "author": "SEGA",
+        "license": "Copyrighted game screenshot; download-only for local evaluation; no redistribution grant"
+      },
+      "image": {
+        "sha256": "7e974511f46c473e0fcb209745c8fed7b145be268d25ed385678c39c4a114e2d",
+        "width": 550,
+        "height": 390
+      },
+      "annotation": {
+        "status": "single_review",
+        "text": "カーラ「なにを、ゴチャゴチャいってるのよ！ えーい、うっとおしいわ！ こうなりゃ ちからずくでも わたしてもらうわよっ！",
+        "notes": "Manually transcribed from the official SEGA-hosted screenshot; requires an independent review."
+      }
+    },
+    {
+      "id": "web-sega-phantasy-star-iv-battle",
+      "path": "internet/retro-megadrive/phantasy-star-iv/battle.jpg",
+      "suites": [
+        "retro-real",
+        "real",
+        "menu",
+        "hud",
+        "megadrive"
+      ],
+      "role": "diagnostic",
+      "game": "Phantasy Star IV",
+      "tags": [
+        "retro",
+        "pixel-font",
+        "battle",
+        "hud",
+        "megadrive",
+        "official-source",
+        "mixed-layout"
+      ],
+      "source": {
+        "kind": "url",
+        "url": "https://www.sega.jp/mdmini/img/img_phantasy-star4_02.jpg",
+        "page_url": "https://www.sega.jp/mdmini/soft/phantasy-star4.html",
+        "author": "SEGA",
+        "license": "Copyrighted game screenshot; download-only for local evaluation; no redistribution grant"
+      },
+      "image": {
+        "sha256": "2dabf479008c4bd8f4cc1456511a09eac2c54e37795bf2965e02bf5006d74911",
+        "width": 550,
+        "height": 390
+      },
+      "annotation": {
+        "status": "unscored",
+        "notes": "Real Mega Drive battle HUD retained for layout diagnostics; region ordering needs explicit annotation."
+      }
+    },
+    {
+      "id": "web-sega-mado-monogatari-dialogue",
+      "path": "internet/retro-megadrive/mado-monogatari/dialogue.jpg",
+      "suites": [
+        "retro-real",
+        "real",
+        "dialogue",
+        "megadrive"
+      ],
+      "role": "diagnostic",
+      "game": "Madō Monogatari I",
+      "tags": [
+        "retro",
+        "pixel-font",
+        "dialogue",
+        "megadrive",
+        "official-source",
+        "elongated-marks"
+      ],
+      "source": {
+        "kind": "url",
+        "url": "https://www.sega.jp/mdmini/img/img_mado-monogatari-1_01.jpg",
+        "page_url": "https://www.sega.jp/mdmini/soft/mado-monogatari-1.html",
+        "author": "SEGA",
+        "license": "Copyrighted game screenshot; download-only for local evaluation; no redistribution grant"
+      },
+      "image": {
+        "sha256": "c7a32ad385218d4f29e174f24c091f93e54b6b6fb31e458b3897f1a351f30397",
+        "width": 550,
+        "height": 390
+      },
+      "annotation": {
+        "status": "unscored",
+        "notes": "Real Mega Drive dialogue retained as a diagnostic until the exact count of elongated marks is independently annotated."
+      }
     }
   ]
 }

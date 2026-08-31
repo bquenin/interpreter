@@ -37,9 +37,12 @@ def test_percentile_interpolates() -> None:
 def test_corpus_manifest_is_valid_and_readiness_is_explicit() -> None:
     manifest = load_json(OCR_BENCHMARK_DIR / "corpus.json")
     assert validate_manifest(manifest) == []
-    assert len(manifest["samples"]) == 44
-    assert len(select_samples(manifest)) == 25
-    assert len(select_samples(manifest, include_unscored=True)) == 44
+    assert len(manifest["samples"]) == 48
+    assert len(select_samples(manifest)) == 27
+    assert len(select_samples(manifest, include_unscored=True)) == 48
+    assert {sample["source"]["kind"] for sample in manifest["samples"]} <= {"url", "git"}
+    assert all("synthetic" not in sample["id"] for sample in manifest["samples"])
+    assert all("synthetic" not in sample["suites"] for sample in manifest["samples"])
 
     verified_real = [
         sample

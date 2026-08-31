@@ -1,8 +1,7 @@
-"""Corpus acquisition and deterministic synthetic-image generation."""
+"""Acquire and validate the local real-screenshot OCR corpus."""
 
 from __future__ import annotations
 
-import random
 import subprocess
 import urllib.error
 import urllib.request
@@ -72,150 +71,6 @@ def _extract_git(source: dict[str, Any], destination: Path, expected_sha256: str
         raise BenchmarkError(f"SHA-256 mismatch while extracting {object_name}")
 
 
-def _ensure_font(manifest: dict[str, Any], font_id: str, data_dir: Path) -> Path:
-    fonts = manifest.get("resources", {}).get("fonts", {})
-    if font_id not in fonts:
-        raise BenchmarkError(f"Unknown generated-corpus font: {font_id}")
-    font = fonts[font_id]
-    destination = _safe_target(data_dir, f"_resources/fonts/{font['filename']}")
-    _download(font["url"], destination, font["sha256"])
-    return destination
-
-
-def _make_background(canvas: tuple[int, int], style: str, seed: str):
-    try:
-        from PIL import Image, ImageDraw
-    except ImportError as exc:
-        raise BenchmarkError("Pillow is required to prepare the OCR corpus") from exc
-
-    width, height = canvas
-    rng = random.Random(seed)
-    if style == "black":
-        return Image.new("RGB", canvas, "#050609")
-
-    image = Image.new("RGB", canvas, "#253047")
-    draw = ImageDraw.Draw(image)
-    if style == "gradient":
-        for y in range(height):
-            ratio = y / max(height - 1, 1)
-            color = (
-                int(28 + 38 * ratio),
-                int(42 + 25 * ratio),
-                int(74 + 20 * ratio),
-            )
-            draw.line((0, y, width, y), fill=color)
-    else:
-        # Deterministic, game-like scenery: sky, ground, distant architecture,
-        # and characters. It is deliberately abstract so it contains no text.
-        draw.rectangle((0, 0, width, int(height * 0.58)), fill="#36557b")
-        draw.rectangle((0, int(height * 0.58), width, height), fill="#283628")
-        for _ in range(18):
-            x = rng.randrange(-width // 10, width)
-            y = rng.randrange(height // 10, int(height * 0.72))
-            w = rng.randrange(max(8, width // 30), max(16, width // 9))
-            h = rng.randrange(max(8, height // 24), max(16, height // 5))
-            color = rng.choice(["#445b6f", "#53684e", "#6d5840", "#273b4f"])
-            draw.rectangle((x, y, x + w, y + h), fill=color, outline="#1c2730", width=max(1, width // 640))
-        for _ in range(10):
-            x = rng.randrange(width)
-            y = rng.randrange(height // 8, int(height * 0.7))
-            radius = rng.randrange(max(3, width // 160), max(5, width // 55))
-            draw.ellipse((x - radius, y - radius, x + radius, y + radius), fill="#b98c52")
-    return image
-
-
-def _draw_generated_sample(sample: dict[str, Any], manifest: dict[str, Any], data_dir: Path) -> dict[str, Any]:
-    try:
-        from PIL import Image, ImageDraw, ImageFont
-    except ImportError as exc:
-        raise BenchmarkError("Pillow is required to generate the synthetic OCR corpus") from exc
-
-    generator = sample["source"]["generator"]
-    output_canvas = tuple(generator["canvas"])
-    native_canvas = tuple(generator.get("native_canvas", output_canvas))
-    image = _make_background(native_canvas, generator.get("background", "scene"), sample["id"])
-    draw = ImageDraw.Draw(image)
-
-    for box in generator.get("boxes", []):
-        draw.rectangle(
-            tuple(box["xy"]),
-            fill=box.get("fill"),
-            outline=box.get("outline"),
-            width=box.get("width", 1),
-        )
-
-    regions = []
-    font_cache: dict[tuple[str, int], Any] = {}
-    for line in generator.get("lines", []):
-        font_id = line.get("font", generator.get("font", "dotgothic16"))
-        font_size = int(line["size"])
-        cache_key = (font_id, font_size)
-        if cache_key not in font_cache:
-            font_path = _ensure_font(manifest, font_id, data_dir)
-            font_cache[cache_key] = ImageFont.truetype(str(font_path), font_size)
-        font = font_cache[cache_key]
-        x, y = line["xy"]
-        fill = line.get("fill", "#f7f7f2")
-        stroke_width = int(line.get("stroke_width", 0))
-        stroke_fill = line.get("stroke_fill", "#050505")
-        direction = line.get("direction", "horizontal")
-        text = line["text"]
-
-        if direction == "vertical":
-            spacing = int(line.get("spacing", round(font_size * 1.04)))
-            boxes = []
-            for index, character in enumerate(text):
-                position = (x, y + index * spacing)
-                draw.text(
-                    position,
-                    character,
-                    font=font,
-                    fill=fill,
-                    stroke_width=stroke_width,
-                    stroke_fill=stroke_fill,
-                )
-                boxes.append(draw.textbbox(position, character, font=font, stroke_width=stroke_width))
-            bbox = [
-                min(box[0] for box in boxes),
-                min(box[1] for box in boxes),
-                max(box[2] for box in boxes),
-                max(box[3] for box in boxes),
-            ]
-        else:
-            spacing = int(line.get("spacing", round(font_size * 0.2)))
-            draw.multiline_text(
-                (x, y),
-                text,
-                font=font,
-                fill=fill,
-                spacing=spacing,
-                stroke_width=stroke_width,
-                stroke_fill=stroke_fill,
-            )
-            bbox = list(draw.multiline_textbbox((x, y), text, font=font, spacing=spacing, stroke_width=stroke_width))
-        regions.append({"text": text, "bbox": bbox, "direction": direction})
-
-    if native_canvas != output_canvas:
-        resampling_name = generator.get("resampling", "nearest").upper()
-        resampling = getattr(Image.Resampling, resampling_name)
-        scale_x = output_canvas[0] / native_canvas[0]
-        scale_y = output_canvas[1] / native_canvas[1]
-        image = image.resize(output_canvas, resample=resampling)
-        for region in regions:
-            x1, y1, x2, y2 = region["bbox"]
-            region["bbox"] = [
-                round(x1 * scale_x),
-                round(y1 * scale_y),
-                round(x2 * scale_x),
-                round(y2 * scale_y),
-            ]
-
-    destination = _safe_target(data_dir, sample["path"])
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    image.save(destination, format="PNG", optimize=False)
-    return {"generated_regions": regions}
-
-
 def prepare_corpus(
     manifest: dict[str, Any],
     manifest_path: Path,
@@ -248,14 +103,11 @@ def prepare_corpus(
         destination = _safe_target(data_dir, sample["path"])
         source = sample["source"]
         expected_hash = sample.get("image", {}).get("sha256")
-        extra: dict[str, Any] = {}
         print(f"[{index:02d}/{len(selected):02d}] {sample['id']}")
         if source["kind"] == "url":
             _download(source["url"], destination, expected_hash)
-        elif source["kind"] == "git":
-            _extract_git(source, destination, expected_hash, repo_root)
         else:
-            extra = _draw_generated_sample(sample, manifest, data_dir)
+            _extract_git(source, destination, expected_hash, repo_root)
 
         try:
             with Image.open(destination) as image:
@@ -278,7 +130,6 @@ def prepare_corpus(
             "width": width,
             "height": height,
             "bytes": destination.stat().st_size,
-            **extra,
         }
 
     data_dir.mkdir(parents=True, exist_ok=True)
