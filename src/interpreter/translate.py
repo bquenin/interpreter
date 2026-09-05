@@ -18,14 +18,14 @@ from .models import ModelLoadError
 
 logger = log.get_logger()
 
-# Official HuggingFace repository for Sugoi V4
+# Official HuggingFace repository for Sugoi V4, pinned to a specific commit so the
+# file layout we rely on (model.bin, config.json, vocabularies, spm/) cannot change
+# underneath us. Bump deliberately when upgrading the model.
 SUGOI_REPO_ID = "entai2965/sugoi-v4-ja-en-ctranslate2"
+SUGOI_REVISION = "71d67eb8e73ec2f5aaefc0689e03a4eb843d3a2b"
 
-# Required files that must exist for the model to work
-REQUIRED_MODEL_FILES = [
-    "model.bin",
-    "spm/spm.ja.nopretok.model",
-]
+# Attempts for the online download; snapshot_download resumes where it left off.
+DOWNLOAD_ATTEMPTS = 3
 
 # Translation cache defaults
 DEFAULT_CACHE_SIZE = 200  # Max cached translations
@@ -54,62 +54,55 @@ def _get_short_path(path: Path) -> str:
     return str(path)
 
 
-def _validate_model_files(model_path: Path) -> bool:
-    """Check if all required model files exist.
+def _download_sugoi_model() -> Path:
+    """Download the Sugoi V4 snapshot from HuggingFace, or complete a partial one.
 
-    Args:
-        model_path: Path to the model directory.
-
-    Returns:
-        True if all required files exist, False otherwise.
-    """
-    for file_path in REQUIRED_MODEL_FILES:
-        if not (model_path / file_path).exists():
-            logger.warning("missing model file", file=file_path)
-            return False
-    return True
-
-
-def _get_sugoi_model_path() -> Path:
-    """Get path to Sugoi V4 translation model, downloading if needed.
-
-    Downloads from official HuggingFace source on first use.
-    Model is cached in standard HuggingFace cache (~/.cache/huggingface/).
+    snapshot_download compares the local cache against the repository's file list
+    and only fetches what is missing, so this also repairs a cache left incomplete
+    by an interrupted download. Transient failures are retried; the download resumes.
 
     Returns:
         Path to the model directory.
 
     Raises:
-        ModelLoadError: If model files are missing or corrupted.
+        ModelLoadError: If the download keeps failing.
     """
-    # First try to load from cache (no network request)
+    for attempt in range(1, DOWNLOAD_ATTEMPTS + 1):
+        try:
+            return Path(snapshot_download(repo_id=SUGOI_REPO_ID, revision=SUGOI_REVISION))
+        except Exception as e:
+            if attempt == DOWNLOAD_ATTEMPTS:
+                raise ModelLoadError(
+                    f"Translation model download failed: {e}. Check your connection and click 'Fix Models' to retry."
+                ) from e
+            logger.warning("model download failed, retrying", attempt=attempt, error=str(e))
+    raise AssertionError("unreachable")  # pragma: no cover
+
+
+def _get_sugoi_model_path() -> Path:
+    """Get path to the Sugoi V4 snapshot, downloading it on first use.
+
+    A cached snapshot is returned without any network access. Whether it is
+    complete is only known once CTranslate2 loads it (see Translator.load),
+    which avoids hardcoding the repository's file layout here.
+
+    Returns:
+        Path to the model directory.
+
+    Raises:
+        ModelLoadError: If the model cannot be downloaded.
+    """
     try:
-        model_path = snapshot_download(
-            repo_id=SUGOI_REPO_ID,
-            local_files_only=True,
-        )
-        model_path = Path(model_path)
-        # Validate that required files exist
-        if _validate_model_files(model_path):
-            return model_path
-        # Files missing - raise error (UI will show "Fix Models" button)
-        raise ModelLoadError(
-            "Translation model cache is corrupted. Click 'Fix Models' to repair."
+        return Path(
+            snapshot_download(
+                repo_id=SUGOI_REPO_ID,
+                revision=SUGOI_REVISION,
+                local_files_only=True,
+            )
         )
     except LocalEntryNotFoundError:
-        pass
-
-    # Not cached, download from HuggingFace
-    logger.info("downloading sugoi v4 model", size="~1.1GB")
-    model_path = Path(snapshot_download(repo_id=SUGOI_REPO_ID))
-
-    # Validate download completed successfully
-    if not _validate_model_files(model_path):
-        raise ModelLoadError(
-            "Translation model download incomplete. Click 'Fix Models' to retry."
-        )
-
-    return model_path
+        logger.info("downloading sugoi v4 model", size="~1.1GB")
+        return _download_sugoi_model()
 
 
 def text_similarity(a: str, b: str) -> float:
@@ -202,11 +195,35 @@ class Translator:
 
         logger.info("loading sugoi v4")
 
-        import ctranslate2
-        import sentencepiece as spm
-
         # Get model path (downloads from HuggingFace if needed)
         self._model_path = _get_sugoi_model_path()
+
+        try:
+            self._load_from_path()
+        except (RuntimeError, OSError) as e:
+            # An interrupted download can leave a snapshot with model.bin but without
+            # config.json or the vocabularies, which CTranslate2 reports as an opaque
+            # JSON error. Re-sync the snapshot with the Hub (only missing files are
+            # fetched) and retry once before giving up.
+            logger.warning("translation model failed to load, repairing cache", error=str(e))
+            self._translator = None
+            self._model_path = _download_sugoi_model()
+            try:
+                self._load_from_path()
+            except (RuntimeError, OSError) as retry_error:
+                raise ModelLoadError(
+                    f"Translation model is corrupted ({retry_error}). Click 'Fix Models' to repair."
+                ) from retry_error
+
+    def _load_from_path(self) -> None:
+        """Load CTranslate2 model and tokenizer from self._model_path.
+
+        Raises:
+            RuntimeError: If CTranslate2 or SentencePiece reject the model files.
+            OSError: If a model file is missing.
+        """
+        import ctranslate2
+        import sentencepiece as spm
 
         # Load CTranslate2 model with GPU if available, fallback to CPU
         device = "cpu"
