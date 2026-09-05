@@ -931,6 +931,12 @@ class MainWindow(QMainWindow):
         # Get bounds (None on Wayland, dict on X11/Windows/macOS)
         bounds = self._capture.bounds or {}
 
+        # Keep the overlay above the game even after the game takes focus
+        # (a focused topmost fullscreen window otherwise covers it)
+        if not self._paused:
+            overlay = self._inplace_overlay if self._mode == OverlayMode.INPLACE else self._banner_overlay
+            overlay.ensure_above(getattr(self._capture, "window_id", None))
+
         if frame is None:
             return
 

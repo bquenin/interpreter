@@ -220,6 +220,18 @@ class BannerOverlayBase(QWidget):
         # Apply final size
         self.setFixedSize(current_width, new_height)
 
+    def ensure_above(self, window_id: int | None) -> None:
+        """Keep the overlay stacked above the target window.
+
+        Some platforms let a focused fullscreen game climb above always-on-top
+        windows (e.g. games that make themselves topmost on Windows). Platform
+        subclasses override this to re-raise the overlay when that happens.
+
+        Args:
+            window_id: Platform window handle of the captured window, or None.
+        """
+        return None
+
     # Dragging support
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -411,6 +423,18 @@ class InplaceOverlayBase(QWidget):
     @property
     def font_size(self) -> int:
         return self._font_size
+
+    def ensure_above(self, window_id: int | None) -> None:
+        """Keep the overlay stacked above the target window.
+
+        Some platforms let a focused fullscreen game climb above always-on-top
+        windows (e.g. games that make themselves topmost on Windows). Platform
+        subclasses override this to re-raise the overlay when that happens.
+
+        Args:
+            window_id: Platform window handle of the captured window, or None.
+        """
+        return None
 
     def showEvent(self, event):
         """Handle show event - subclasses can override for platform-specific setup."""
