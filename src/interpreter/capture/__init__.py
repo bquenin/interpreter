@@ -256,6 +256,11 @@ class WindowCapture:
         return self._window_id is not None
 
     @property
+    def window_id(self) -> int | None:
+        """Get the platform window handle of the target window, if known."""
+        return self._window_id
+
+    @property
     def bounds(self) -> dict | None:
         """Get the bounds of the target window."""
         return self._last_bounds
