@@ -45,17 +45,25 @@ class _WindowsOverlayMixin:
         if not window_id or not self.isVisible():
             return
         try:
-            user32 = ctypes.windll.user32
+            user32 = ctypes.WinDLL("user32", use_last_error=True)
             user32.GetWindow.argtypes = [wintypes.HWND, wintypes.UINT]
             user32.GetWindow.restype = wintypes.HWND
+            user32.SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, *([ctypes.c_int] * 4), wintypes.UINT]
+            user32.SetWindowPos.restype = wintypes.BOOL
             hwnd = int(self.winId())
             if not self._is_window_above(user32, hwnd, window_id):
                 return
             # HWND_TOP moves a topmost window to the top of the topmost band
-            user32.SetWindowPos(hwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
-            logger.debug("re-raised overlay above target window", window_id=window_id)
+            if user32.SetWindowPos(hwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE):
+                logger.debug("re-raised overlay above target window", window_id=window_id)
+            else:
+                logger.warning(
+                    "failed to re-raise overlay above target window",
+                    window_id=window_id,
+                    win32_error=ctypes.get_last_error(),
+                )
         except Exception as e:
-            logger.debug("failed to re-raise overlay", error=str(e))
+            logger.warning("failed to re-raise overlay", error=str(e))
 
     @staticmethod
     def _is_window_above(user32, hwnd: int, window_id: int) -> bool:
