@@ -27,6 +27,26 @@ function Remove-InterpreterPath {
     }
 }
 
+# A custom install location (see install.ps1) holds the tool environment, the
+# uv-managed Python, and the model cache. INTERPRETER_HOME wins over the pointer
+# file the installer wrote, matching the app and the installer.
+$configDir = Join-Path $env:USERPROFILE ".interpreter"
+$installRootFile = Join-Path $configDir "install-dir"
+$installRoot = $null
+if ($env:INTERPRETER_HOME -and $env:INTERPRETER_HOME.Trim()) {
+    $installRoot = $env:INTERPRETER_HOME.Trim()
+} elseif (Test-Path -LiteralPath $installRootFile -PathType Leaf) {
+    $installRoot = (Get-Content -LiteralPath $installRootFile -Raw).Trim()
+    if (-not $installRoot) { $installRoot = $null }
+}
+if ($installRoot) {
+    $installRoot = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($installRoot).TrimEnd('\')
+    $env:UV_TOOL_DIR = Join-Path $installRoot "uv\tools"
+    $env:UV_PYTHON_INSTALL_DIR = Join-Path $installRoot "uv\python"
+    Write-Host "Install location: $installRoot" -ForegroundColor Gray
+    Write-Host ""
+}
+
 # uv's installer adds itself to ~/.local/bin. Look there as a fallback because
 # the current shell may not have picked up the PATH change yet.
 $uvCommand = Get-Command uv -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -55,7 +75,7 @@ if ($uvExecutable) {
 $toolEnvironment = Join-Path $toolRoot "interpreter-v2"
 $toolExecutable = Join-Path $toolBin "interpreter-v2.exe"
 
-Write-Host "[1/4] Uninstalling interpreter-v2..." -ForegroundColor Yellow
+Write-Host "[1/5] Uninstalling interpreter-v2..." -ForegroundColor Yellow
 if ($uvExecutable) {
     $toolList = & $uvExecutable tool list 2>$null
     if ($toolList -match "interpreter-v2" -or (Test-Path -LiteralPath $toolEnvironment)) {
@@ -77,7 +97,7 @@ if ($uvExecutable) {
 }
 
 # Remove orphan files left by an interrupted install or a stale uv registry.
-Write-Host "[2/4] Cleaning up orphan files..." -ForegroundColor Yellow
+Write-Host "[2/5] Cleaning up orphan files..." -ForegroundColor Yellow
 if (Test-Path -LiteralPath $toolExecutable) {
     Remove-InterpreterPath -Path $toolExecutable -Description "orphan executable"
 } else {
@@ -88,11 +108,17 @@ if (Test-Path -LiteralPath $toolEnvironment) {
 } else {
     Write-Host "     No stale tool environment found" -ForegroundColor Gray
 }
+# An install that was later moved to a custom location may have left the
+# default environment behind.
+$defaultToolEnvironment = Join-Path $env:APPDATA "uv\tools\interpreter-v2"
+if ($installRoot -and (Test-Path -LiteralPath $defaultToolEnvironment)) {
+    Remove-InterpreterPath -Path $defaultToolEnvironment -Description "tool environment left in the user profile"
+}
 
 # New installers use this dedicated cache so it can always be removed without
 # disturbing other uv users. Older installers used uv's shared cache; prune only
 # entries uv knows are unreachable and leave reusable downloads alone.
-Write-Host "[3/4] Removing package downloads..." -ForegroundColor Yellow
+Write-Host "[3/5] Removing package downloads..." -ForegroundColor Yellow
 $installCacheDir = Join-Path $env:LOCALAPPDATA "interpreter-v2\uv-cache"
 if (Test-Path -LiteralPath $installCacheDir) {
     Remove-InterpreterPath -Path $installCacheDir -Description "interpreter package cache"
@@ -124,9 +150,8 @@ if ($uvExecutable) {
 }
 
 # Remove user data
-Write-Host "[4/4] Removing user data..." -ForegroundColor Yellow
+Write-Host "[4/5] Removing user data..." -ForegroundColor Yellow
 
-$configDir = Join-Path $env:USERPROFILE ".interpreter"
 if ($env:HF_HUB_CACHE) {
     $modelsDir = $env:HF_HUB_CACHE
 } elseif ($env:HF_HOME) {
@@ -145,7 +170,9 @@ if (Test-Path -LiteralPath $configDir) {
 }
 
 # Remove the repositories actually downloaded by interpreter-v2. Retain the
-# legacy bquenin pattern for caches created by older releases.
+# legacy bquenin pattern for caches created by older releases. With a custom
+# install location the models live under it and are removed below, but an
+# install that was moved there later may have left models in this cache.
 $modelCacheNames = @(
     "models--rtr46--meiki.text.detect.v0",
     "models--rtr46--meiki.txt.recognition.v0",
@@ -182,6 +209,31 @@ if (Test-Path -LiteralPath $modelsDir -PathType Container) {
 }
 if (-not $removedModel) {
     Write-Host "     Cached models not found" -ForegroundColor Gray
+}
+
+# Remove the custom install location. Only the folders the installer creates
+# are deleted, only when the installer's marker file proves it created this
+# root, and the root itself only once it is empty. A mistyped INTERPRETER_HOME
+# or a root shared with other files is never wiped wholesale.
+Write-Host "[5/5] Removing install location..." -ForegroundColor Yellow
+$installMarker = if ($installRoot) { Join-Path $installRoot ".interpreter-v2" } else { $null }
+if (-not $installRoot) {
+    Write-Host "     No custom install location" -ForegroundColor Gray
+} elseif (-not (Test-Path -LiteralPath $installMarker -PathType Leaf)) {
+    Write-Host "     $installRoot was not created by the interpreter-v2 installer; leaving it alone" -ForegroundColor Yellow
+} else {
+    Remove-InterpreterPath -Path (Join-Path $installRoot "uv") -Description "tool environment and Python"
+    Remove-InterpreterPath -Path (Join-Path $installRoot "uv-cache") -Description "interpreter package cache"
+    Remove-InterpreterPath -Path (Join-Path $installRoot "models") -Description "downloaded models"
+    Remove-Item -LiteralPath $installMarker -Force -ErrorAction SilentlyContinue
+    if (Test-Path -LiteralPath $installRoot -PathType Container) {
+        $leftovers = Get-ChildItem -LiteralPath $installRoot -Force -ErrorAction SilentlyContinue
+        if ($leftovers) {
+            Write-Host "     Kept $installRoot because it still contains other files" -ForegroundColor Gray
+        } else {
+            Remove-InterpreterPath -Path $installRoot -Description "install location $installRoot"
+        }
+    }
 }
 
 Write-Host ""

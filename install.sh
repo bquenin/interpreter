@@ -1,6 +1,10 @@
 #!/bin/bash
 # install.sh - One-liner installer for interpreter-v2
 # Usage: curl -LsSf https://raw.githubusercontent.com/bquenin/interpreter/main/install.sh | bash
+#
+# To install somewhere other than your home directory (for example on a second
+# drive), set INTERPRETER_HOME first. The choice is remembered for upgrades:
+#   curl -LsSf https://raw.githubusercontent.com/bquenin/interpreter/main/install.sh | INTERPRETER_HOME=/mnt/data/interpreter bash
 
 set -e
 
@@ -22,6 +26,53 @@ fi
 echo ""
 echo -e "${CYAN}=== interpreter-v2 Installer ===${NC}"
 echo "Offline screen translator for Japanese retro games"
+echo -e "${GRAY}Plan for at least 6 GB of free disk space, including first-run model downloads.${NC}"
+echo ""
+
+# Resolve the install location. INTERPRETER_HOME wins; otherwise reuse the
+# location recorded by a previous run so plain re-runs upgrade in place. The
+# layout under the root mirrors src/interpreter/paths.py; keep them in sync:
+#   <root>/uv/tools    tool environment      <root>/uv-cache  install downloads
+#   <root>/uv/python   uv-managed Python     <root>/models    HuggingFace cache
+CONFIG_DIR="$HOME/.interpreter"
+INSTALL_ROOT_FILE="$CONFIG_DIR/install-dir"
+PREVIOUS_ROOT=""
+if [ -f "$INSTALL_ROOT_FILE" ]; then
+	PREVIOUS_ROOT=$(tr -d '\r\n' <"$INSTALL_ROOT_FILE")
+	PREVIOUS_ROOT="${PREVIOUS_ROOT%/}"
+fi
+
+INSTALL_ROOT="${INTERPRETER_HOME:-$PREVIOUS_ROOT}"
+UV_CACHE_ARGS=()
+if [ -n "$INSTALL_ROOT" ]; then
+	# Expand a leading ~ and make relative paths absolute.
+	INSTALL_ROOT="${INSTALL_ROOT/#\~/$HOME}"
+	case "$INSTALL_ROOT" in
+	/*) ;;
+	*) INSTALL_ROOT="$PWD/$INSTALL_ROOT" ;;
+	esac
+	INSTALL_ROOT="${INSTALL_ROOT%/}"
+	if [ -z "$INSTALL_ROOT" ]; then
+		echo -e "${RED}Error: INTERPRETER_HOME must be a directory, not the filesystem root. Try /opt/interpreter${NC}"
+		exit 1
+	fi
+	mkdir -p "$INSTALL_ROOT"
+	# The uninstaller only removes folders next to this marker, so a mistyped
+	# or shared INTERPRETER_HOME never has unrelated content deleted.
+	echo "Created by the interpreter-v2 installer. The uninstaller removes the uv, uv-cache and models folders next to this file." >"$INSTALL_ROOT/.interpreter-v2"
+	export UV_TOOL_DIR="$INSTALL_ROOT/uv/tools"
+	export UV_PYTHON_INSTALL_DIR="$INSTALL_ROOT/uv/python"
+	# Keep the multi-gigabyte package downloads off the home drive too, and
+	# remove them after the install instead of leaving them in uv's cache.
+	INSTALL_CACHE_DIR="$INSTALL_ROOT/uv-cache"
+	UV_CACHE_ARGS=(--cache-dir "$INSTALL_CACHE_DIR")
+	MODELS_DIR="$INSTALL_ROOT/models"
+	echo -e "${GRAY}Install location: $INSTALL_ROOT${NC}"
+else
+	INSTALL_CACHE_DIR=""
+	MODELS_DIR=""
+	echo -e "${GRAY}Install location: home directory (set INTERPRETER_HOME to choose another drive)${NC}"
+fi
 echo ""
 
 # Check if uv is installed
@@ -46,7 +97,27 @@ fi
 echo -e "${YELLOW}[2/${TOTAL_STEPS}] Installing interpreter-v2 from PyPI...${NC}"
 echo -e "${GRAY}     (this may take a minute on first install)${NC}"
 # Use Python 3.12 - uv-managed Python includes tkinter, system Python 3.13+ often doesn't
-if ! uv tool install --upgrade --python 3.12 interpreter-v2 2>&1; then
+# When the install location changes, the launcher from the old location still
+# exists in the shared bin directory; --force lets uv replace it.
+PREVIOUS_TOOL_ENV=""
+if [ "$PREVIOUS_ROOT" != "$INSTALL_ROOT" ]; then
+	if [ -n "$PREVIOUS_ROOT" ]; then
+		PREVIOUS_TOOL_ENV="$PREVIOUS_ROOT/uv/tools/interpreter-v2"
+	else
+		PREVIOUS_TOOL_ENV="${XDG_DATA_HOME:-$HOME/.local/share}/uv/tools/interpreter-v2"
+	fi
+fi
+UV_FORCE_ARGS=()
+if [ -n "$PREVIOUS_TOOL_ENV" ] && [ -d "$PREVIOUS_TOOL_ENV" ]; then
+	UV_FORCE_ARGS=(--force)
+fi
+INSTALL_OK=1
+uv tool install "${UV_FORCE_ARGS[@]}" --upgrade --python 3.12 "${UV_CACHE_ARGS[@]}" interpreter-v2 2>&1 || INSTALL_OK=0
+if [ -n "$INSTALL_CACHE_DIR" ]; then
+	uv cache clean --cache-dir "$INSTALL_CACHE_DIR" >/dev/null 2>&1 || true
+	rm -rf "$INSTALL_CACHE_DIR"
+fi
+if [ "$INSTALL_OK" -ne 1 ]; then
 	echo ""
 	echo -e "${RED}Installation failed!${NC}"
 	echo -e "${YELLOW}This may be due to missing dependencies. Try:${NC}"
@@ -56,9 +127,33 @@ if ! uv tool install --upgrade --python 3.12 interpreter-v2 2>&1; then
 fi
 uv tool update-shell >/dev/null 2>&1 || true
 
+# Record the install location so upgrades, the app, and the uninstaller find it.
+if [ -n "$INSTALL_ROOT" ]; then
+	mkdir -p "$CONFIG_DIR"
+	printf '%s' "$INSTALL_ROOT" >"$INSTALL_ROOT_FILE"
+fi
+
+# The install location changed: now that the new installation works, remove
+# the tool environment left in the old location so a multi-gigabyte orphan is
+# not left behind. Only the directory is deleted. Running `uv tool uninstall`
+# there would also remove the launcher the new installation just created in
+# the shared bin directory.
+if [ -n "$PREVIOUS_TOOL_ENV" ] && [ -d "$PREVIOUS_TOOL_ENV" ]; then
+	echo -e "${YELLOW}     Removing the previous installation from $(dirname "$PREVIOUS_TOOL_ENV")${NC}"
+	rm -rf "$PREVIOUS_TOOL_ENV"
+	if [ -n "$PREVIOUS_ROOT" ]; then
+		echo -e "${GRAY}     Models downloaded by the previous installation remain in $PREVIOUS_ROOT/models${NC}"
+		echo -e "${GRAY}     Delete that folder once the new installation works.${NC}"
+	else
+		echo -e "${GRAY}     Models downloaded by the previous installation remain in the HuggingFace cache${NC}"
+		echo -e "${GRAY}     (~/.cache/huggingface/hub). Delete the models--rtr46--* and models--entai2965--*${NC}"
+		echo -e "${GRAY}     folders there once the new installation works.${NC}"
+	fi
+fi
+
 # Pre-compile bytecode and warm up OS caches
 echo -e "${YELLOW}[3/${TOTAL_STEPS}] Optimizing for fast startup...${NC}"
-TOOL_DIR="$HOME/.local/share/uv/tools/interpreter-v2"
+TOOL_DIR="${UV_TOOL_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/uv/tools}/interpreter-v2"
 if [ -d "$TOOL_DIR" ]; then
 	# Compile bytecode (exclude .tmpl.py template files that aren't valid Python)
 	"$TOOL_DIR/bin/python" -m compileall -q -x '\.tmpl\.py$' "$TOOL_DIR/lib" 2>/dev/null || true
@@ -136,6 +231,10 @@ echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}  Installation complete!${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
+if [ -n "$INSTALL_ROOT" ]; then
+	echo -e "${GRAY}Installed to $INSTALL_ROOT (models will download to $MODELS_DIR)${NC}"
+	echo ""
+fi
 echo "To start, run:"
 echo ""
 echo -e "  ${CYAN}interpreter-v2${NC}"

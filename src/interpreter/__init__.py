@@ -20,6 +20,11 @@ __version__ = version("interpreter-v2")
 
 def main():
     """Entry point for the application."""
+    from . import paths
+
+    # Must precede any import of huggingface_hub (pulled in by the GUI stack).
+    paths.apply_environment()
+
     from .gui import run
 
     return run()
