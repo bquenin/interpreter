@@ -19,7 +19,9 @@ def get_hf_cache_path(repo_id: str) -> Path:
     Returns:
         Path to the cache directory for this repo.
     """
-    # HuggingFace stores repos as: ~/.cache/huggingface/hub/models--org--repo/
+    # HuggingFace stores repos as: <hub cache>/models--org--repo/. The hub cache
+    # is ~/.cache/huggingface/hub unless a custom install location redirected it
+    # (see paths.apply_environment, which runs before this module is imported).
     repo_folder = "models--" + repo_id.replace("/", "--")
     return Path(HF_HUB_CACHE) / repo_folder
 

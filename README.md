@@ -42,6 +42,26 @@ powershell -c "irm https://raw.githubusercontent.com/bquenin/interpreter/main/in
 
 Then run with `interpreter-v2`.
 
+### Installing to a Different Location
+
+By default everything is installed under your user profile (about 3 GB of application files plus 1.1 GB of models on first run). If your system drive is short on space, set `INTERPRETER_HOME` to a folder on another drive before running the installer:
+
+**macOS/Linux:**
+```bash
+INTERPRETER_HOME=/mnt/data/interpreter curl -LsSf https://raw.githubusercontent.com/bquenin/interpreter/main/install.sh | bash
+```
+
+**Windows (PowerShell):**
+```powershell
+$env:INTERPRETER_HOME = "D:\interpreter"; powershell -c "irm https://raw.githubusercontent.com/bquenin/interpreter/main/install.ps1 | iex"
+```
+
+The application, its Python runtime, and the downloaded models all go under that folder. The location is remembered in `~/.interpreter/install-dir`, so later upgrades and the uninstaller use it without setting the variable again. Only the small `interpreter-v2` launcher and your `config.yml` stay in your user profile.
+
+To change the location later, run the installer again with a new `INTERPRETER_HOME`. It removes the application from the old location and reinstalls it in the new one. Models are downloaded again on first run; the installer prints where the old ones are so you can delete them.
+
+To go back to the default location, run the uninstaller (see below) and then the plain installer.
+
 ## Upgrading
 
 To update to the latest version, run the installer again (see Installation above).
