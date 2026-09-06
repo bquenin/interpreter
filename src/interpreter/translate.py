@@ -198,19 +198,22 @@ class Translator:
         # Get model path (downloads from HuggingFace if needed)
         self._model_path = _get_sugoi_model_path()
 
+        # Only RuntimeError (CTranslate2/SentencePiece rejecting the files) and
+        # FileNotFoundError indicate an incomplete cache. Other OSErrors such as
+        # PermissionError are local problems a re-download cannot fix, so they
+        # propagate unchanged.
         try:
             self._load_from_path()
-        except (RuntimeError, OSError) as e:
+        except (RuntimeError, FileNotFoundError) as e:
             # An interrupted download can leave a snapshot with model.bin but without
             # config.json or the vocabularies, which CTranslate2 reports as an opaque
             # JSON error. Re-sync the snapshot with the Hub (only missing files are
             # fetched) and retry once before giving up.
             logger.warning("translation model failed to load, repairing cache", error=str(e))
-            self._translator = None
             self._model_path = _download_sugoi_model()
             try:
                 self._load_from_path()
-            except (RuntimeError, OSError) as retry_error:
+            except (RuntimeError, FileNotFoundError) as retry_error:
                 raise ModelLoadError(
                     f"Translation model is corrupted ({retry_error}). Click 'Fix Models' to repair."
                 ) from retry_error
@@ -218,9 +221,13 @@ class Translator:
     def _load_from_path(self) -> None:
         """Load CTranslate2 model and tokenizer from self._model_path.
 
+        Instance state is only updated once both components loaded, so a failure
+        never leaves the translator half-initialized (load() would otherwise
+        return early on the next attempt).
+
         Raises:
             RuntimeError: If CTranslate2 or SentencePiece reject the model files.
-            OSError: If a model file is missing.
+            OSError: If a model file is missing or unreadable.
         """
         import ctranslate2
         import sentencepiece as spm
@@ -231,20 +238,20 @@ class Translator:
             cuda_types = ctranslate2.get_supported_compute_types("cuda")
             if cuda_types:
                 # Try to load with GPU
-                self._translator = ctranslate2.Translator(
+                translator = ctranslate2.Translator(
                     _get_short_path(self._model_path),
                     device="cuda",
                 )
                 # Test inference to verify CUDA actually works
                 # (loading may succeed but inference can fail if cuBLAS is missing)
-                self._translator.translate_batch([["テスト"]])
+                translator.translate_batch([["テスト"]])
                 device = "cuda"
         except Exception as e:
             # GPU failed (load or inference), will use CPU below
             logger.debug("CUDA failed, falling back to CPU", error=str(e))
 
         if device == "cpu":
-            self._translator = ctranslate2.Translator(
+            translator = ctranslate2.Translator(
                 _get_short_path(self._model_path),
                 device="cpu",
             )
@@ -253,7 +260,10 @@ class Translator:
         # Read model as bytes to avoid Unicode path issues on Windows
         # (SentencePiece's C++ layer may not handle non-ASCII paths correctly)
         tokenizer_path = self._model_path / "spm" / "spm.ja.nopretok.model"
-        self._tokenizer = spm.SentencePieceProcessor(model_proto=tokenizer_path.read_bytes())
+        tokenizer = spm.SentencePieceProcessor(model_proto=tokenizer_path.read_bytes())
+
+        self._translator = translator
+        self._tokenizer = tokenizer
 
         device_info = "GPU" if device == "cuda" else "CPU"
         logger.info("sugoi v4 ready", device=device_info)

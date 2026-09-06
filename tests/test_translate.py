@@ -194,6 +194,55 @@ class TestModelLoading:
 
         assert snapshot_download.call_count == 2
 
+    def test_failed_retry_leaves_no_partial_state(self, tmp_path):
+        """Greptile P1: tokenizer failing after a repaired model load must not leave
+        _translator set, otherwise a later load() returns early without a tokenizer."""
+        from interpreter import translate
+        from interpreter.models import ModelLoadError
+
+        model_dir = _fake_model_dir(tmp_path)
+        ct2 = MagicMock()
+        ct2.get_supported_compute_types.return_value = []
+        ct2.Translator.side_effect = [RuntimeError("bad config"), MagicMock(), MagicMock()]
+        spm = MagicMock()
+        spm.SentencePieceProcessor.side_effect = [RuntimeError("bad proto"), MagicMock()]
+
+        with (
+            patch.dict(sys.modules, {"ctranslate2": ct2, "sentencepiece": spm}),
+            patch.object(translate, "snapshot_download", return_value=str(model_dir)),
+        ):
+            translator = translate.Translator()
+            with pytest.raises(ModelLoadError):
+                translator.load()
+            assert translator._translator is None
+            assert translator._tokenizer is None
+
+            # A later load() must actually retry, not return early
+            translator.load()
+            assert translator._translator is not None
+            assert translator._tokenizer is not None
+
+    def test_permission_error_is_not_treated_as_corruption(self, tmp_path):
+        """Greptile P2: an unreadable file is a local problem; do not start a download."""
+        from interpreter import translate
+
+        model_dir = _fake_model_dir(tmp_path)
+        ct2 = MagicMock()
+        ct2.get_supported_compute_types.return_value = []
+        ct2.Translator.side_effect = PermissionError("access denied")
+        spm = MagicMock()
+
+        with (
+            patch.dict(sys.modules, {"ctranslate2": ct2, "sentencepiece": spm}),
+            patch.object(translate, "snapshot_download", return_value=str(model_dir)) as snapshot_download,
+            pytest.raises(PermissionError, match="access denied"),
+        ):
+            translate.Translator().load()
+
+        # Only the local-only lookup happened, no online repair
+        assert snapshot_download.call_count == 1
+        assert snapshot_download.call_args.kwargs["local_files_only"] is True
+
 
 class TestDownloadRetry:
     """Tests for _download_sugoi_model retry behaviour."""
