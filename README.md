@@ -48,7 +48,7 @@ By default everything is installed under your user profile (about 3 GB of applic
 
 **macOS/Linux:**
 ```bash
-INTERPRETER_HOME=/mnt/data/interpreter curl -LsSf https://raw.githubusercontent.com/bquenin/interpreter/main/install.sh | bash
+curl -LsSf https://raw.githubusercontent.com/bquenin/interpreter/main/install.sh | INTERPRETER_HOME=/mnt/data/interpreter bash
 ```
 
 **Windows (PowerShell):**

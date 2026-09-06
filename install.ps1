@@ -51,6 +51,9 @@ if ($installRoot) {
         exit 1
     }
     New-Item -ItemType Directory -Force -Path $installRoot | Out-Null
+    # The uninstaller only removes folders next to this marker, so a mistyped
+    # or shared INTERPRETER_HOME never has unrelated content deleted.
+    Set-Content -LiteralPath (Join-Path $installRoot ".interpreter-v2") -Value "Created by the interpreter-v2 installer. The uninstaller removes the uv, uv-cache and models folders next to this file."
     $env:UV_TOOL_DIR = Join-Path $installRoot "uv\tools"
     $env:UV_PYTHON_INSTALL_DIR = Join-Path $installRoot "uv\python"
     $installCacheDir = Join-Path $installRoot "uv-cache"
@@ -84,37 +87,6 @@ if (-not $uvPath) {
     Write-Host "uv installed successfully!" -ForegroundColor Green
 } else {
     Write-Host "[1/3] uv is already installed" -ForegroundColor Green
-}
-
-# When the install location changes, remove the tool environment from the old
-# location first. Otherwise --force would leave a multi-gigabyte orphan behind.
-if ($previousRoot -ne $installRoot) {
-    if ($previousRoot) {
-        $previousToolDir = Join-Path $previousRoot "uv\tools"
-    } else {
-        $previousToolDir = Join-Path $env:APPDATA "uv\tools"
-    }
-    $previousToolEnvironment = Join-Path $previousToolDir "interpreter-v2"
-    if (Test-Path -LiteralPath $previousToolEnvironment) {
-        Write-Host "     Removing the previous installation from $previousToolDir" -ForegroundColor Yellow
-        $savedToolDir = $env:UV_TOOL_DIR
-        $env:UV_TOOL_DIR = $previousToolDir
-        $ErrorActionPreference = 'Continue'
-        uv tool uninstall interpreter-v2 2>$null | Out-Null
-        $ErrorActionPreference = 'Stop'
-        if ($savedToolDir) { $env:UV_TOOL_DIR = $savedToolDir } else { Remove-Item Env:UV_TOOL_DIR -ErrorAction SilentlyContinue }
-        if (Test-Path -LiteralPath $previousToolEnvironment) {
-            Remove-Item -LiteralPath $previousToolEnvironment -Recurse -Force -ErrorAction SilentlyContinue
-        }
-        if ($previousRoot) {
-            Write-Host "     Models downloaded by the previous installation remain in $previousRoot\models" -ForegroundColor Gray
-            Write-Host "     Delete that folder once the new installation works." -ForegroundColor Gray
-        } else {
-            Write-Host "     Models downloaded by the previous installation remain in the HuggingFace cache" -ForegroundColor Gray
-            Write-Host "     ($env:USERPROFILE\.cache\huggingface\hub). Delete the models--rtr46--* and" -ForegroundColor Gray
-            Write-Host "     models--entai2965--* folders there once the new installation works." -ForegroundColor Gray
-        }
-    }
 }
 
 # Install or upgrade interpreter-v2
@@ -153,6 +125,32 @@ if ($installRoot) {
     # Windows PowerShell 5.1 adds a byte order mark with -Encoding UTF8; the app
     # and the bash scripts read this file, so write plain UTF-8.
     [System.IO.File]::WriteAllText($installRootFile, $installRoot, (New-Object System.Text.UTF8Encoding $false))
+}
+
+# The install location changed: now that the new installation works, remove
+# the tool environment left in the old location so a multi-gigabyte orphan is
+# not left behind. Only the directory is deleted. Running `uv tool uninstall`
+# there would also remove the launcher the new installation just created in
+# the shared bin directory.
+if ($previousRoot -ne $installRoot) {
+    if ($previousRoot) {
+        $previousToolDir = Join-Path $previousRoot "uv\tools"
+    } else {
+        $previousToolDir = Join-Path $env:APPDATA "uv\tools"
+    }
+    $previousToolEnvironment = Join-Path $previousToolDir "interpreter-v2"
+    if (Test-Path -LiteralPath $previousToolEnvironment) {
+        Write-Host "     Removing the previous installation from $previousToolDir" -ForegroundColor Yellow
+        Remove-Item -LiteralPath $previousToolEnvironment -Recurse -Force -ErrorAction SilentlyContinue
+        if ($previousRoot) {
+            Write-Host "     Models downloaded by the previous installation remain in $previousRoot\models" -ForegroundColor Gray
+            Write-Host "     Delete that folder once the new installation works." -ForegroundColor Gray
+        } else {
+            Write-Host "     Models downloaded by the previous installation remain in the HuggingFace cache" -ForegroundColor Gray
+            Write-Host "     ($env:USERPROFILE\.cache\huggingface\hub). Delete the models--rtr46--* and" -ForegroundColor Gray
+            Write-Host "     models--entai2965--* folders there once the new installation works." -ForegroundColor Gray
+        }
+    }
 }
 
 # Pre-compile bytecode and warm up OS caches

@@ -90,6 +90,19 @@ def test_tilde_is_expanded(home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert paths.get_install_root() == home / "interpreter"
 
 
+def test_relative_value_is_anchored_to_working_directory(
+    home: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv(paths.INSTALL_ROOT_ENV, "relative/interpreter/")
+
+    root = paths.get_install_root()
+
+    assert root is not None
+    assert root.is_absolute()
+    assert root == tmp_path / "relative" / "interpreter"
+
+
 def test_apply_environment_redirects_hf_cache(home: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     root = tmp_path / "other-drive" / "interpreter"
     monkeypatch.setenv(paths.INSTALL_ROOT_ENV, str(root))

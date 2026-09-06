@@ -69,7 +69,6 @@ if [ -n "$INSTALL_ROOT" ]; then
 		rm -rf "$DEFAULT_TOOL_ENV"
 		echo -e "${GREEN}     Removed tool environment left in the home directory${NC}"
 	fi
-	rm -rf "$INSTALL_ROOT/uv-cache"
 fi
 
 # Remove desktop entry and icon (Linux only)
@@ -154,27 +153,33 @@ if [ "$REMOVED_MODEL" -eq 0 ]; then
 fi
 
 # Remove the custom install location. Only the folders the installer creates
-# are deleted, and the root itself only once it is empty, so a root shared with
-# other files (or pointed at the wrong place) is never wiped wholesale.
+# are deleted, only when the installer's marker file proves it created this
+# root, and the root itself only once it is empty. A mistyped INTERPRETER_HOME
+# or a root shared with other files is never wiped wholesale.
 echo -e "${YELLOW}[4/4] Removing install location...${NC}"
-if [ -n "$INSTALL_ROOT" ]; then
+if [ -z "$INSTALL_ROOT" ]; then
+	echo -e "${GRAY}     No custom install location${NC}"
+elif [ ! -f "$INSTALL_ROOT/.interpreter-v2" ]; then
+	echo -e "${YELLOW}     $INSTALL_ROOT was not created by the interpreter-v2 installer; leaving it alone${NC}"
+else
 	if [ -d "$INSTALL_ROOT/uv" ]; then
 		rm -rf "$INSTALL_ROOT/uv"
 		echo -e "${GREEN}     Removed tool environment and Python${NC}"
+	fi
+	if [ -d "$INSTALL_ROOT/uv-cache" ]; then
+		rm -rf "$INSTALL_ROOT/uv-cache"
+		echo -e "${GREEN}     Removed interpreter package cache${NC}"
 	fi
 	if [ -d "$INSTALL_ROOT/models" ]; then
 		rm -rf "$INSTALL_ROOT/models"
 		echo -e "${GREEN}     Removed downloaded models${NC}"
 	fi
-	if [ -d "$INSTALL_ROOT" ]; then
-		if rmdir "$INSTALL_ROOT" 2>/dev/null; then
-			echo -e "${GREEN}     Removed install location $INSTALL_ROOT${NC}"
-		else
-			echo -e "${GRAY}     Kept $INSTALL_ROOT because it still contains other files${NC}"
-		fi
+	rm -f "$INSTALL_ROOT/.interpreter-v2"
+	if rmdir "$INSTALL_ROOT" 2>/dev/null; then
+		echo -e "${GREEN}     Removed install location $INSTALL_ROOT${NC}"
+	else
+		echo -e "${GRAY}     Kept $INSTALL_ROOT because it still contains other files${NC}"
 	fi
-else
-	echo -e "${GRAY}     No custom install location${NC}"
 fi
 
 echo ""

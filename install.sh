@@ -4,7 +4,7 @@
 #
 # To install somewhere other than your home directory (for example on a second
 # drive), set INTERPRETER_HOME first. The choice is remembered for upgrades:
-#   INTERPRETER_HOME=/mnt/data/interpreter curl -LsSf https://raw.githubusercontent.com/bquenin/interpreter/main/install.sh | bash
+#   curl -LsSf https://raw.githubusercontent.com/bquenin/interpreter/main/install.sh | INTERPRETER_HOME=/mnt/data/interpreter bash
 
 set -e
 
@@ -57,6 +57,9 @@ if [ -n "$INSTALL_ROOT" ]; then
 		exit 1
 	fi
 	mkdir -p "$INSTALL_ROOT"
+	# The uninstaller only removes folders next to this marker, so a mistyped
+	# or shared INTERPRETER_HOME never has unrelated content deleted.
+	echo "Created by the interpreter-v2 installer. The uninstaller removes the uv, uv-cache and models folders next to this file." >"$INSTALL_ROOT/.interpreter-v2"
 	export UV_TOOL_DIR="$INSTALL_ROOT/uv/tools"
 	export UV_PYTHON_INSTALL_DIR="$INSTALL_ROOT/uv/python"
 	# Keep the multi-gigabyte package downloads off the home drive too, and
@@ -90,35 +93,26 @@ else
 	echo -e "${GREEN}[1/${TOTAL_STEPS}] uv is already installed${NC}"
 fi
 
-# When the install location changes, remove the tool environment from the old
-# location first. Otherwise the reinstall would leave a multi-gigabyte orphan.
-if [ "$PREVIOUS_ROOT" != "$INSTALL_ROOT" ]; then
-	if [ -n "$PREVIOUS_ROOT" ]; then
-		PREVIOUS_TOOL_DIR="$PREVIOUS_ROOT/uv/tools"
-	else
-		PREVIOUS_TOOL_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/uv/tools"
-	fi
-	if [ -d "$PREVIOUS_TOOL_DIR/interpreter-v2" ]; then
-		echo -e "${YELLOW}     Removing the previous installation from $PREVIOUS_TOOL_DIR${NC}"
-		UV_TOOL_DIR="$PREVIOUS_TOOL_DIR" uv tool uninstall interpreter-v2 >/dev/null 2>&1 || true
-		rm -rf "$PREVIOUS_TOOL_DIR/interpreter-v2"
-		if [ -n "$PREVIOUS_ROOT" ]; then
-			echo -e "${GRAY}     Models downloaded by the previous installation remain in $PREVIOUS_ROOT/models${NC}"
-			echo -e "${GRAY}     Delete that folder once the new installation works.${NC}"
-		else
-			echo -e "${GRAY}     Models downloaded by the previous installation remain in the HuggingFace cache${NC}"
-			echo -e "${GRAY}     (~/.cache/huggingface/hub). Delete the models--rtr46--* and models--entai2965--*${NC}"
-			echo -e "${GRAY}     folders there once the new installation works.${NC}"
-		fi
-	fi
-fi
-
 # Install or upgrade interpreter-v2
 echo -e "${YELLOW}[2/${TOTAL_STEPS}] Installing interpreter-v2 from PyPI...${NC}"
 echo -e "${GRAY}     (this may take a minute on first install)${NC}"
 # Use Python 3.12 - uv-managed Python includes tkinter, system Python 3.13+ often doesn't
+# When the install location changes, the launcher from the old location still
+# exists in the shared bin directory; --force lets uv replace it.
+PREVIOUS_TOOL_ENV=""
+if [ "$PREVIOUS_ROOT" != "$INSTALL_ROOT" ]; then
+	if [ -n "$PREVIOUS_ROOT" ]; then
+		PREVIOUS_TOOL_ENV="$PREVIOUS_ROOT/uv/tools/interpreter-v2"
+	else
+		PREVIOUS_TOOL_ENV="${XDG_DATA_HOME:-$HOME/.local/share}/uv/tools/interpreter-v2"
+	fi
+fi
+UV_FORCE_ARGS=()
+if [ -n "$PREVIOUS_TOOL_ENV" ] && [ -d "$PREVIOUS_TOOL_ENV" ]; then
+	UV_FORCE_ARGS=(--force)
+fi
 INSTALL_OK=1
-uv tool install --upgrade --python 3.12 "${UV_CACHE_ARGS[@]}" interpreter-v2 2>&1 || INSTALL_OK=0
+uv tool install "${UV_FORCE_ARGS[@]}" --upgrade --python 3.12 "${UV_CACHE_ARGS[@]}" interpreter-v2 2>&1 || INSTALL_OK=0
 if [ -n "$INSTALL_CACHE_DIR" ]; then
 	uv cache clean --cache-dir "$INSTALL_CACHE_DIR" >/dev/null 2>&1 || true
 	rm -rf "$INSTALL_CACHE_DIR"
@@ -137,6 +131,24 @@ uv tool update-shell >/dev/null 2>&1 || true
 if [ -n "$INSTALL_ROOT" ]; then
 	mkdir -p "$CONFIG_DIR"
 	printf '%s' "$INSTALL_ROOT" >"$INSTALL_ROOT_FILE"
+fi
+
+# The install location changed: now that the new installation works, remove
+# the tool environment left in the old location so a multi-gigabyte orphan is
+# not left behind. Only the directory is deleted. Running `uv tool uninstall`
+# there would also remove the launcher the new installation just created in
+# the shared bin directory.
+if [ -n "$PREVIOUS_TOOL_ENV" ] && [ -d "$PREVIOUS_TOOL_ENV" ]; then
+	echo -e "${YELLOW}     Removing the previous installation from $(dirname "$PREVIOUS_TOOL_ENV")${NC}"
+	rm -rf "$PREVIOUS_TOOL_ENV"
+	if [ -n "$PREVIOUS_ROOT" ]; then
+		echo -e "${GRAY}     Models downloaded by the previous installation remain in $PREVIOUS_ROOT/models${NC}"
+		echo -e "${GRAY}     Delete that folder once the new installation works.${NC}"
+	else
+		echo -e "${GRAY}     Models downloaded by the previous installation remain in the HuggingFace cache${NC}"
+		echo -e "${GRAY}     (~/.cache/huggingface/hub). Delete the models--rtr46--* and models--entai2965--*${NC}"
+		echo -e "${GRAY}     folders there once the new installation works.${NC}"
+	fi
 fi
 
 # Pre-compile bytecode and warm up OS caches

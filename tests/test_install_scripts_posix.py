@@ -171,6 +171,7 @@ def test_install_to_custom_location(tmp_path: Path) -> None:
     assert f"cache clean --cache-dir {root_posix}/uv-cache" in lines
     assert not any(line.startswith("tool uninstall") for line in lines)
     assert root.is_dir()
+    assert (root / ".interpreter-v2").is_file()
     assert not (root / "uv-cache").exists()
     assert _pointer(home).read_text(encoding="utf-8") == root_posix
     assert f"Installed to {root_posix}" in result.stdout
@@ -233,9 +234,14 @@ def test_moving_from_home_removes_previous_environment(tmp_path: Path) -> None:
 
     assert result.returncode == 0, result.stdout + result.stderr
     lines = _log_lines(command_log)
-    uninstall_index = lines.index("tool uninstall interpreter-v2")
-    assert lines[uninstall_index + 1] == f"UV_TOOL_DIR={_posix(home)}/.local/share/uv/tools"
-    assert uninstall_index < lines.index(next(line for line in lines if line.startswith("tool install")))
+    # --force lets uv replace the launcher left in the shared bin directory.
+    install_index = lines.index(
+        f"tool install --force --upgrade --python 3.12 --cache-dir {_posix(root)}/uv-cache interpreter-v2"
+    )
+    assert lines[install_index + 1] == f"UV_TOOL_DIR={_posix(root)}/uv/tools"
+    # The old environment is deleted directly: `uv tool uninstall` there would
+    # also remove the launcher the new install just created in the shared bin.
+    assert not any(line.startswith("tool uninstall") for line in lines)
     assert not default_environment.exists()
     assert "remain in the HuggingFace cache" in result.stdout
 
@@ -253,8 +259,10 @@ def test_moving_between_custom_locations_removes_previous_environment(tmp_path: 
 
     assert result.returncode == 0, result.stdout + result.stderr
     lines = _log_lines(command_log)
-    uninstall_index = lines.index("tool uninstall interpreter-v2")
-    assert lines[uninstall_index + 1] == f"UV_TOOL_DIR={_posix(old_root)}/uv/tools"
+    assert (
+        f"tool install --force --upgrade --python 3.12 --cache-dir {_posix(new_root)}/uv-cache interpreter-v2" in lines
+    )
+    assert not any(line.startswith("tool uninstall") for line in lines)
     assert not (old_root / "uv" / "tools" / "interpreter-v2").exists()
     # Models are never deleted by the installer; the user is told where they are.
     assert (old_root / "models" / MODEL_CACHE_NAMES[0]).exists()
@@ -262,8 +270,10 @@ def test_moving_between_custom_locations_removes_previous_environment(tmp_path: 
     assert _pointer(home).read_text(encoding="utf-8") == _posix(new_root)
 
 
-def test_failed_install_cleans_cache_and_records_nothing(tmp_path: Path) -> None:
+def test_failed_install_keeps_previous_install(tmp_path: Path) -> None:
     environment, home, _, command_log = _environment(tmp_path)
+    default_environment = home / ".local" / "share" / "uv" / "tools" / "interpreter-v2"
+    _create_file(default_environment / "pyvenv.cfg")
     root = tmp_path / "other-drive" / "interpreter"
     environment["INTERPRETER_HOME"] = _posix(root)
     environment["UV_TEST_INSTALL_EXIT"] = "42"
@@ -275,13 +285,17 @@ def test_failed_install_cleans_cache_and_records_nothing(tmp_path: Path) -> None
     assert "Installation failed" in result.stdout
     assert f"cache clean --cache-dir {_posix(root)}/uv-cache" in _log_lines(command_log)
     assert not (root / "uv-cache").exists()
+    # Nothing is recorded and the working installation is left untouched.
     assert not _pointer(home).exists()
+    assert (default_environment / "pyvenv.cfg").exists()
 
 
 # --- uninstall.sh -------------------------------------------------------------
 
 
-def _populate_install(root: Path, home: Path, model_hub: Path) -> Path:
+def _populate_install(root: Path, home: Path, model_hub: Path, *, marker: bool = True) -> Path:
+    if marker:
+        _create_file(root / ".interpreter-v2", "Created by the interpreter-v2 installer.")
     _create_file(root / "uv" / "tools" / "interpreter-v2" / "pyvenv.cfg")
     _create_file(root / "uv" / "python" / "cpython-3.12" / "bin" / "python")
     _create_file(root / "uv-cache" / "partial-download.whl")
@@ -332,6 +346,27 @@ def test_uninstall_keeps_location_with_other_files_and_works_without_uv(tmp_path
     assert (root / "my-notes.txt").read_text(encoding="utf-8") == "keep me"
     assert "Kept" in result.stdout
     assert not (home / ".interpreter").exists()
+
+
+def test_uninstall_leaves_location_without_installer_marker_alone(tmp_path: Path) -> None:
+    """A mistyped or shared INTERPRETER_HOME must not have its contents deleted."""
+    environment, home, model_hub, _ = _environment(tmp_path)
+    root = tmp_path / "shared-tools"
+    _populate_install(root, home, model_hub, marker=False)
+    _create_file(root / "uv" / "tools" / "other-tool" / "pyvenv.cfg")
+    environment["INTERPRETER_HOME"] = _posix(root)
+
+    result = _run(UNINSTALL_SCRIPT, environment)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "was not created by the interpreter-v2 installer" in result.stdout
+    # Only interpreter-v2's own tool environment goes; everything else stays.
+    assert not (root / "uv" / "tools" / "interpreter-v2").exists()
+    assert (root / "uv" / "tools" / "other-tool" / "pyvenv.cfg").exists()
+    assert (root / "uv" / "python").exists()
+    assert (root / "uv-cache").exists()
+    for model_cache_name in MODEL_CACHE_NAMES:
+        assert (root / "models" / model_cache_name).exists()
 
 
 def test_uninstall_without_custom_location_removes_default_models(tmp_path: Path) -> None:

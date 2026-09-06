@@ -45,7 +45,9 @@ def get_install_root() -> Path | None:
             return None
     if not value:
         return None
-    return Path(os.path.expanduser(value))
+    # Anchor relative values to the working directory now, so the cache path
+    # does not silently depend on where the app happens to be launched from.
+    return Path(os.path.abspath(os.path.expanduser(value)))
 
 
 def get_models_dir() -> Path | None:

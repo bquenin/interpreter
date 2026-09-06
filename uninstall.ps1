@@ -119,14 +119,9 @@ if ($installRoot -and (Test-Path -LiteralPath $defaultToolEnvironment)) {
 # disturbing other uv users. Older installers used uv's shared cache; prune only
 # entries uv knows are unreachable and leave reusable downloads alone.
 Write-Host "[3/5] Removing package downloads..." -ForegroundColor Yellow
-$installCacheDirs = @((Join-Path $env:LOCALAPPDATA "interpreter-v2\uv-cache"))
-if ($installRoot) {
-    $installCacheDirs += (Join-Path $installRoot "uv-cache")
-}
-foreach ($installCacheDir in $installCacheDirs) {
-    if (Test-Path -LiteralPath $installCacheDir) {
-        Remove-InterpreterPath -Path $installCacheDir -Description "interpreter package cache"
-    }
+$installCacheDir = Join-Path $env:LOCALAPPDATA "interpreter-v2\uv-cache"
+if (Test-Path -LiteralPath $installCacheDir) {
+    Remove-InterpreterPath -Path $installCacheDir -Description "interpreter package cache"
 }
 
 if ($uvExecutable) {
@@ -217,12 +212,20 @@ if (-not $removedModel) {
 }
 
 # Remove the custom install location. Only the folders the installer creates
-# are deleted, and the root itself only once it is empty, so a root shared with
-# other files (or pointed at the wrong place) is never wiped wholesale.
+# are deleted, only when the installer's marker file proves it created this
+# root, and the root itself only once it is empty. A mistyped INTERPRETER_HOME
+# or a root shared with other files is never wiped wholesale.
 Write-Host "[5/5] Removing install location..." -ForegroundColor Yellow
-if ($installRoot) {
+$installMarker = if ($installRoot) { Join-Path $installRoot ".interpreter-v2" } else { $null }
+if (-not $installRoot) {
+    Write-Host "     No custom install location" -ForegroundColor Gray
+} elseif (-not (Test-Path -LiteralPath $installMarker -PathType Leaf)) {
+    Write-Host "     $installRoot was not created by the interpreter-v2 installer; leaving it alone" -ForegroundColor Yellow
+} else {
     Remove-InterpreterPath -Path (Join-Path $installRoot "uv") -Description "tool environment and Python"
+    Remove-InterpreterPath -Path (Join-Path $installRoot "uv-cache") -Description "interpreter package cache"
     Remove-InterpreterPath -Path (Join-Path $installRoot "models") -Description "downloaded models"
+    Remove-Item -LiteralPath $installMarker -Force -ErrorAction SilentlyContinue
     if (Test-Path -LiteralPath $installRoot -PathType Container) {
         $leftovers = Get-ChildItem -LiteralPath $installRoot -Force -ErrorAction SilentlyContinue
         if ($leftovers) {
@@ -231,8 +234,6 @@ if ($installRoot) {
             Remove-InterpreterPath -Path $installRoot -Description "install location $installRoot"
         }
     }
-} else {
-    Write-Host "     No custom install location" -ForegroundColor Gray
 }
 
 Write-Host ""

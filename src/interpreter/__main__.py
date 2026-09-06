@@ -3,17 +3,12 @@
 This module is executed when running:
 - python -m interpreter
 - interpreter-v2 (via pyproject.toml entry point)
+
+Both routes go through interpreter.main so that startup work such as
+resolving the install location happens before the GUI is imported.
 """
 
-import faulthandler
-import signal
-
-# Enable faulthandler to dump thread stacks on SIGUSR1 (Unix only)
-# Usage: kill -USR1 <pid>  (find pid with: pgrep -f interpreter)
-if hasattr(signal, "SIGUSR1"):
-    faulthandler.register(signal.SIGUSR1, all_threads=True)
-
-from .gui import run
+from . import main
 
 if __name__ == "__main__":
-    run()
+    main()
