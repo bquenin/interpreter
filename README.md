@@ -83,6 +83,31 @@ Transparent overlay positioned over the game window. Translated text appears dir
 3. **Translation** - [Sugoi V4](https://huggingface.co/entai2965/sugoi-v4-ja-en-ctranslate2) translates Japanese to English
 4. **Display** - Shows translated text in the selected overlay mode
 
+## Using a Different Translation Model (Ollama / OpenAI-compatible)
+
+Sugoi V4 is the built-in default and needs no setup. If you want to try a larger language model, the **Translation** panel in the main window can send text to an [Ollama](https://ollama.com) server or to any OpenAI-compatible endpoint (LM Studio, llama.cpp server, vLLM, OpenRouter, OpenAI, ...). You bring the model; Interpreter only sends the OCR text and shows the reply.
+
+### Quick start with Ollama
+
+1. Install Ollama and pull a model. A 4B-class model is the practical minimum for Japanese; anything under 2B mostly outputs romaji or nonsense.
+   ```bash
+   ollama pull gemma3:4b
+   ```
+2. In Interpreter, set **Engine** to *LLM endpoint*, keep the provider on *Ollama* and the URL on `http://127.0.0.1:11434`, click **Refresh** and pick the model.
+3. Click **Test**. It translates a sample line and shows the round-trip time. Then click **Apply**; the translation engine reloads without interrupting capture.
+
+Use `127.0.0.1`, not `localhost`: on Windows, `localhost` adds about two seconds to every request.
+
+### What to expect
+
+- **Speed**: on an RTX 4070 Ti, `gemma3:4b` answers in about 100 ms per line. Larger models and CPU-only machines take seconds per line, which is fine for dialogue and painful for menus. The fuzzy translation cache still avoids re-translating text that has not changed.
+- **Quality**: larger models keep names and tone more consistent, and the previous few lines are sent as context. They also know many games and may use the official localized names instead of a literal translation. Edit the **Prompt** if you want different behaviour.
+- **Reasoning models** (Qwen3 and friends): thinking is turned off automatically on Ollama. On other servers, inline `<think>` blocks are stripped from the reply.
+- **Target language**: the LLM engine can translate into any language the model handles. OCR is still Japanese only.
+- **Remote endpoints**: the API key is stored in plain text in `config.yml`, every line of game text leaves your machine, and each request may cost money. Nothing is sent anywhere unless you pick the LLM engine.
+
+The same settings live in `config.yml` under `translation_backend` and `llm` if you prefer editing them by hand.
+
 ## Troubleshooting
 
 ### Poor OCR accuracy

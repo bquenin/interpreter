@@ -1,5 +1,7 @@
 """Main application window with settings and controls."""
 
+import threading
+
 from PIL import ImageDraw
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QFont, QImage, QKeySequence, QPixmap
@@ -14,8 +16,10 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QKeySequenceEdit,
     QLabel,
+    QLineEdit,
     QMainWindow,
     QMessageBox,
+    QPlainTextEdit,
     QPushButton,
     QSlider,
     QVBoxLayout,
@@ -25,7 +29,17 @@ from PySide6.QtWidgets import (
 from .. import log
 from ..capture import Capture, WindowCapture, _is_wayland_session
 from ..capture.convert import bgra_to_rgb_pil
-from ..config import Config, OverlayMode
+from ..config import Config, LLMSettings, OverlayMode, TranslationBackend
+from ..llm_translate import (
+    DEFAULT_BASE_URLS,
+    DEFAULT_SYSTEM_PROMPT,
+    PROVIDER_LABELS,
+    PROVIDERS,
+    check_endpoint,
+    describe_request_error,
+    list_models,
+    provider_label,
+)
 from ..overlay import BannerOverlay, InplaceOverlay
 from ..permissions import (
     check_accessibility,
@@ -57,6 +71,10 @@ class MainWindow(QMainWindow):
     hotkey_pressed = Signal()
     mode_switch_pressed = Signal()
 
+    # Results of background endpoint queries (list of models, or (translation, ms)); str = error
+    _llm_models_result = Signal(object)
+    _llm_test_result = Signal(object)
+
     def __init__(self, config: Config):
         super().__init__()
         self._config = config
@@ -81,14 +99,9 @@ class MainWindow(QMainWindow):
         self._capture: Capture | None = None
 
         # Worker for OCR/translation (uses Python threading internally)
-        self._process_worker = ProcessWorker()
-        self._process_worker.text_ready.connect(self._on_text_ready)
-        self._process_worker.regions_ready.connect(self._on_regions_ready)
-        self._process_worker.ocr_results_ready.connect(self._on_ocr_results_ready)
-        self._process_worker.models_ready.connect(self._on_models_ready)
-        self._process_worker.models_failed.connect(self._on_models_failed)
-        self._process_worker.ocr_status.connect(self._on_ocr_status)
-        self._process_worker.translation_status.connect(self._on_translation_status)
+        self._process_worker = self._create_worker()
+        self._llm_models_result.connect(self._on_llm_models_listed)
+        self._llm_test_result.connect(self._on_llm_test_done)
 
         # Overlays
         self._banner_overlay = BannerOverlay(
@@ -125,6 +138,18 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(self.size())
         self._refresh_windows()
         self._load_models()
+
+    def _create_worker(self) -> ProcessWorker:
+        """Create the OCR/translation worker and wire its signals."""
+        worker = ProcessWorker(self._config)
+        worker.text_ready.connect(self._on_text_ready)
+        worker.regions_ready.connect(self._on_regions_ready)
+        worker.ocr_results_ready.connect(self._on_ocr_results_ready)
+        worker.models_ready.connect(self._on_models_ready)
+        worker.models_failed.connect(self._on_models_failed)
+        worker.ocr_status.connect(self._on_ocr_status)
+        worker.translation_status.connect(self._on_translation_status)
+        return worker
 
     def _setup_ui(self):
         """Set up the main UI."""
@@ -326,6 +351,9 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(appearance_group)
 
+        # ==================== TRANSLATION ====================
+        layout.addWidget(self._build_translation_group())
+
         # ==================== STATUS ====================
         # Models status (at bottom, less prominent)
         status_group = QGroupBox("Status")
@@ -337,9 +365,10 @@ class MainWindow(QMainWindow):
         self._ocr_status_label = QLabel("Loading...")
         status_layout.addWidget(self._ocr_status_label, 0, 2)
 
-        # Translation model row
+        # Translation engine row (name follows the selected backend)
         status_layout.addWidget(QLabel("Translation:"), 1, 0)
-        status_layout.addWidget(QLabel("Sugoi V4"), 1, 1)
+        self._translation_engine_label = QLabel(self._translation_engine_name())
+        status_layout.addWidget(self._translation_engine_label, 1, 1)
         self._translation_status_label = QLabel("Loading...")
         status_layout.addWidget(self._translation_status_label, 1, 2)
 
@@ -373,6 +402,228 @@ class MainWindow(QMainWindow):
 
         # Status bar
         self.statusBar().showMessage("Idle")
+
+    # ==================== TRANSLATION SETTINGS ====================
+
+    def _build_translation_group(self) -> QGroupBox:
+        """Build the Translation group: engine selector plus the LLM endpoint panel."""
+        group = QGroupBox("Translation")
+        group_layout = QVBoxLayout(group)
+
+        # Engine row
+        engine_row = QHBoxLayout()
+        engine_row.addWidget(QLabel("Engine:"))
+        self._engine_combo = QComboBox()
+        self._engine_combo.addItem("Sugoi V4 (built-in, offline)", TranslationBackend.SUGOI.value)
+        self._engine_combo.addItem("LLM endpoint (Ollama / OpenAI-compatible)", TranslationBackend.LLM.value)
+        self._engine_combo.setCurrentIndex(self._engine_combo.findData(self._config.translation_backend.value))
+        self._engine_combo.currentIndexChanged.connect(self._on_engine_changed)
+        engine_row.addWidget(self._engine_combo, 1)
+        self._apply_translation_btn = QPushButton("Apply")
+        self._apply_translation_btn.setToolTip("Save these settings and reload the translation engine")
+        self._apply_translation_btn.clicked.connect(self._apply_translation_settings)
+        engine_row.addWidget(self._apply_translation_btn)
+        group_layout.addLayout(engine_row)
+
+        # LLM panel (only visible for the LLM engine)
+        self._llm_panel = QWidget()
+        llm_grid = QGridLayout(self._llm_panel)
+        llm_grid.setContentsMargins(0, 0, 0, 0)
+        settings = self._config.llm
+
+        llm_grid.addWidget(QLabel("Provider:"), 0, 0)
+        self._llm_provider_combo = QComboBox()
+        for provider in PROVIDERS:
+            self._llm_provider_combo.addItem(PROVIDER_LABELS[provider], provider)
+        self._llm_provider_combo.setCurrentIndex(max(0, self._llm_provider_combo.findData(settings.provider)))
+        self._llm_provider_combo.currentIndexChanged.connect(self._on_llm_provider_changed)
+        llm_grid.addWidget(self._llm_provider_combo, 0, 1)
+
+        llm_grid.addWidget(QLabel("Server URL:"), 0, 2)
+        self._llm_url_edit = QLineEdit(settings.base_url)
+        self._llm_url_edit.setToolTip(
+            "Ollama: http://127.0.0.1:11434 - LM Studio: http://127.0.0.1:1234/v1 - OpenAI: https://api.openai.com/v1\n"
+            "Prefer 127.0.0.1 over localhost: on Windows, localhost adds ~2 s per request."
+        )
+        llm_grid.addWidget(self._llm_url_edit, 0, 3, 1, 2)
+
+        llm_grid.addWidget(QLabel("Model:"), 1, 0)
+        self._llm_model_combo = QComboBox()
+        self._llm_model_combo.setEditable(True)
+        self._llm_model_combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        if settings.model:
+            self._llm_model_combo.addItem(settings.model)
+        self._llm_model_combo.setCurrentText(settings.model)
+        self._llm_model_combo.setToolTip("Type a model name or click Refresh to list the models on the server")
+        llm_grid.addWidget(self._llm_model_combo, 1, 1)
+        self._llm_refresh_btn = QPushButton("Refresh")
+        self._llm_refresh_btn.setToolTip("Ask the server which models it has")
+        self._llm_refresh_btn.clicked.connect(self._refresh_llm_models)
+        llm_grid.addWidget(self._llm_refresh_btn, 1, 2)
+
+        llm_grid.addWidget(QLabel("Target language:"), 1, 3)
+        self._llm_language_edit = QLineEdit(settings.target_language)
+        llm_grid.addWidget(self._llm_language_edit, 1, 4)
+
+        llm_grid.addWidget(QLabel("API key:"), 2, 0)
+        self._llm_api_key_edit = QLineEdit(settings.api_key)
+        self._llm_api_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self._llm_api_key_edit.setPlaceholderText("Optional - only for hosted services (stored in config.yml)")
+        llm_grid.addWidget(self._llm_api_key_edit, 2, 1, 1, 4)
+
+        llm_grid.addWidget(QLabel("Prompt:"), 3, 0, Qt.AlignmentFlag.AlignTop)
+        self._llm_prompt_edit = QPlainTextEdit(settings.system_prompt or DEFAULT_SYSTEM_PROMPT)
+        self._llm_prompt_edit.setFixedHeight(64)
+        self._llm_prompt_edit.setToolTip("System prompt sent to the model. {target_language} is replaced.")
+        llm_grid.addWidget(self._llm_prompt_edit, 3, 1, 1, 3)
+        reset_prompt_btn = QPushButton("Reset")
+        reset_prompt_btn.setToolTip("Restore the default prompt")
+        reset_prompt_btn.clicked.connect(lambda: self._llm_prompt_edit.setPlainText(DEFAULT_SYSTEM_PROMPT))
+        llm_grid.addWidget(reset_prompt_btn, 3, 4, Qt.AlignmentFlag.AlignTop)
+
+        self._llm_test_btn = QPushButton("Test")
+        self._llm_test_btn.setToolTip("Translate a sample line with these settings and measure the round trip")
+        self._llm_test_btn.clicked.connect(self._test_llm_endpoint)
+        llm_grid.addWidget(self._llm_test_btn, 4, 0)
+        self._llm_result_label = QLabel("")
+        self._llm_result_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        # Reserve one text line even while empty so the row never collapses
+        self._llm_result_label.setMinimumHeight(self._llm_test_btn.sizeHint().height())
+        llm_grid.addWidget(self._llm_result_label, 4, 1, 1, 4)
+
+        llm_grid.setColumnStretch(1, 1)
+        llm_grid.setColumnStretch(4, 1)
+        group_layout.addWidget(self._llm_panel)
+        self._llm_panel.setVisible(self._config.translation_backend == TranslationBackend.LLM)
+
+        return group
+
+    def _translation_engine_name(self) -> str:
+        """Engine name shown in the Status group."""
+        if self._config.translation_backend == TranslationBackend.LLM:
+            llm = self._config.llm
+            return f"{provider_label(llm.provider)} \u00b7 {llm.model or 'no model'}"
+        return "Sugoi V4"
+
+    def _selected_backend(self) -> TranslationBackend:
+        return TranslationBackend(self._engine_combo.currentData())
+
+    def _selected_provider(self) -> str:
+        return self._llm_provider_combo.currentData()
+
+    def _llm_settings_from_ui(self) -> LLMSettings:
+        """Read the LLM panel into an LLMSettings value (without touching the config)."""
+        prompt = self._llm_prompt_edit.toPlainText().strip()
+        return LLMSettings(
+            provider=self._selected_provider(),
+            base_url=self._llm_url_edit.text().strip() or DEFAULT_BASE_URLS[self._selected_provider()],
+            model=self._llm_model_combo.currentText().strip(),
+            api_key=self._llm_api_key_edit.text().strip(),
+            target_language=self._llm_language_edit.text().strip() or "English",
+            system_prompt=None if not prompt or prompt == DEFAULT_SYSTEM_PROMPT else prompt,
+            context_lines=self._config.llm.context_lines,
+            timeout=self._config.llm.timeout,
+        )
+
+    def _on_engine_changed(self, _index: int):
+        """Show the LLM panel only when the LLM engine is selected."""
+        self._llm_panel.setVisible(self._selected_backend() == TranslationBackend.LLM)
+        needed = self.sizeHint().height()
+        if needed > self.height():
+            self.resize(self.width(), needed)
+
+    def _on_llm_provider_changed(self, _index: int):
+        """Swap the default URL when the provider changes, unless the user typed their own."""
+        provider = self._selected_provider()
+        current = self._llm_url_edit.text().strip()
+        if not current or current in DEFAULT_BASE_URLS.values():
+            self._llm_url_edit.setText(DEFAULT_BASE_URLS[provider])
+        self._llm_result_label.setText("")
+
+    def _set_llm_result(self, text: str, error: bool = False):
+        """Show a one-line result under the LLM panel; the full text is in the tooltip."""
+        label = self._llm_result_label
+        label.setStyleSheet("color: #d9534f;" if error else "color: green;")
+        label.setToolTip(text)
+        # Elide instead of wrapping: the window's minimum size is locked, so a taller
+        # label would overlap the prompt box instead of growing the panel.
+        width = max(label.width() - 4, 200)
+        label.setText(label.fontMetrics().elidedText(text, Qt.TextElideMode.ElideRight, width))
+
+    def _refresh_llm_models(self):
+        """List the server's models on a background thread."""
+        settings = self._llm_settings_from_ui()
+        self._llm_refresh_btn.setEnabled(False)
+        self._set_llm_result("Listing models...")
+
+        def run():
+            try:
+                self._llm_models_result.emit(list_models(settings))
+            except Exception as e:
+                self._llm_models_result.emit(describe_request_error(e, settings))
+
+        threading.Thread(target=run, daemon=True).start()
+
+    def _on_llm_models_listed(self, result):
+        self._llm_refresh_btn.setEnabled(True)
+        if isinstance(result, str):
+            self._set_llm_result(result, error=True)
+            return
+        current = self._llm_model_combo.currentText().strip()
+        self._llm_model_combo.clear()
+        self._llm_model_combo.addItems(result)
+        if current in result:
+            self._llm_model_combo.setCurrentIndex(result.index(current))
+        elif current:
+            self._llm_model_combo.setCurrentText(current)
+        if not result:
+            hint = " Run 'ollama pull <model>' first." if self._selected_provider() == "ollama" else ""
+            self._set_llm_result(f"The server has no models.{hint}", error=True)
+        else:
+            self._set_llm_result(f"{len(result)} model(s) found")
+
+    def _test_llm_endpoint(self):
+        """Translate a sample line with the current panel settings on a background thread."""
+        settings = self._llm_settings_from_ui()
+        if not settings.model:
+            self._set_llm_result("Pick a model first.", error=True)
+            return
+        self._llm_test_btn.setEnabled(False)
+        self._set_llm_result("Testing (loading the model may take a moment)...")
+
+        def run():
+            try:
+                self._llm_test_result.emit(check_endpoint(settings))
+            except Exception as e:
+                self._llm_test_result.emit(str(e))
+
+        threading.Thread(target=run, daemon=True).start()
+
+    def _on_llm_test_done(self, result):
+        self._llm_test_btn.setEnabled(True)
+        if isinstance(result, str):
+            self._set_llm_result(result, error=True)
+            return
+        translation, ms = result
+        self._set_llm_result(f"OK in {ms} ms: {translation}")
+
+    def _apply_translation_settings(self):
+        """Save the Translation group to config and reload the engine in the worker."""
+        backend = self._selected_backend()
+        if backend == TranslationBackend.LLM:
+            settings = self._llm_settings_from_ui()
+            if not settings.model:
+                self._set_llm_result("Pick a model before applying.", error=True)
+                return
+            self._config.llm = settings
+        self._config.translation_backend = backend
+        self._config.save()
+
+        self._translation_engine_label.setText(self._translation_engine_name())
+        self._translation_status_label.setToolTip("")
+        self._fix_models_btn.setVisible(False)
+        self.statusBar().showMessage("Reloading translation engine...")
+        self._process_worker.reload_translation()
 
     def _setup_permissions_ui(self, status_layout: QGridLayout):
         """Set up macOS permissions in the status section."""
@@ -469,8 +720,16 @@ class MainWindow(QMainWindow):
             self._start_btn.setEnabled(False)
         if self._select_window_btn:
             self._select_window_btn.setEnabled(False)
-        self._fix_models_btn.setVisible(True)
-        self.statusBar().showMessage(f"Model loading failed: {error[:100]}")
+        self._show_fix_models_button()
+        self.statusBar().showMessage(f"Model loading failed: {error[:120]}")
+        # Full message on hover, since the status bar truncates
+        failed = self._process_worker.get_failed_models()
+        if "translation" in failed:
+            self._translation_status_label.setToolTip(error)
+            if self._config.translation_backend == TranslationBackend.LLM:
+                self._set_llm_result(error, error=True)
+        if "ocr" in failed:
+            self._ocr_status_label.setToolTip(error)
         logger.error("model loading failed", error=error)
 
     def _on_ocr_status(self, status: str):
@@ -490,6 +749,7 @@ class MainWindow(QMainWindow):
             status = "downloading"
         if status == "ready":
             self._fixing_translation = False
+            self._translation_status_label.setToolTip("")
         self._update_status_label(self._translation_status_label, status)
         self._update_fix_button_visibility()
 
@@ -511,7 +771,20 @@ class MainWindow(QMainWindow):
     def _update_fix_button_visibility(self):
         """Show/hide the Fix Models button based on model status."""
         has_error = self._ocr_status_label.text() == "Error" or self._translation_status_label.text() == "Error"
-        self._fix_models_btn.setVisible(has_error)
+        if has_error:
+            self._show_fix_models_button()
+        else:
+            self._fix_models_btn.setVisible(False)
+
+    def _show_fix_models_button(self):
+        """Reveal the Fix Models button and grow the window so the extra row does not squeeze the layout."""
+        if self._fix_models_btn.isVisible():
+            return
+        self._fix_models_btn.setVisible(True)
+        # adjustSize() caps windows at 2/3 of the screen, so grow the height explicitly
+        needed = self.sizeHint().height()
+        if needed > self.height():
+            self.resize(self.width(), needed)
 
     def _on_fix_models(self):
         """Handle Fix Models button click."""
@@ -527,23 +800,24 @@ class MainWindow(QMainWindow):
             delete_model_cache("rtr46/meiki.text.detect.v0")
             delete_model_cache("rtr46/meiki.txt.recognition.v0")
             self._fixing_ocr = True
-        if "translation" in failed:
+        if "translation" in failed and self._config.translation_backend == TranslationBackend.SUGOI:
             delete_model_cache("entai2965/sugoi-v4-ja-en-ctranslate2")
             self._fixing_translation = True
 
         # Hide the button while fixing
         self._fix_models_btn.setVisible(False)
+
+        if failed == ["translation"] and self._config.translation_backend == TranslationBackend.LLM:
+            # Nothing to download: retry the endpoint with the current settings
+            self.statusBar().showMessage("Reconnecting to translation endpoint...")
+            self._process_worker.reload_translation()
+            return
+
         self.statusBar().showMessage("Downloading models...")
 
         # Stop and restart the worker to reload models
         self._process_worker.stop()
-        self._process_worker = ProcessWorker()
-        self._process_worker.text_ready.connect(self._on_text_ready)
-        self._process_worker.regions_ready.connect(self._on_regions_ready)
-        self._process_worker.models_ready.connect(self._on_models_ready)
-        self._process_worker.models_failed.connect(self._on_models_failed)
-        self._process_worker.ocr_status.connect(self._on_ocr_status)
-        self._process_worker.translation_status.connect(self._on_translation_status)
+        self._process_worker = self._create_worker()
         self._process_worker.set_mode(self._mode)
         self._process_worker.start(self._config.ocr_confidence)
 
