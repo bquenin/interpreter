@@ -7,6 +7,7 @@ from PySide6.QtCore import QObject, Signal
 
 from .. import log
 from ..config import Config, OverlayMode
+from ..languages import contains_japanese, contains_script  # noqa: F401  (contains_japanese kept for callers)
 from ..ocr import OCREngine, create_ocr
 from ..translate import TranslationEngine, create_translator
 
@@ -16,24 +17,6 @@ logger = log.get_logger()
 # (status "Error" + Fix Models) instead of retrying on every frame forever.
 MAX_CONSECUTIVE_TRANSLATION_FAILURES = 3
 MAX_CONSECUTIVE_OCR_FAILURES = 3
-
-
-def contains_japanese(text: str) -> bool:
-    """Check if text contains Japanese characters."""
-    for char in text:
-        code = ord(char)
-        # Hiragana: U+3040-U+309F
-        # Katakana: U+30A0-U+30FF
-        # CJK (Kanji): U+4E00-U+9FFF
-        # Half-width Katakana: U+FF65-U+FF9F
-        if (
-            0x3040 <= code <= 0x309F  # Hiragana
-            or 0x30A0 <= code <= 0x30FF  # Katakana
-            or 0x4E00 <= code <= 0x9FFF  # Kanji
-            or 0xFF65 <= code <= 0xFF9F  # Half-width Katakana
-        ):
-            return True
-    return False
 
 
 class FrameBuffer:
@@ -364,9 +347,10 @@ class ProcessWorker(QObject):
                 self._emit(self.text_ready, "")
             return
 
-        # Skip translation for non-Japanese text
-        if not contains_japanese(text):
-            logger.debug("skipping translation - no Japanese characters detected")
+        # Skip translation when nothing looks like the source language (OCR garbage)
+        language = self._config.source_language
+        if not contains_script(text, language):
+            logger.debug("skipping translation - no source-language text detected", language=language)
             if self._mode == OverlayMode.INPLACE:
                 self._emit(self.regions_ready, [])
             else:
@@ -380,12 +364,9 @@ class ProcessWorker(QObject):
             all_cached = True
             for region in regions:
                 if self._translator and region.text:
-                    # Skip non-Japanese regions
-                    if not contains_japanese(region.text):
-                        logger.debug(
-                            "skipping region - no Japanese characters",
-                            text=region.text[:30],
-                        )
+                    # Skip regions with nothing in the source language's script
+                    if not contains_script(region.text, language):
+                        logger.debug("skipping region - no source-language text", text=region.text[:30])
                         continue
                     try:
                         translated, cached = self._translator.translate(region.text)

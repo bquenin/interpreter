@@ -12,6 +12,7 @@ import requests
 
 from . import log
 from .config import LLM_PROVIDERS, LLMSettings
+from .languages import DEFAULT_SOURCE_LANGUAGE, SAMPLE_TEXT
 from .models import ModelLoadError
 from .translate import (
     DEFAULT_CACHE_SIZE,
@@ -39,10 +40,10 @@ DEFAULT_BASE_URLS = {
 }
 
 DEFAULT_SYSTEM_PROMPT = (
-    "You translate text captured by OCR from a Japanese retro video game. "
-    "Translate the user's message from Japanese into {target_language}. "
+    "You translate text captured by OCR from a {source_language} retro video game. "
+    "Translate the user's message from {source_language} into {target_language}. "
     "Keep character names as they appear, keep menu items in the same order, "
-    "and do not add explanations, notes, romaji or quotation marks. "
+    "and do not add explanations, notes, transliterations or quotation marks. "
     "Output only the translation."
 )
 
@@ -57,11 +58,11 @@ OLLAMA_KEEP_ALIVE = "30m"
 # Minimum timeout for the warm-up request, during which the server loads the model.
 LOAD_TIMEOUT = 120.0
 
-# Sent once at load time so the first real line does not pay the model load cost.
-WARMUP_TEXT = "こんにちは"
-
-# Sample used by the Settings "Test" button.
-TEST_TEXT = "はじめまして。わたしはユウキです。"
+# Sent once at load time so the first real line does not pay the model load cost,
+# and by the Settings "Test" button. One sample per source language (see languages.py).
+SAMPLE_TEXTS = SAMPLE_TEXT
+WARMUP_TEXT = SAMPLE_TEXT[DEFAULT_SOURCE_LANGUAGE]
+TEST_TEXT = SAMPLE_TEXT[DEFAULT_SOURCE_LANGUAGE]
 
 # Some OpenAI-compatible servers return the reasoning inline instead of in a separate field.
 THINK_BLOCK_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL)
@@ -195,12 +196,14 @@ class LLMTranslator:
         settings: LLMSettings,
         cache_size: int = DEFAULT_CACHE_SIZE,
         similarity_threshold: float = DEFAULT_SIMILARITY_THRESHOLD,
+        source_language: str = DEFAULT_SOURCE_LANGUAGE,
     ):
         if settings.provider not in PROVIDERS:
             raise ModelLoadError(f"Unsupported LLM provider '{settings.provider}'. Use one of: {', '.join(PROVIDERS)}.")
         if not settings.timeout > 0:
             raise ModelLoadError(f"LLM timeout must be a positive number of seconds, got {settings.timeout!r}.")
         self._settings = settings
+        self._source_language = source_language or DEFAULT_SOURCE_LANGUAGE
         self._cache = TranslationCache(cache_size, similarity_threshold)
         self._history: deque[tuple[str, str]] = deque(maxlen=max(0, settings.context_lines))
         self._session = requests.Session()
@@ -212,9 +215,20 @@ class LLMTranslator:
         return f"{provider_label(self._settings.provider)} · {self._settings.model or 'no model'}"
 
     @property
+    def source_language(self) -> str:
+        return self._source_language
+
+    @property
+    def sample_text(self) -> str:
+        """A line in the source language, for warm-up and the Test button."""
+        return SAMPLE_TEXTS.get(self._source_language, WARMUP_TEXT)
+
+    @property
     def system_prompt(self) -> str:
         template = self._settings.system_prompt or DEFAULT_SYSTEM_PROMPT
-        return template.replace("{target_language}", self._settings.target_language or "English")
+        return template.replace("{target_language}", self._settings.target_language or "English").replace(
+            "{source_language}", self._source_language
+        )
 
     def load(self) -> None:
         """Validate the endpoint with a warm-up request.
@@ -240,7 +254,7 @@ class LLMTranslator:
         try:
             # The server loads the model on this first request, which can take far longer
             # than a normal translation (several GB read from disk), so allow extra time.
-            self._chat(self._build_messages(WARMUP_TEXT), timeout=max(self._settings.timeout, LOAD_TIMEOUT))
+            self._chat(self._build_messages(self.sample_text), timeout=max(self._settings.timeout, LOAD_TIMEOUT))
         except requests.RequestException as e:
             raise ModelLoadError(describe_request_error(e, self._settings)) from e
         self._loaded = True
@@ -346,7 +360,7 @@ class LLMTranslator:
         return choices[0].get("message", {}).get("content") or ""
 
 
-def check_endpoint(settings: LLMSettings) -> tuple[str, int]:
+def check_endpoint(settings: LLMSettings, source_language: str = DEFAULT_SOURCE_LANGUAGE) -> tuple[str, int]:
     """Load the endpoint and translate a sample line, for the Settings "Test" button.
 
     Returns:
@@ -356,8 +370,8 @@ def check_endpoint(settings: LLMSettings) -> tuple[str, int]:
         ModelLoadError: If the endpoint cannot be used.
         LLMTranslationError: If the sample translation fails.
     """
-    translator = LLMTranslator(settings, cache_size=1)
+    translator = LLMTranslator(settings, cache_size=1, source_language=source_language)
     translator.load()
     start = time.perf_counter()
-    translation, _ = translator.translate(TEST_TEXT)
+    translation, _ = translator.translate(translator.sample_text)
     return translation, int((time.perf_counter() - start) * 1000)
