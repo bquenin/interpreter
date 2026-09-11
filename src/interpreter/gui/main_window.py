@@ -46,6 +46,7 @@ from ..owocr_ocr import DEFAULT_URL as OWOCR_DEFAULT_URL
 from ..owocr_ocr import SERVER_COMMAND as OWOCR_SERVER_COMMAND
 from ..owocr_ocr import check_endpoint as check_owocr_endpoint
 from ..owocr_ocr import normalize_url as normalize_owocr_url
+from ..owocr_ocr import remote_warning as owocr_remote_warning
 from ..permissions import (
     check_accessibility,
     check_screen_recording,
@@ -526,7 +527,10 @@ class MainWindow(QMainWindow):
         if isinstance(result, str):
             self._set_owocr_result(result, error=True)
             return
-        self._set_owocr_result(f"OK in {result} ms")
+        warning = owocr_remote_warning(settings.url)
+        self._set_owocr_result(
+            f"OK in {result} ms. {warning}" if warning else f"OK in {result} ms", error=bool(warning)
+        )
 
     def _apply_ocr_settings(self):
         """Save the OCR group to config and reload the engine in the worker."""
@@ -534,6 +538,9 @@ class MainWindow(QMainWindow):
         if backend == OCRBackend.OWOCR:
             self._config.owocr = self._owocr_settings_from_ui()
             self._owocr_url_edit.setText(self._config.owocr.url)
+            # Stale results from a previous Test or failure would contradict the new status
+            warning = owocr_remote_warning(self._config.owocr.url)
+            self._set_owocr_result(warning or "", error=bool(warning))
         self._config.ocr_backend = backend
         self._config.save()
 
@@ -917,6 +924,10 @@ class MainWindow(QMainWindow):
         if status == "ready":
             self._fixing_ocr = False
             self._ocr_status_label.setToolTip("")
+            # A recovered endpoint must not keep showing its old connection error
+            if self._config.ocr_backend == OCRBackend.OWOCR and "d9534f" in self._owocr_result_label.styleSheet():
+                warning = owocr_remote_warning(self._config.owocr.url)
+                self._set_owocr_result(warning or "", error=bool(warning))
         self._update_status_label(self._ocr_status_label, status)
         self._update_fix_button_visibility()
 

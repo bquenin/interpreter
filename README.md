@@ -155,6 +155,7 @@ MeikiOCR is the built-in default and needs no setup. If it struggles with a part
 - **Layout**: each text line becomes one region. Vertical text comes back as one region per column.
 - **Errors**: if owocr stops or is paused, the OCR status turns to *Error* after three failed frames. Start owocr again and click **Fix Models** to reconnect.
 - **One client at a time**: owocr broadcasts every result to every connected client, so run a dedicated owocr instance for Interpreter. owocr also listens on all network interfaces; keep port 7331 firewalled.
+- **Remote owocr**: owocr speaks plain `ws://`, so pointing Interpreter at another machine sends every screen capture unencrypted over the network. Interpreter warns when the address is not local. On an untrusted network put a TLS proxy in front of owocr and use a `wss://` URL.
 - **Languages**: translation is still limited to Japanese text in this version, whichever OCR engine reads it.
 
 The same settings live in `config.yml` under `ocr_backend` and `owocr`.

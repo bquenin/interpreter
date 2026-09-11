@@ -16,22 +16,27 @@ from interpreter.owocr_ocr import (
     DEFAULT_URL,
     PROBE_SIZE,
     SERVER_COMMAND,
+    TAG_ROWS,
     OwocrOCR,
     OwocrOCRError,
     check_endpoint,
     describe_connection_error,
     encode_png,
+    is_loopback_url,
     normalize_url,
     parse_response,
+    remote_warning,
+    tag_frame,
 )
 
 
 class _FakeConn:
     """Stand-in for websockets.sync.client.ClientConnection.
 
-    ``replies`` holds what recv() returns in order; an exception instance is raised
-    instead of returned. When it runs out, recv() raises TimeoutError like the real
-    client does on its deadline.
+    ``replies`` holds what recv() returns in order: a message, an exception instance
+    (raised instead), or a callable taking the connection (so a reply can echo the
+    size of the image just sent, as owocr does). When it runs out, recv() raises
+    TimeoutError like the real client does on its deadline.
     """
 
     def __init__(self, replies=()):
@@ -48,10 +53,16 @@ class _FakeConn:
         reply = self.replies.popleft()
         if isinstance(reply, Exception):
             raise reply
+        if callable(reply):
+            return reply(self)
         return reply
 
     def close(self):
         self.closed = True
+
+    def sent_size(self, index=-1) -> tuple[int, int]:
+        """(width, height) of a PNG this connection was given, as owocr would echo it."""
+        return Image.open(io.BytesIO(self.sent[index])).size
 
 
 def _bbox(cx, cy, w, h):
@@ -71,6 +82,11 @@ def _reply(lines=(), width=PROBE_SIZE, height=PROBE_SIZE, paragraph_bbox=None) -
     """One owocr JSON result frame holding a single paragraph."""
     paragraphs = [{"bounding_box": paragraph_bbox, "lines": list(lines), "writing_direction": None}] if lines else []
     return json.dumps({"image_properties": {"width": width, "height": height}, "paragraphs": paragraphs})
+
+
+def _result(lines=(), index=-1):
+    """A reply for the image most recently sent (or the one at ``index``), like owocr's."""
+    return lambda conn: _reply(lines, *conn.sent_size(index))
 
 
 def _frame(width=200, height=100) -> np.ndarray:
@@ -138,6 +154,27 @@ class TestEncodePng:
         assert image.getpixel((0, 0)) == (0, 0, 255)
 
 
+class TestTagFrame:
+    def test_appends_black_rows_and_keeps_the_frame(self):
+        frame = np.full((20, 30, 4), 200, dtype=np.uint8)
+        tagged = tag_frame(frame, 5)
+        assert tagged.shape == (25, 30, 4)
+        assert (tagged[:20] == 200).all()
+        assert (tagged[20:] == 0).all()
+
+
+class TestRemoteWarning:
+    @pytest.mark.parametrize("url", ["ws://127.0.0.1:7331", "localhost:7331", "ws://[::1]:7331", "wss://lan-box:7331"])
+    def test_local_or_encrypted_gives_no_warning(self, url):
+        assert remote_warning(url) is None
+        assert is_loopback_url(url) or url.startswith("wss://")
+
+    def test_plain_remote_host_is_flagged(self):
+        warning = remote_warning("192.168.1.20:7331")
+        assert "unencrypted to 192.168.1.20" in warning
+        assert "wss://" in warning
+
+
 class TestParseResponse:
     def test_normalized_boxes_become_frame_pixels(self):
         data = json.loads(_reply([_line("こんにちは", 0.5, 0.5, 0.5, 0.2)], 200, 100))
@@ -192,7 +229,7 @@ class TestOwocrOCR:
             OwocrOCR(OwocrSettings(timeout=0))
 
     def test_load_sends_one_probe_and_only_binary_frames(self, connections):
-        conn = _FakeConn(["True", _reply()])
+        conn = _FakeConn(["True", _result()])
         ocr = _loaded_ocr(connections, conn)
         assert ocr.is_loaded()
         assert len(conn.sent) == 1
@@ -213,64 +250,84 @@ class TestOwocrOCR:
         assert conn.closed
 
     def test_extract_returns_regions_in_frame_pixels(self, connections):
-        conn = _FakeConn(["True", _reply(), "True", _reply([_line("やあ", 0.5, 0.5, 0.5, 0.2)], 200, 100)])
+        conn = _FakeConn(["True", _result(), "True", _result([_line("やあ", 0.5, 0.25, 0.5, 0.1)])])
         ocr = _loaded_ocr(connections, conn)
         regions = ocr.extract_text_regions(_frame(200, 100))
-        assert regions == [OCRResult("やあ", {"x": 50, "y": 40, "width": 100, "height": 20})]
+        # The frame was sent with 1 + (2 % TAG_ROWS) = 3 tag rows, so the image is 200x103
+        assert conn.sent_size() == (200, 100 + 1 + 2 % TAG_ROWS)
+        assert regions == [OCRResult("やあ", {"x": 50, "y": 21, "width": 100, "height": 10})]
         assert len(conn.sent) == 2 and all(isinstance(item, bytes) for item in conn.sent)
 
-    def test_stale_result_for_another_image_size_is_skipped(self, connections):
-        late = _reply([_line("old")], 64, 64)  # the probe's size, not the frame's
-        conn = _FakeConn(["True", _reply(), "True", late, _reply([_line("new")], 200, 100)])
+    def test_consecutive_frames_carry_different_size_tags(self, connections):
+        conn = _FakeConn(["True", _result()] + ["True", _result()] * TAG_ROWS)
         ocr = _loaded_ocr(connections, conn)
+        for _ in range(TAG_ROWS):
+            ocr.extract_text_regions(_frame(200, 100))
+        heights = [conn.sent_size(i)[1] for i in range(1, TAG_ROWS + 1)]
+        assert len(set(heights)) == TAG_ROWS  # no two frames in a cycle look alike
+        assert all(100 < h <= 100 + TAG_ROWS for h in heights)
+
+    def test_stale_result_for_the_previous_same_sized_frame_is_skipped(self, connections):
+        """After a timeout, owocr still finishes the old frame and broadcasts it (Greptile P1)."""
+        first = _FakeConn(["True", _result(), "True"])  # frame 1: no result within the deadline
+        ocr = _loaded_ocr(connections, first)
+        with pytest.raises(OwocrOCRError, match="did not answer"):
+            ocr.extract_text_regions(_frame(200, 100))
+
+        # The reconnected client first receives the late result for frame 1 (same window size),
+        # then the real one for frame 2. Only the latter carries frame 2's tag height.
+        late = lambda conn: _reply([_line("old")], *first.sent_size(1))  # noqa: E731
+        second = _FakeConn(["True", late, _result([_line("new")])])
+        connections.append(second)
         assert [r.text for r in ocr.extract_text_regions(_frame(200, 100))] == ["new"]
+        assert first.sent_size(1)[0] == second.sent_size()[0]  # same width: only the tag differs
 
     def test_binary_frames_and_other_json_are_ignored(self, connections):
-        conn = _FakeConn(["True", _reply(), b"\x00", json.dumps({"status": "ok"}), _reply([_line("x")], 200, 100)])
+        conn = _FakeConn(["True", _result(), b"\x00", json.dumps({"status": "ok"}), _result([_line("x")])])
         ocr = _loaded_ocr(connections, conn)
         assert [r.text for r in ocr.extract_text_regions(_frame(200, 100))] == ["x"]
 
     def test_paused_server_is_reported(self, connections):
-        conn = _FakeConn(["True", _reply(), "False"])
+        conn = _FakeConn(["True", _result(), "False"])
         ocr = _loaded_ocr(connections, conn)
         with pytest.raises(OwocrOCRError, match="paused"):
             ocr.extract_text_regions(_frame())
 
     def test_plain_text_output_is_reported_as_misconfiguration(self, connections):
-        conn = _FakeConn(["True", _reply(), "True", "こんにちは"])
+        conn = _FakeConn(["True", _result(), "True", "こんにちは"])
         ocr = _loaded_ocr(connections, conn)
         with pytest.raises(OwocrOCRError, match="-of json"):
             ocr.extract_text_regions(_frame())
 
     def test_timeout_drops_the_connection_and_the_next_frame_reconnects(self, connections):
-        first = _FakeConn(["True", _reply(), "True"])  # no result for the frame
+        first = _FakeConn(["True", _result(), "True"])  # no result for the frame
         ocr = _loaded_ocr(connections, first)
         with pytest.raises(OwocrOCRError, match="did not answer"):
             ocr.extract_text_regions(_frame())
         assert first.closed and ocr._conn is None
 
-        second = _FakeConn(["True", _reply([_line("x")], 200, 100)])
+        second = _FakeConn(["True", _result([_line("x")])])
         connections.append(second)
         assert [r.text for r in ocr.extract_text_regions(_frame(200, 100))] == ["x"]
         assert len(connections.calls) == 2
         assert ocr.is_loaded()
 
     def test_closed_connection_is_reported_and_dropped(self, connections):
-        conn = _FakeConn(["True", _reply(), ConnectionClosedError(None, None)])
+        conn = _FakeConn(["True", _result(), ConnectionClosedError(None, None)])
         ocr = _loaded_ocr(connections, conn)
         with pytest.raises(OwocrOCRError, match="closed the connection"):
             ocr.extract_text_regions(_frame())
         assert ocr._conn is None
 
     def test_reconnect_failure_is_reported(self, connections):
-        conn = _FakeConn(["True", _reply()])
+        conn = _FakeConn(["True", _result()])
         ocr = _loaded_ocr(connections, conn)
         ocr.close()
         with pytest.raises(OwocrOCRError, match="Cannot reach owocr"):
             ocr.extract_text_regions(_frame())
 
     def test_close_is_idempotent(self, connections):
-        conn = _FakeConn(["True", _reply()])
+        conn = _FakeConn(["True", _result()])
         ocr = _loaded_ocr(connections, conn)
         ocr.close()
         ocr.close()
@@ -307,7 +364,7 @@ class TestDescribeConnectionError:
 
 class TestCheckEndpoint:
     def test_returns_round_trip_ms_and_closes(self, connections):
-        conn = _FakeConn(["True", _reply()])
+        conn = _FakeConn(["True", _result()])
         connections.append(conn)
         ms = check_endpoint(OwocrSettings(timeout=1.0))
         assert isinstance(ms, int) and ms >= 0

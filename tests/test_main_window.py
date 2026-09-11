@@ -91,6 +91,30 @@ def test_stale_owocr_test_results_are_ignored(qapp):
     assert "click Test again" in win._owocr_result_label.toolTip()
 
 
+def test_successful_test_against_a_remote_host_warns_about_plaintext(qapp):
+    win = _ocr_panel(Config(ocr_backend=OCRBackend.OWOCR, owocr=OwocrSettings(url="ws://192.168.1.20:7331")))
+    current = win._owocr_settings_from_ui()
+    win._owocr_test_request = current
+    win._on_owocr_test_done((current, 7))
+    tooltip = win._owocr_result_label.toolTip()
+    assert tooltip.startswith("OK in 7 ms")
+    assert "unencrypted to 192.168.1.20" in tooltip
+
+
+def test_ready_status_clears_a_previous_owocr_error(qapp):
+    win = _ocr_panel(Config(ocr_backend=OCRBackend.OWOCR))
+    win._ocr_status_label = QLabel()
+    win._fix_models_btn = QPushButton()
+    win._translation_status_label = QLabel("Ready")
+    win._fixing_ocr = False
+    win._set_owocr_result("Cannot reach owocr", error=True)
+
+    win._on_ocr_status("ready")
+
+    assert win._owocr_result_label.toolTip() == ""
+    assert win._ocr_status_label.text() == "Ready"
+
+
 def test_settings_from_ui_keep_config_only_fields(qapp):
     """Apply must not drop fields that have no widget (context_lines, timeout, request_options)."""
     config = Config(

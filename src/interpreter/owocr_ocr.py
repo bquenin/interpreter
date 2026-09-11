@@ -18,6 +18,7 @@ Protocol (owocr 1.26, "read_from=websocket, write_to=websocket, output_format=js
 import io
 import json
 import time
+from urllib.parse import urlparse
 
 import numpy as np
 from numpy.typing import NDArray
@@ -46,8 +47,15 @@ PROBE_SIZE = 64
 # Lossless but fast: pixel fonts must survive, and a 1080p frame encodes in tens of ms.
 PNG_COMPRESS_LEVEL = 1
 
+# owocr has no request ids but echoes the image size, so each frame is padded with a
+# varying number of black rows (1..TAG_ROWS) and a result is matched by its height.
+# Without this, a late result for the previous same-sized frame would be accepted.
+TAG_ROWS = 16
+
 ACK_QUEUED = "True"
 ACK_DROPPED = "False"
+
+LOOPBACK_HOSTS = ("127.0.0.1", "localhost", "::1")
 
 
 class OwocrOCRError(Exception):
@@ -65,6 +73,29 @@ def normalize_url(url: str) -> str:
     if "://" not in url:
         return "ws://" + url
     return url
+
+
+def is_loopback_url(url: str) -> bool:
+    """True when the server runs on this machine, so frames never leave it."""
+    parsed = urlparse(normalize_url(url))
+    return (parsed.hostname or "").lower() in LOOPBACK_HOSTS
+
+
+def remote_warning(url: str) -> str | None:
+    """A warning to show when frames would travel unencrypted to another machine."""
+    url = normalize_url(url)
+    if is_loopback_url(url) or url.startswith("wss://"):
+        return None
+    host = urlparse(url).hostname or url
+    return f"Screen captures are sent unencrypted to {host}. Use wss:// through a TLS proxy on untrusted networks."
+
+
+def tag_frame(frame: NDArray[np.uint8], tag: int) -> NDArray[np.uint8]:
+    """Append ``tag`` black rows below the frame (see TAG_ROWS); text positions are unchanged."""
+    height, width = frame.shape[:2]
+    tagged = np.zeros((height + tag, width, frame.shape[2]), dtype=np.uint8)
+    tagged[:height] = frame
+    return tagged
 
 
 def encode_png(frame: NDArray[np.uint8]) -> bytes:
@@ -177,6 +208,7 @@ class OwocrOCR:
         self._url = normalize_url(settings.url)
         self._conn = None
         self._loaded = False
+        self._sequence = 0  # drives the per-frame size tag, see TAG_ROWS
         # owocr returns no confidence scores; stored only to satisfy the engine interface
         self._confidence_threshold = DEFAULT_CONFIDENCE_THRESHOLD
 
@@ -217,7 +249,7 @@ class OwocrOCR:
         start = time.perf_counter()
         try:
             self._connect()
-            self._request(encode_png(probe_image()), PROBE_SIZE, PROBE_SIZE)
+            self._send_frame(probe_image())
         except Exception as e:
             self.close()
             raise ModelLoadError(describe_connection_error(e, self._settings)) from e
@@ -232,15 +264,21 @@ class OwocrOCR:
         """
         if not self._loaded:
             self.load()
-        height, width = image.shape[:2]
         try:
             if self._conn is None:
                 self._connect()
-            data = self._request(encode_png(image), width, height)
+            data, width, height = self._send_frame(image)
         except Exception as e:
             self.close()
             raise OwocrOCRError(describe_connection_error(e, self._settings)) from e
         return parse_response(data, width, height)
+
+    def _send_frame(self, image: NDArray[np.uint8]) -> tuple[dict, int, int]:
+        """Tag, encode and send a frame; return the result and the tagged image size."""
+        self._sequence += 1
+        tagged = tag_frame(image, 1 + self._sequence % TAG_ROWS)
+        height, width = tagged.shape[:2]
+        return self._request(encode_png(tagged), width, height), width, height
 
     def _connect(self) -> None:
         # No proxy: a system HTTP proxy must never sit between us and a local server.
@@ -251,7 +289,8 @@ class OwocrOCR:
         """Send one image and wait for its JSON result.
 
         Acks are consumed on the way; a JSON result whose image size does not match
-        the frame just sent is a late reply to an earlier request and is skipped.
+        the frame just sent is a late reply to an earlier request (which carried a
+        different size tag) and is skipped.
         """
         assert isinstance(png, (bytes, bytearray))  # a str would be a text frame and crash owocr
         self._conn.send(png)
