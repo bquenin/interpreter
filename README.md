@@ -89,10 +89,11 @@ Sugoi V4 is the built-in default and needs no setup. If you want to try a larger
 
 ### Quick start with Ollama
 
-1. Install Ollama and pull a model. A 4B-class model is the practical minimum for Japanese; anything under 2B mostly outputs romaji or nonsense.
+1. Install Ollama and pull a model. The recommended one is Sugoi 14B Ultra, a Japanese-media translation model (Apache-2.0) that needs about 10 GB of VRAM:
    ```bash
-   ollama pull gemma3:4b
+   ollama pull hf.co/sugoitoolkit/Sugoi-14B-Ultra-GGUF:Q4_K_M
    ```
+   On the project's benchmark it scores +12 chrF++ over the built-in Sugoi V4 across every game (see `benchmark/translation/RESULTS.md`). With less VRAM, `gemma3:4b` (3.3 GB) is roughly on par with the built-in model; anything under 2B mostly outputs romaji or nonsense.
 2. In Interpreter, set **Engine** to *LLM endpoint*, keep the provider on *Ollama* and the URL on `http://127.0.0.1:11434`, click **Refresh** and pick the model.
 3. Click **Test**. It translates a sample line and shows the round-trip time. Then click **Apply**; the translation engine reloads without interrupting capture.
 
@@ -100,7 +101,7 @@ Use `127.0.0.1`, not `localhost`: on Windows, `localhost` adds about two seconds
 
 ### What to expect
 
-- **Speed**: on an RTX 4070 Ti, `gemma3:4b` answers in about 100 ms per line. Larger models and CPU-only machines take seconds per line, which is fine for dialogue and painful for menus. The fuzzy translation cache still avoids re-translating text that has not changed.
+- **Speed**: on an RTX 4070 Ti, Sugoi 14B Ultra answers in about 300 ms per line (1.2 s at p95) and `gemma3:4b` in about 100 ms. CPU-only machines take seconds per line, which is fine for dialogue and painful for menus. The fuzzy translation cache still avoids re-translating text that has not changed. Keep only one large model in use at a time: two 8 GB models on a 12 GB card evict each other on every request.
 - **Quality**: larger models keep names and tone more consistent, and the previous few lines are sent as context. They also know many games and may use the official localized names instead of a literal translation. Edit the **Prompt** if you want different behaviour.
 - **Reasoning models** (Qwen3 and friends): thinking is turned off automatically on Ollama. On other servers, inline `<think>` blocks are stripped from the reply.
 - **Target language**: the LLM engine can translate into any language the model handles. OCR is still Japanese only.
