@@ -1,9 +1,9 @@
-"""Tests for the Translation panel logic of MainWindow, without building the full window."""
+"""Tests for the OCR and Translation panel logic of MainWindow, without building the full window."""
 
 import pytest
 from PySide6.QtWidgets import QApplication, QComboBox, QLabel, QLineEdit, QPlainTextEdit, QPushButton
 
-from interpreter.config import Config, LLMSettings, TranslationBackend
+from interpreter.config import Config, LLMSettings, OCRBackend, OwocrSettings, TranslationBackend
 from interpreter.gui.main_window import MainWindow
 from interpreter.llm_translate import DEFAULT_SYSTEM_PROMPT, PROVIDER_LABELS, PROVIDERS
 
@@ -35,6 +35,60 @@ def _panel(config: Config) -> MainWindow:
     win._llm_refresh_request = None
     win._llm_test_request = None
     return win
+
+
+def _ocr_panel(config: Config) -> MainWindow:
+    """A MainWindow with only the OCR panel widgets, skipping __init__."""
+    win = MainWindow.__new__(MainWindow)
+    win._config = config
+    win._ocr_engine_combo = QComboBox()
+    win._ocr_engine_combo.addItem("MeikiOCR", OCRBackend.MEIKI.value)
+    win._ocr_engine_combo.addItem("owocr", OCRBackend.OWOCR.value)
+    win._ocr_engine_combo.setCurrentIndex(win._ocr_engine_combo.findData(config.ocr_backend.value))
+    win._owocr_url_edit = QLineEdit(config.owocr.url)
+    win._owocr_test_btn = QPushButton()
+    win._owocr_result_label = QLabel()
+    win._owocr_test_request = None
+    return win
+
+
+def test_owocr_settings_from_ui_normalize_url_and_keep_config_timeout(qapp):
+    win = _ocr_panel(Config(ocr_backend=OCRBackend.OWOCR, owocr=OwocrSettings(timeout=4.0)))
+    win._owocr_url_edit.setText("http://127.0.0.1:7331/")
+    settings = win._owocr_settings_from_ui()
+    assert settings == OwocrSettings(url="ws://127.0.0.1:7331", timeout=4.0)
+    assert win._selected_ocr_backend() == OCRBackend.OWOCR
+
+
+def test_stale_owocr_test_results_are_ignored(qapp):
+    win = _ocr_panel(Config(ocr_backend=OCRBackend.OWOCR))
+    win._owocr_test_btn.setEnabled(False)
+    current = win._owocr_settings_from_ui()
+    win._owocr_test_request = current
+
+    # A result from an older, superseded request changes nothing
+    win._on_owocr_test_done((OwocrSettings(url="ws://old:1"), 5))
+    assert win._owocr_result_label.toolTip() == ""
+    assert not win._owocr_test_btn.isEnabled()
+
+    # The current request applies
+    win._on_owocr_test_done((current, 5))
+    assert win._owocr_result_label.toolTip() == "OK in 5 ms"
+    assert win._owocr_test_btn.isEnabled()
+
+    # An error string is shown as an error
+    pending = win._owocr_settings_from_ui()
+    win._owocr_test_request = pending
+    win._on_owocr_test_done((pending, "Cannot reach owocr"))
+    assert win._owocr_result_label.toolTip() == "Cannot reach owocr"
+    assert "d9534f" in win._owocr_result_label.styleSheet()
+
+    # Settings edited while the request was in flight: the result is discarded
+    pending = win._owocr_settings_from_ui()
+    win._owocr_test_request = pending
+    win._owocr_url_edit.setText("ws://changed:1")
+    win._on_owocr_test_done((pending, 5))
+    assert "click Test again" in win._owocr_result_label.toolTip()
 
 
 def test_settings_from_ui_keep_config_only_fields(qapp):

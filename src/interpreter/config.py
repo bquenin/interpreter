@@ -28,6 +28,50 @@ class TranslationBackend(str, Enum):
 LLM_PROVIDERS = ("ollama", "openai")
 
 
+class OCRBackend(str, Enum):
+    """Which engine extracts text from captured frames."""
+
+    MEIKI = "meiki"  # Built-in offline MeikiOCR
+    OWOCR = "owocr"  # External owocr process reached over a websocket
+
+
+@dataclass
+class OwocrSettings:
+    """Connection settings for the owocr websocket OCR backend."""
+
+    url: str = "ws://127.0.0.1:7331"
+    timeout: float = 10.0  # Seconds to wait for each frame's result
+
+    @classmethod
+    def from_dict(cls, data: dict | None) -> "OwocrSettings":
+        """Build settings from a YAML mapping, ignoring unknown keys and bad types."""
+        defaults = cls()
+        if not isinstance(data, dict):
+            return defaults
+        kwargs = {}
+        for field in fields(cls):
+            if field.name not in data:
+                continue
+            value = data[field.name]
+            default = getattr(defaults, field.name)
+            try:
+                if isinstance(default, float):
+                    kwargs[field.name] = float(value)
+                else:
+                    kwargs[field.name] = str(value) if value is not None else default
+            except (TypeError, ValueError):
+                logger.warning("invalid owocr setting, using default", key=field.name, value=value)
+
+        if "timeout" in kwargs and not (0 < kwargs["timeout"] < float("inf")):
+            logger.warning("owocr timeout must be a positive number, using default", timeout=kwargs["timeout"])
+            del kwargs["timeout"]
+        return cls(**kwargs)
+
+    def to_dict(self) -> dict:
+        """Plain-type mapping for YAML output."""
+        return asdict(self)
+
+
 @dataclass
 class LLMSettings:
     """Connection and prompt settings for the LLM endpoint translation backend."""
@@ -137,10 +181,14 @@ class Config:
         ocr_confidence_per_window: dict | None = None,
         translation_backend: TranslationBackend = TranslationBackend.SUGOI,
         llm: LLMSettings | None = None,
+        ocr_backend: OCRBackend = OCRBackend.MEIKI,
+        owocr: OwocrSettings | None = None,
     ):
         self.window_title = window_title
         self.translation_backend = translation_backend
         self.llm = llm if llm is not None else LLMSettings()
+        self.ocr_backend = ocr_backend
+        self.owocr = owocr if owocr is not None else OwocrSettings()
         self.ocr_confidence = ocr_confidence  # Global default
         self.overlay_mode = overlay_mode
         self.font_family = font_family  # None = system default
@@ -206,6 +254,13 @@ class Config:
                 logger.warning("invalid translation_backend, using sugoi", backend=backend_str)
                 translation_backend = TranslationBackend.SUGOI
 
+            ocr_backend_str = data.get("ocr_backend", OCRBackend.MEIKI.value)
+            try:
+                ocr_backend = OCRBackend(ocr_backend_str)
+            except ValueError:
+                logger.warning("invalid ocr_backend, using meiki", backend=ocr_backend_str)
+                ocr_backend = OCRBackend.MEIKI
+
             return cls(
                 window_title=data.get("window_title", cls.DEFAULT_WINDOW_TITLE),
                 ocr_confidence=float(data.get("ocr_confidence", cls.DEFAULT_OCR_CONFIDENCE)),
@@ -223,6 +278,8 @@ class Config:
                 ocr_confidence_per_window=data.get("ocr_confidence_per_window", {}),
                 translation_backend=translation_backend,
                 llm=LLMSettings.from_dict(data.get("llm")),
+                ocr_backend=ocr_backend,
+                owocr=OwocrSettings.from_dict(data.get("owocr")),
             )
 
         # No config file found - create default in home directory
@@ -272,6 +329,14 @@ background_opacity: 0.8  # 0.0 (transparent) to 1.0 (opaque)
 #   context_lines: 3            # previous lines sent as context
 #   timeout: 30                 # seconds per request
 #   request_options: {}         # extra JSON fields for every request, e.g. {reasoning_effort: none}
+
+# OCR engine: "meiki" (built-in, offline) or "owocr" (external owocr process, see README)
+# The owocr block is only used when ocr_backend is "owocr". Configure it from the app's
+# OCR panel, or by hand:
+# ocr_backend: meiki
+# owocr:
+#   url: ws://127.0.0.1:7331
+#   timeout: 10                 # seconds to wait for each frame's result
 
 # Hotkeys - single characters or special key names
 # Special keys: f1-f12, escape, space, enter, tab, backspace, delete,
@@ -377,6 +442,10 @@ hotkeys:
         data["translation_backend"] = self.translation_backend.value
         if self.translation_backend == TranslationBackend.LLM or self.llm != LLMSettings():
             data["llm"] = self.llm.to_dict()
+        # OCR backend; same rule for the owocr block
+        data["ocr_backend"] = self.ocr_backend.value
+        if self.ocr_backend == OCRBackend.OWOCR or self.owocr != OwocrSettings():
+            data["owocr"] = self.owocr.to_dict()
         # Only save font_family if user has chosen one (None = system default)
         if self.font_family is not None:
             data["font_family"] = str(self.font_family)

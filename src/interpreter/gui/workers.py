@@ -7,14 +7,15 @@ from PySide6.QtCore import QObject, Signal
 
 from .. import log
 from ..config import Config, OverlayMode
-from ..ocr import OCR
+from ..ocr import OCREngine, create_ocr
 from ..translate import TranslationEngine, create_translator
 
 logger = log.get_logger()
 
-# After this many consecutive translation failures the engine is marked as failed
+# After this many consecutive runtime failures an engine is marked as failed
 # (status "Error" + Fix Models) instead of retrying on every frame forever.
 MAX_CONSECUTIVE_TRANSLATION_FAILURES = 3
+MAX_CONSECUTIVE_OCR_FAILURES = 3
 
 
 def contains_japanese(text: str) -> bool:
@@ -99,7 +100,7 @@ class ProcessWorker(QObject):
     def __init__(self, config: Config):
         super().__init__()
         self._config = config
-        self._ocr: OCR | None = None
+        self._ocr: OCREngine | None = None
         self._translator: TranslationEngine | None = None
         self._mode = OverlayMode.BANNER
         self._confidence_threshold = 0.6
@@ -109,9 +110,12 @@ class ProcessWorker(QObject):
         self._translation_failed = False
         self._ocr_error = ""
         self._translation_error = ""
-        self._translation_failures = 0  # consecutive runtime failures since the last success
+        # Consecutive runtime failures since the last success
+        self._ocr_failures = 0
+        self._translation_failures = 0
 
-        # Set when the UI changes the translation backend; handled on the worker thread
+        # Set when the UI changes a backend; handled on the worker thread
+        self._reload_ocr = False
         self._reload_translation = False
 
         # Threading
@@ -148,6 +152,14 @@ class ProcessWorker(QObject):
         if self._running:
             self._frame_buffer.put(frame)
 
+    def reload_ocr(self):
+        """Rebuild the OCR engine from the current config (after a settings change).
+
+        Runs on the worker thread between frames, so the translation engine stays
+        loaded and capture is not interrupted.
+        """
+        self._reload_ocr = True  # picked up within the loop's 0.5 s poll interval
+
     def reload_translation(self):
         """Rebuild the translation engine from the current config (after a settings change).
 
@@ -182,6 +194,10 @@ class ProcessWorker(QObject):
         self._emit_models_status()
 
         while self._running:
+            if self._reload_ocr:
+                self._reload_ocr = False
+                self._load_ocr()
+                self._emit_models_status()
             if self._reload_translation:
                 self._reload_translation = False
                 self._load_translator()
@@ -192,23 +208,35 @@ class ProcessWorker(QObject):
             if frame is not None and not (self._ocr_failed or self._translation_failed):
                 self._process_frame(frame)
 
+        self._discard_ocr()
         logger.debug("worker thread stopped")
 
+    def _discard_ocr(self):
+        """Drop the current OCR engine, releasing any connection it holds."""
+        ocr, self._ocr = self._ocr, None
+        close = getattr(ocr, "close", None)
+        if callable(close):
+            close()
+
     def _load_ocr(self):
-        """Load the OCR model, recording failure for the Fix Models flow."""
+        """Build and load the configured OCR engine, recording failure for the Fix Models flow."""
         self.ocr_status.emit("loading")
+        self._discard_ocr()
         try:
-            self._ocr = OCR(confidence_threshold=self._confidence_threshold)
-            self._ocr.load()
+            ocr = create_ocr(self._config)
+            ocr.confidence_threshold = self._confidence_threshold
+            ocr.load()
+            self._ocr = ocr
             self._ocr_failed = False
             self._ocr_error = ""
+            self._ocr_failures = 0
             self.ocr_status.emit("ready")
-            logger.debug("OCR model loaded")
+            logger.debug("OCR engine loaded", engine=ocr.name)
         except Exception as e:
             self._ocr_failed = True
             self._ocr_error = str(e)
             self.ocr_status.emit("error")
-            logger.error("failed to load OCR model", error=str(e))
+            logger.error("failed to load OCR engine", error=str(e))
 
     def _load_translator(self):
         """Build and load the configured translation engine."""
@@ -228,6 +256,25 @@ class ProcessWorker(QObject):
             self._translation_error = str(e)
             self.translation_status.emit("error")
             logger.error("failed to load translation engine", error=str(e))
+
+    def _record_ocr_failure(self, error: Exception) -> bool:
+        """Count a runtime OCR failure; mark the engine failed after repeated ones.
+
+        Only the owocr backend fails at runtime (server stopped or paused). Once
+        marked failed, frames are skipped until the UI reloads the engine.
+
+        Returns:
+            True if the engine has just been marked as failed.
+        """
+        self._ocr_failures += 1
+        if self._ocr_failures < MAX_CONSECUTIVE_OCR_FAILURES:
+            return False
+        self._ocr_failed = True
+        self._ocr_error = str(error)
+        self.ocr_status.emit("error")
+        self.models_failed.emit(self._ocr_error)
+        logger.error("OCR engine marked as failed", failures=self._ocr_failures, error=self._ocr_error)
+        return True
 
     def _record_translation_failure(self, error: Exception) -> bool:
         """Count a runtime translation failure; mark the engine failed after repeated ones.
@@ -278,8 +325,10 @@ class ProcessWorker(QObject):
             regions = self._ocr.extract_text_regions(frame)
             text = " ".join(r.text for r in regions if r.text)
             ocr_ms = int((time.perf_counter() - ocr_start) * 1000)
+            self._ocr_failures = 0
         except Exception as e:
             logger.error("OCR error", error=str(e))
+            self._record_ocr_failure(e)
             return
 
         # Emit raw OCR results for visualization (e.g., OCR config dialog)

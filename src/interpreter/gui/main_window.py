@@ -29,7 +29,7 @@ from PySide6.QtWidgets import (
 from .. import log
 from ..capture import Capture, WindowCapture, _is_wayland_session
 from ..capture.convert import bgra_to_rgb_pil
-from ..config import Config, LLMSettings, OverlayMode, TranslationBackend
+from ..config import Config, LLMSettings, OCRBackend, OverlayMode, OwocrSettings, TranslationBackend
 from ..llm_translate import (
     DEFAULT_BASE_URLS,
     DEFAULT_SYSTEM_PROMPT,
@@ -42,6 +42,10 @@ from ..llm_translate import (
     provider_label,
 )
 from ..overlay import BannerOverlay, InplaceOverlay
+from ..owocr_ocr import DEFAULT_URL as OWOCR_DEFAULT_URL
+from ..owocr_ocr import SERVER_COMMAND as OWOCR_SERVER_COMMAND
+from ..owocr_ocr import check_endpoint as check_owocr_endpoint
+from ..owocr_ocr import normalize_url as normalize_owocr_url
 from ..permissions import (
     check_accessibility,
     check_screen_recording,
@@ -75,6 +79,8 @@ class MainWindow(QMainWindow):
     # Results of background endpoint queries (list of models, or (translation, ms)); str = error
     _llm_models_result = Signal(object)
     _llm_test_result = Signal(object)
+    # Result of the owocr Test button (round-trip ms); str = error
+    _owocr_test_result = Signal(object)
 
     def __init__(self, config: Config):
         super().__init__()
@@ -103,9 +109,11 @@ class MainWindow(QMainWindow):
         self._process_worker = self._create_worker()
         self._llm_models_result.connect(self._on_llm_models_listed)
         self._llm_test_result.connect(self._on_llm_test_done)
+        self._owocr_test_result.connect(self._on_owocr_test_done)
         # Settings snapshots of the in-flight Refresh / Test requests (stale results are dropped)
         self._llm_refresh_request: LLMSettings | None = None
         self._llm_test_request: LLMSettings | None = None
+        self._owocr_test_request: OwocrSettings | None = None
 
         # Overlays
         self._banner_overlay = BannerOverlay(
@@ -355,6 +363,9 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(appearance_group)
 
+        # ==================== OCR ====================
+        layout.addWidget(self._build_ocr_group())
+
         # ==================== TRANSLATION ====================
         layout.addWidget(self._build_translation_group())
 
@@ -363,9 +374,10 @@ class MainWindow(QMainWindow):
         status_group = QGroupBox("Status")
         status_layout = QGridLayout(status_group)
 
-        # OCR model row
+        # OCR engine row (name follows the selected backend)
         status_layout.addWidget(QLabel("OCR:"), 0, 0)
-        status_layout.addWidget(QLabel("MeikiOCR"), 0, 1)
+        self._ocr_engine_label = QLabel(self._ocr_engine_name())
+        status_layout.addWidget(self._ocr_engine_label, 0, 1)
         self._ocr_status_label = QLabel("Loading...")
         status_layout.addWidget(self._ocr_status_label, 0, 2)
 
@@ -406,6 +418,130 @@ class MainWindow(QMainWindow):
 
         # Status bar
         self.statusBar().showMessage("Idle")
+
+    # ==================== OCR SETTINGS ====================
+
+    def _build_ocr_group(self) -> QGroupBox:
+        """Build the OCR group: engine selector plus the owocr server panel."""
+        group = QGroupBox("OCR")
+        group_layout = QVBoxLayout(group)
+
+        # Engine row
+        engine_row = QHBoxLayout()
+        engine_row.addWidget(QLabel("Engine:"))
+        self._ocr_engine_combo = QComboBox()
+        self._ocr_engine_combo.addItem("MeikiOCR (built-in, offline)", OCRBackend.MEIKI.value)
+        self._ocr_engine_combo.addItem("owocr (external process, websocket)", OCRBackend.OWOCR.value)
+        self._ocr_engine_combo.setCurrentIndex(self._ocr_engine_combo.findData(self._config.ocr_backend.value))
+        self._ocr_engine_combo.currentIndexChanged.connect(self._on_ocr_engine_changed)
+        engine_row.addWidget(self._ocr_engine_combo, 1)
+        self._apply_ocr_btn = QPushButton("Apply")
+        self._apply_ocr_btn.setToolTip("Save these settings and reload the OCR engine")
+        self._apply_ocr_btn.clicked.connect(self._apply_ocr_settings)
+        engine_row.addWidget(self._apply_ocr_btn)
+        group_layout.addLayout(engine_row)
+
+        # owocr panel (only visible for the owocr engine)
+        self._owocr_panel = QWidget()
+        owocr_grid = QGridLayout(self._owocr_panel)
+        owocr_grid.setContentsMargins(0, 0, 0, 0)
+
+        owocr_grid.addWidget(QLabel("Server URL:"), 0, 0)
+        self._owocr_url_edit = QLineEdit(self._config.owocr.url)
+        self._owocr_url_edit.setToolTip(
+            f"Start owocr as: {OWOCR_SERVER_COMMAND}\n"
+            f"Default address: {OWOCR_DEFAULT_URL}. "
+            "Prefer 127.0.0.1 over localhost: on Windows, localhost adds ~2 s per request."
+        )
+        owocr_grid.addWidget(self._owocr_url_edit, 0, 1, 1, 2)
+
+        self._owocr_test_btn = QPushButton("Test")
+        self._owocr_test_btn.setToolTip("Send a blank image to the server and measure the round trip")
+        self._owocr_test_btn.clicked.connect(self._test_owocr_endpoint)
+        owocr_grid.addWidget(self._owocr_test_btn, 1, 0)
+        self._owocr_result_label = QLabel("")
+        self._owocr_result_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        # Reserve one text line even while empty so the row never collapses
+        self._owocr_result_label.setMinimumHeight(self._owocr_test_btn.sizeHint().height())
+        owocr_grid.addWidget(self._owocr_result_label, 1, 1, 1, 2)
+
+        note = QLabel("owocr returns no confidence scores; the OCR confidence slider has no effect with this engine.")
+        note.setStyleSheet("color: gray;")
+        note.setWordWrap(True)
+        owocr_grid.addWidget(note, 2, 0, 1, 3)
+
+        owocr_grid.setColumnStretch(1, 1)
+        group_layout.addWidget(self._owocr_panel)
+        self._owocr_panel.setVisible(self._config.ocr_backend == OCRBackend.OWOCR)
+
+        return group
+
+    def _ocr_engine_name(self) -> str:
+        """Engine name shown in the Status group."""
+        return "owocr" if self._config.ocr_backend == OCRBackend.OWOCR else "MeikiOCR"
+
+    def _selected_ocr_backend(self) -> OCRBackend:
+        return OCRBackend(self._ocr_engine_combo.currentData())
+
+    def _owocr_settings_from_ui(self) -> OwocrSettings:
+        """Read the owocr panel into an OwocrSettings value (without touching the config)."""
+        return OwocrSettings(
+            url=normalize_owocr_url(self._owocr_url_edit.text()),
+            # Config-only field (no widget), carried over so Apply never drops it
+            timeout=self._config.owocr.timeout,
+        )
+
+    def _on_ocr_engine_changed(self, _index: int):
+        """Show the owocr panel only when the owocr engine is selected."""
+        self._owocr_panel.setVisible(self._selected_ocr_backend() == OCRBackend.OWOCR)
+        self._grow_to_fit()
+
+    def _set_owocr_result(self, text: str, error: bool = False):
+        self._set_result_label(self._owocr_result_label, text, error)
+
+    def _test_owocr_endpoint(self):
+        """Run the probe round trip with the current panel settings on a background thread."""
+        settings = self._owocr_settings_from_ui()
+        self._owocr_test_request = settings
+        self._owocr_test_btn.setEnabled(False)
+        self._set_owocr_result("Testing...")
+
+        def run():
+            try:
+                self._owocr_test_result.emit((settings, check_owocr_endpoint(settings)))
+            except Exception as e:
+                self._owocr_test_result.emit((settings, str(e)))
+
+        threading.Thread(target=run, daemon=True).start()
+
+    def _on_owocr_test_done(self, payload):
+        settings, result = payload
+        if settings is not self._owocr_test_request:
+            return  # superseded by a newer Test
+        self._owocr_test_request = None
+        self._owocr_test_btn.setEnabled(True)
+        if settings != self._owocr_settings_from_ui():
+            self._set_owocr_result("Settings changed during the test; click Test again.", error=True)
+            return
+        if isinstance(result, str):
+            self._set_owocr_result(result, error=True)
+            return
+        self._set_owocr_result(f"OK in {result} ms")
+
+    def _apply_ocr_settings(self):
+        """Save the OCR group to config and reload the engine in the worker."""
+        backend = self._selected_ocr_backend()
+        if backend == OCRBackend.OWOCR:
+            self._config.owocr = self._owocr_settings_from_ui()
+            self._owocr_url_edit.setText(self._config.owocr.url)
+        self._config.ocr_backend = backend
+        self._config.save()
+
+        self._ocr_engine_label.setText(self._ocr_engine_name())
+        self._ocr_status_label.setToolTip("")
+        self._fix_models_btn.setVisible(False)
+        self.statusBar().showMessage("Reloading OCR engine...")
+        self._process_worker.reload_ocr()
 
     # ==================== TRANSLATION SETTINGS ====================
 
@@ -534,6 +670,10 @@ class MainWindow(QMainWindow):
     def _on_engine_changed(self, _index: int):
         """Show the LLM panel only when the LLM engine is selected."""
         self._llm_panel.setVisible(self._selected_backend() == TranslationBackend.LLM)
+        self._grow_to_fit()
+
+    def _grow_to_fit(self):
+        """Grow the window height when a panel was revealed (adjustSize() caps at 2/3 of the screen)."""
         needed = self.sizeHint().height()
         if needed > self.height():
             self.resize(self.width(), needed)
@@ -547,8 +687,11 @@ class MainWindow(QMainWindow):
         self._llm_result_label.setText("")
 
     def _set_llm_result(self, text: str, error: bool = False):
-        """Show a one-line result under the LLM panel; the full text is in the tooltip."""
-        label = self._llm_result_label
+        self._set_result_label(self._llm_result_label, text, error)
+
+    @staticmethod
+    def _set_result_label(label: QLabel, text: str, error: bool = False):
+        """Show a one-line result under a settings panel; the full text is in the tooltip."""
         label.setStyleSheet("color: #d9534f;" if error else "color: green;")
         label.setToolTip(text)
         # Elide instead of wrapping: the window's minimum size is locked, so a taller
@@ -762,6 +905,8 @@ class MainWindow(QMainWindow):
                 self._set_llm_result(error, error=True)
         if "ocr" in failed:
             self._ocr_status_label.setToolTip(error)
+            if self._config.ocr_backend == OCRBackend.OWOCR:
+                self._set_owocr_result(error, error=True)
         logger.error("model loading failed", error=error)
 
     def _on_ocr_status(self, status: str):
@@ -771,6 +916,7 @@ class MainWindow(QMainWindow):
             status = "downloading"
         if status == "ready":
             self._fixing_ocr = False
+            self._ocr_status_label.setToolTip("")
         self._update_status_label(self._ocr_status_label, status)
         self._update_fix_button_visibility()
 
@@ -813,10 +959,7 @@ class MainWindow(QMainWindow):
         if self._fix_models_btn.isVisible():
             return
         self._fix_models_btn.setVisible(True)
-        # adjustSize() caps windows at 2/3 of the screen, so grow the height explicitly
-        needed = self.sizeHint().height()
-        if needed > self.height():
-            self.resize(self.width(), needed)
+        self._grow_to_fit()
 
     def _on_fix_models(self):
         """Handle Fix Models button click."""
@@ -826,9 +969,9 @@ class MainWindow(QMainWindow):
         self._fixing_ocr = False
         self._fixing_translation = False
 
-        # Delete caches for failed models
+        # Delete caches for failed built-in models; endpoint-backed engines have nothing to download
         failed = self._process_worker.get_failed_models()
-        if "ocr" in failed:
+        if "ocr" in failed and self._config.ocr_backend == OCRBackend.MEIKI:
             delete_model_cache("rtr46/meiki.text.detect.v0")
             delete_model_cache("rtr46/meiki.txt.recognition.v0")
             self._fixing_ocr = True
@@ -839,10 +982,13 @@ class MainWindow(QMainWindow):
         # Hide the button while fixing
         self._fix_models_btn.setVisible(False)
 
-        if failed == ["translation"] and self._config.translation_backend == TranslationBackend.LLM:
-            # Nothing to download: retry the endpoint with the current settings
-            self.statusBar().showMessage("Reconnecting to translation endpoint...")
-            self._process_worker.reload_translation()
+        if not (self._fixing_ocr or self._fixing_translation):
+            # Nothing to download: retry the endpoints with the current settings
+            self.statusBar().showMessage("Reconnecting...")
+            if "ocr" in failed:
+                self._process_worker.reload_ocr()
+            if "translation" in failed:
+                self._process_worker.reload_translation()
             return
 
         self.statusBar().showMessage("Downloading models...")

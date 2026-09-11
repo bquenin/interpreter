@@ -1,12 +1,20 @@
-"""OCR module using MeikiOCR for Japanese game text extraction."""
+"""OCR module: the engine interface, the built-in MeikiOCR pipeline and the engine factory.
+
+This file is also loaded standalone by benchmark/ocr/runner.py with stub modules, so it
+must not import the configuration module at import time.
+"""
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Protocol
 
 import numpy as np
 from numpy.typing import NDArray
 
 from . import log
 from .capture.convert import bgra_to_rgb
+
+if TYPE_CHECKING:
+    from .config import Config
 
 logger = log.get_logger()
 
@@ -28,6 +36,28 @@ class OCRResult:
     bbox: dict | None = None  # {"x": int, "y": int, "width": int, "height": int}
 
 
+class OCREngine(Protocol):
+    """Interface shared by the built-in MeikiOCR pipeline and the owocr websocket backend."""
+
+    # Minimum confidence for a line to be kept; engines without scores ignore it.
+    confidence_threshold: float
+
+    @property
+    def name(self) -> str:
+        """Short engine name for the Status panel."""
+        ...
+
+    def load(self) -> None:
+        """Load the model or connect to the server; raises ModelLoadError on failure."""
+        ...
+
+    def extract_text_regions(self, image: NDArray[np.uint8]) -> list[OCRResult]:
+        """Extract text regions from a BGRA (H, W, 4) frame; bboxes in frame pixels."""
+        ...
+
+    def is_loaded(self) -> bool: ...
+
+
 class OCR:
     """Extracts Japanese text from images using MeikiOCR.
 
@@ -47,6 +77,11 @@ class OCR:
         self._model = None
         self._confidence_threshold = confidence_threshold
         self._debug = debug
+
+    @property
+    def name(self) -> str:
+        """Short engine name for the Status panel."""
+        return "MeikiOCR"
 
     @property
     def confidence_threshold(self) -> float:
@@ -75,8 +110,6 @@ class OCR:
 
     def _run_ocr_and_filter(self, image: NDArray[np.uint8]) -> list[dict]:
         """Run OCR and filter results by confidence threshold.
-
-        This is the common logic shared between extract_text() and extract_text_regions().
 
         Args:
             image: Numpy array (H, W, 4) in BGRA format.
@@ -138,25 +171,6 @@ class OCR:
                     )
 
         return self._deduplicate_lines(lines)
-
-    def extract_text(self, image: NDArray[np.uint8]) -> str:
-        """Extract Japanese text from an image.
-
-        Args:
-            image: Numpy array (H, W, 4) in BGRA format.
-
-        Returns:
-            Extracted text string.
-        """
-        lines = self._run_ocr_and_filter(image)
-        if not lines:
-            return ""
-
-        # Sort by position (top-to-bottom, left-to-right) for correct reading order
-        lines = sorted(lines, key=lambda line: (line["bbox"][1], line["bbox"][0]))
-
-        # Concatenate all text (no spatial clustering for banner mode)
-        return self._clean_text("".join(line["text"] for line in lines))
 
     def extract_text_regions(self, image: NDArray[np.uint8]) -> list[OCRResult]:
         """Extract Japanese text regions from an image with spatial clustering.
@@ -330,3 +344,14 @@ class OCR:
             True if model is loaded, False otherwise.
         """
         return self._model is not None
+
+
+def create_ocr(config: "Config") -> OCREngine:
+    """Build the OCR engine selected in the configuration."""
+    from .config import OCRBackend
+
+    if config.ocr_backend == OCRBackend.OWOCR:
+        from .owocr_ocr import OwocrOCR
+
+        return OwocrOCR(config.owocr)
+    return OCR()

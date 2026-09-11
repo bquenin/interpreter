@@ -99,7 +99,7 @@ Transparent overlay positioned over the game window. Translated text appears dir
 ## How It Works
 
 1. **Screen Capture** - Captures the target window at the configured refresh rate
-2. **OCR** - [MeikiOCR](https://github.com/rtr46/meikiocr) extracts Japanese text (optimized for pixel fonts)
+2. **OCR** - [MeikiOCR](https://github.com/rtr46/meikiocr) extracts Japanese text (optimized for pixel fonts), or an external [owocr](https://github.com/AuroraWright/owocr) server if you prefer another engine
 3. **Translation** - [Sugoi V4](https://huggingface.co/entai2965/sugoi-v4-ja-en-ctranslate2) translates Japanese to English
 4. **Display** - Shows translated text in the selected overlay mode
 
@@ -128,6 +128,36 @@ Use `127.0.0.1`, not `localhost`: on Windows, `localhost` adds about two seconds
 - **Remote endpoints**: the API key is stored in plain text in `config.yml`, every line of game text leaves your machine, and each request may cost money. Nothing is sent anywhere unless you pick the LLM engine.
 
 The same settings live in `config.yml` under `translation_backend` and `llm` if you prefer editing them by hand.
+
+## Using a Different OCR Engine (owocr)
+
+MeikiOCR is the built-in default and needs no setup. If it struggles with a particular game's font, the **OCR** panel can hand the screen capture to [owocr](https://github.com/AuroraWright/owocr) instead. owocr is a separate program that wraps many OCR engines behind one interface: Google Lens, Bing, OneOCR (Windows), Apple Live Text (macOS), Chrome Screen AI, MeikiOCR, Manga OCR, EasyOCR, RapidOCR and more. You run owocr with the engine of your choice; Interpreter sends it each frame over a local websocket and reads back the text and its positions.
+
+### Quick start
+
+1. Install owocr in its own Python environment (not Interpreter's), with the engine you want. OneOCR is the best local choice on Windows 10/11; Google Lens works on every platform but needs internet:
+   ```bash
+   pip install "owocr[oneocr]"   # Windows: uses the Snipping Tool OCR
+   pip install "owocr[lens]"     # any platform: Google Lens (cloud)
+   ```
+   The [prebuilt owocr packages](https://github.com/AuroraWright/owocr/releases) for Windows and macOS bundle every engine; they keep their tray icon, but the options below are all available in their configuration window.
+2. Start owocr as a websocket server. Replace `oneocr` with `glens`, `meikiocr`, `alivetext`, `mangaocrs`, ... for another engine:
+   ```bash
+   owocr -r websocket -w websocket -of json -e oneocr -el oneocr -t False -rt False -f False -a 0
+   ```
+   Every flag matters: `-of json` sends coordinates, `-rt False` and `-f False` turn off owocr's text reordering and furigana filter (the filter silently drops lines), `-a 0` stops owocr from pausing itself, and `-t False` hides the tray icon.
+3. In Interpreter, set the OCR **Engine** to *owocr*, keep the URL on `ws://127.0.0.1:7331`, click **Test**, then **Apply**. The OCR engine switches without interrupting capture.
+
+### What to expect
+
+- **Confidence**: owocr engines return no confidence scores, so the OCR confidence slider has no effect with this engine. Exclusion zones in *Configure OCR* still apply.
+- **Speed**: owocr checks for new frames every 100 ms, so add that to the engine's own time. OneOCR and MeikiOCR answer in well under a second; Google Lens takes one to two seconds per frame and sends every frame to Google.
+- **Layout**: each text line becomes one region. Vertical text comes back as one region per column.
+- **Errors**: if owocr stops or is paused, the OCR status turns to *Error* after three failed frames. Start owocr again and click **Fix Models** to reconnect.
+- **One client at a time**: owocr broadcasts every result to every connected client, so run a dedicated owocr instance for Interpreter. owocr also listens on all network interfaces; keep port 7331 firewalled.
+- **Languages**: translation is still limited to Japanese text in this version, whichever OCR engine reads it.
+
+The same settings live in `config.yml` under `ocr_backend` and `owocr`.
 
 ## Troubleshooting
 
