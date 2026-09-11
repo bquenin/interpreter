@@ -43,7 +43,13 @@ def test_registries_are_valid_and_models_are_revision_pinned():
     assert benchlib.validate_source_registry(sources) == []
     assert benchlib.validate_model_registry(models) == []
     assert benchlib.validate_reviews(reviews) == []
-    assert all(len(model["revision"]) == 40 for model in models["models"].values())
+    for model in models["models"].values():
+        if model["adapter"] == "ollama":
+            # Pinned by Ollama manifest digest; a Hugging Face revision is optional
+            assert len(model["ollama_digest"]) == 64
+            assert model["revision"] is None or len(model["revision"]) == 40
+        else:
+            assert len(model["revision"]) == 40
     assert (
         sum(
             quota
@@ -53,6 +59,18 @@ def test_registries_are_valid_and_models_are_revision_pinned():
         )
         == 268
     )
+
+
+def test_model_registry_requires_ollama_pins():
+    models = _load("models.json")
+    broken = json.loads(json.dumps(models))
+    broken["models"]["sugoi-14b-ultra-q4"]["ollama_digest"] = "abc"
+    del broken["models"]["gemma3-12b-q4"]["ollama_model"]
+    broken["models"]["quickmt"]["revision"] = None
+    errors = benchlib.validate_model_registry(broken)
+    assert any("sugoi-14b-ultra-q4.ollama_digest" in error for error in errors)
+    assert any("gemma3-12b-q4.ollama_model" in error for error in errors)
+    assert any("quickmt.revision is required" in error for error in errors)
 
 
 def test_corpus_cleaning_removes_controls_but_preserves_visible_punctuation():

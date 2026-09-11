@@ -32,7 +32,7 @@ No synthetic text or generated screenshots are accepted. Downloaded source files
 
 ## Models
 
-`models.json` pins every repository to a full Hugging Face revision and pins its benchmark packages. The default overnight matrix is:
+`models.json` pins every Hugging Face repository to a full revision, pins the two Ollama models to their manifest digests, and pins each candidate's benchmark packages. The default overnight matrix is:
 
 | ID | Model | Parameters/artifacts | Inference profile |
 |---|---|---|---|
@@ -41,8 +41,12 @@ No synthetic text or generated screenshots are accepted. Downloaded source files
 | `lfm2-350m` | [LFM2-350M-ENJP-MT](https://huggingface.co/LiquidAI/LFM2-350M-ENJP-MT) | 350M/about 0.7 GB | Required `Translate to English.` system turn and documented sampling profile, deterministically seeded per source |
 | `hy-mt-1.8b` | [HY-MT1.5-1.8B](https://huggingface.co/tencent/HY-MT1.5-1.8B) | 1.8B/about 4.1 GB | Documented no-explanation prompt and sampling profile, deterministically seeded per source |
 | `riva-4b-v2` | [Riva-Translate-4B-Instruct-v2](https://huggingface.co/nvidia/Riva-Translate-4B-Instruct-v2) | 4B/about 8.4 GB | Required `ja-en` system turn, greedy decoding |
+| `sugoi-14b-ultra-q4` | [Sugoi-14B-Ultra-GGUF](https://huggingface.co/sugoitoolkit/Sugoi-14B-Ultra-GGUF) Q4_K_M via Ollama | 14.8B/about 8.4 GiB GGUF | Exact application LLM-endpoint path (see below) |
+| `gemma3-12b-q4` | [gemma3:12b](https://ollama.com/library/gemma3:12b) Q4_K_M via Ollama | 12.2B/about 7.6 GiB GGUF | Exact application LLM-endpoint path (see below) |
 
 [TranslateGemma 4B](https://huggingface.co/google/translategemma-4b-it) is also registered and supported, but is excluded from the default matrix because its Gemma license must first be accepted on Hugging Face. Pass it explicitly after setting `HF_TOKEN`.
+
+The two `ollama` candidates measure what a user gets from the application's **LLM endpoint** engine: the exact `src/interpreter/llm_translate.py` path with the application's system prompt, Ollama's native API, thinking disabled, temperature 0 and a fixed seed. Context replay is disabled because corpus pairs are independent. They need a running Ollama server (default `http://127.0.0.1:11434`, override with `INTERPRETER_OLLAMA_URL`) with the model already pulled; the adapter refuses to run if the pulled model's manifest digest differs from the `ollama_digest` pin, and it records the server version, quantization and placement (GPU, CPU or split) in the report. Ollama decides device placement, so `--device` must stay `auto` for them. If the server is not running, the matrix marks them failed and continues with the other candidates.
 
 The transformer environments use the pinned CUDA 12.8 PyTorch index. QuickMT includes the same pip CUDA runtime packages the application uses for CTranslate2. Each candidate runs in a separate `uv --isolated --no-project` environment and a separate ignored Hugging Face cache, so the benchmark never edits the application environment or lock file. The report records the resolved revision, SHA-256 of every loaded artifact, package versions, actual device/dtype, peak PyTorch GPU allocation, application source hashes, and Git state.
 
@@ -62,7 +66,7 @@ $env:PYTHONUTF8 = "1"
 
 On macOS/Linux, replace `.\.venv\Scripts\python.exe` with `.venv/bin/python`.
 
-The default matrix runs production plus all four accessible candidates, three timed repeats, two warm-ups, chrF++/BLEU, pinned WMT22 COMET, and a paired comparison for each candidate. It can download roughly 17 GB of model and metric artifacts. Raw and scored JSON reports go to ignored `benchmark/translation/results/`.
+The default matrix runs production plus all six accessible candidates (the four Hugging Face candidates and the two Ollama ones), three timed repeats, two warm-ups, chrF++/BLEU, pinned WMT22 COMET, and a paired comparison for each candidate. It can download roughly 17 GB of Hugging Face model and metric artifacts; the two Ollama models (about 16 GB) must be pulled separately with `ollama pull`, and they are skipped with a recorded failure when no Ollama server is running. Raw and scored JSON reports go to ignored `benchmark/translation/results/`.
 
 Useful smaller commands:
 

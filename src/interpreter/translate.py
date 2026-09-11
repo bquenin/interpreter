@@ -9,12 +9,16 @@ os.environ["HF_HUB_VERBOSITY"] = "error"
 
 from difflib import SequenceMatcher
 from pathlib import Path
+from typing import TYPE_CHECKING, Protocol
 
 from huggingface_hub import snapshot_download
 from huggingface_hub.utils import LocalEntryNotFoundError
 
 from . import log
 from .models import ModelLoadError
+
+if TYPE_CHECKING:
+    from .config import Config
 
 logger = log.get_logger()
 
@@ -112,6 +116,45 @@ def text_similarity(a: str, b: str) -> float:
     return SequenceMatcher(None, a, b).ratio()
 
 
+def normalize_output(text: str) -> str:
+    """Normalize Unicode punctuation to ASCII equivalents (fixes overlay rendering issues)."""
+    return (
+        text.strip()
+        # Curly quotes → straight quotes
+        .replace("\u2018", "'")  # LEFT SINGLE QUOTATION MARK
+        .replace("\u2019", "'")  # RIGHT SINGLE QUOTATION MARK
+        .replace("\u201c", '"')  # LEFT DOUBLE QUOTATION MARK
+        .replace("\u201d", '"')  # RIGHT DOUBLE QUOTATION MARK
+        # Dashes
+        .replace("\u2013", "-")  # EN DASH
+        .replace("\u2014", "--")  # EM DASH
+        .replace("\u2212", "-")  # MINUS SIGN
+        # Spaces
+        .replace("\u00a0", " ")  # NO-BREAK SPACE
+        # Ellipsis
+        .replace("\u2026", "...")  # HORIZONTAL ELLIPSIS
+    )
+
+
+class TranslationEngine(Protocol):
+    """Interface shared by the built-in Sugoi translator and the LLM endpoint backend."""
+
+    @property
+    def name(self) -> str:
+        """Short description for the status panel (e.g. "Sugoi V4")."""
+        ...
+
+    def load(self) -> None:
+        """Load or connect the engine. Raises ModelLoadError on failure."""
+        ...
+
+    def translate(self, text: str) -> tuple[str, bool]:
+        """Translate Japanese text. Returns (translation, was_cached)."""
+        ...
+
+    def is_loaded(self) -> bool: ...
+
+
 class TranslationCache:
     """LRU cache for translations with fuzzy key matching."""
 
@@ -183,6 +226,11 @@ class Translator:
         self._translator = None
         self._tokenizer = None
         self._cache = TranslationCache(cache_size, similarity_threshold)
+
+    @property
+    def name(self) -> str:
+        """Short description for the status panel."""
+        return "Sugoi V4"
 
     def load(self) -> None:
         """Load the translation model, downloading if needed.
@@ -303,23 +351,7 @@ class Translator:
         translated_tokens = results[0].hypotheses[0]
         result = "".join(translated_tokens).replace("▁", " ").strip()
 
-        # Normalize Unicode characters to ASCII equivalents (fixes rendering issues)
-        result = (
-            result
-            # Curly quotes → straight quotes
-            .replace("\u2018", "'")  # LEFT SINGLE QUOTATION MARK
-            .replace("\u2019", "'")  # RIGHT SINGLE QUOTATION MARK
-            .replace("\u201c", '"')  # LEFT DOUBLE QUOTATION MARK
-            .replace("\u201d", '"')  # RIGHT DOUBLE QUOTATION MARK
-            # Dashes
-            .replace("\u2013", "-")  # EN DASH
-            .replace("\u2014", "--")  # EM DASH
-            .replace("\u2212", "-")  # MINUS SIGN
-            # Spaces
-            .replace("\u00a0", " ")  # NO-BREAK SPACE
-            # Ellipsis
-            .replace("\u2026", "...")  # HORIZONTAL ELLIPSIS
-        )
+        result = normalize_output(result)
 
         # Store in cache
         self._cache.put(text, result)
@@ -333,3 +365,14 @@ class Translator:
             True if model is loaded, False otherwise.
         """
         return self._translator is not None
+
+
+def create_translator(config: "Config") -> TranslationEngine:
+    """Build the translation engine selected in the configuration."""
+    from .config import TranslationBackend
+
+    if config.translation_backend == TranslationBackend.LLM:
+        from .llm_translate import LLMTranslator
+
+        return LLMTranslator(config.llm)
+    return Translator()

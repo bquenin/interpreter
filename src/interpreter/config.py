@@ -1,6 +1,8 @@
 """Configuration management for Interpreter."""
 
 import os
+from dataclasses import asdict, dataclass, fields
+from dataclasses import field as dataclass_field
 from enum import Enum
 from pathlib import Path
 
@@ -14,6 +16,87 @@ class OverlayMode(str, Enum):
 
     BANNER = "banner"
     INPLACE = "inplace"
+
+
+class TranslationBackend(str, Enum):
+    """Which engine translates the OCR output."""
+
+    SUGOI = "sugoi"  # Built-in offline Sugoi V4 (CTranslate2)
+    LLM = "llm"  # Ollama or any OpenAI-compatible chat endpoint
+
+
+LLM_PROVIDERS = ("ollama", "openai")
+
+
+@dataclass
+class LLMSettings:
+    """Connection and prompt settings for the LLM endpoint translation backend."""
+
+    provider: str = "ollama"  # "ollama" (native API) or "openai" (OpenAI-compatible /v1)
+    base_url: str = "http://127.0.0.1:11434"
+    model: str = ""
+    api_key: str = ""  # Stored in plain text in config.yml; only needed for hosted services
+    target_language: str = "English"
+    system_prompt: str | None = None  # None = built-in default; may contain {target_language}
+    context_lines: int = 3  # Previous lines replayed as conversation history
+    timeout: float = 30.0  # Seconds per request
+    # Extra JSON fields merged into every chat request, for provider/model-specific
+    # controls the app does not know about (e.g. {"reasoning_effort": "none"} on an
+    # OpenAI-compatible server, or {"options": {"num_ctx": 2048}} on Ollama).
+    request_options: dict = dataclass_field(default_factory=dict)
+
+    @classmethod
+    def from_dict(cls, data: dict | None) -> "LLMSettings":
+        """Build settings from a YAML mapping, ignoring unknown keys and bad types."""
+        defaults = cls()
+        if not isinstance(data, dict):
+            return defaults
+        kwargs = {}
+        for field in fields(cls):
+            if field.name not in data:
+                continue
+            value = data[field.name]
+            default = getattr(defaults, field.name)
+            try:
+                if field.name == "system_prompt":
+                    kwargs[field.name] = str(value) if value else None
+                elif field.name == "request_options":
+                    if value is None:
+                        continue
+                    if not isinstance(value, dict):
+                        raise TypeError("request_options must be a mapping")
+                    kwargs[field.name] = {str(k): v for k, v in value.items()}
+                elif isinstance(default, bool):
+                    kwargs[field.name] = bool(value)
+                elif isinstance(default, int):
+                    kwargs[field.name] = int(value)
+                elif isinstance(default, float):
+                    kwargs[field.name] = float(value)
+                else:
+                    kwargs[field.name] = str(value) if value is not None else default
+            except (TypeError, ValueError):
+                logger.warning("invalid llm setting, using default", key=field.name, value=value)
+
+        # Values that parse but would break the HTTP client or route to the wrong API
+        if kwargs.get("provider") not in (None, *LLM_PROVIDERS):
+            logger.warning("unsupported llm provider, using default", provider=kwargs["provider"])
+            del kwargs["provider"]
+        if "timeout" in kwargs and not (0 < kwargs["timeout"] < float("inf")):
+            logger.warning("llm timeout must be a positive number, using default", timeout=kwargs["timeout"])
+            del kwargs["timeout"]
+        if "context_lines" in kwargs and kwargs["context_lines"] < 0:
+            logger.warning("llm context_lines cannot be negative, using default", value=kwargs["context_lines"])
+            del kwargs["context_lines"]
+        return cls(**kwargs)
+
+    def to_dict(self) -> dict:
+        """Plain-type mapping for YAML output (omits the prompt when it is the default)."""
+        data = asdict(self)
+        if self.system_prompt is None:
+            del data["system_prompt"]
+        if not self.request_options:
+            del data["request_options"]
+        return data
 
 
 logger = log.get_logger()
@@ -52,8 +135,12 @@ class Config:
         banner_y: int | None = None,
         exclusion_zones: dict | None = None,
         ocr_confidence_per_window: dict | None = None,
+        translation_backend: TranslationBackend = TranslationBackend.SUGOI,
+        llm: LLMSettings | None = None,
     ):
         self.window_title = window_title
+        self.translation_backend = translation_backend
+        self.llm = llm if llm is not None else LLMSettings()
         self.ocr_confidence = ocr_confidence  # Global default
         self.overlay_mode = overlay_mode
         self.font_family = font_family  # None = system default
@@ -112,6 +199,13 @@ class Config:
                 logger.warning("invalid overlay_mode, using banner", mode=mode_str)
                 overlay_mode = OverlayMode.BANNER
 
+            backend_str = data.get("translation_backend", TranslationBackend.SUGOI.value)
+            try:
+                translation_backend = TranslationBackend(backend_str)
+            except ValueError:
+                logger.warning("invalid translation_backend, using sugoi", backend=backend_str)
+                translation_backend = TranslationBackend.SUGOI
+
             return cls(
                 window_title=data.get("window_title", cls.DEFAULT_WINDOW_TITLE),
                 ocr_confidence=float(data.get("ocr_confidence", cls.DEFAULT_OCR_CONFIDENCE)),
@@ -127,6 +221,8 @@ class Config:
                 banner_y=data.get("banner_y"),
                 exclusion_zones=data.get("exclusion_zones", {}),
                 ocr_confidence_per_window=data.get("ocr_confidence_per_window", {}),
+                translation_backend=translation_backend,
+                llm=LLMSettings.from_dict(data.get("llm")),
             )
 
         # No config file found - create default in home directory
@@ -162,6 +258,20 @@ font_size: 26
 font_color: "#FFFFFF"
 background_color: "#404040"
 background_opacity: 0.8  # 0.0 (transparent) to 1.0 (opaque)
+
+# Translation engine: "sugoi" (built-in, offline) or "llm" (Ollama / OpenAI-compatible endpoint)
+# The llm block is only used when translation_backend is "llm". Configure it from the app's
+# Translation panel, or by hand:
+# translation_backend: sugoi
+# llm:
+#   provider: ollama            # "ollama" or "openai"
+#   base_url: http://127.0.0.1:11434
+#   model: ""                   # e.g. "gemma3:4b" (run "ollama pull gemma3:4b" first)
+#   api_key: ""                 # only for hosted services
+#   target_language: English
+#   context_lines: 3            # previous lines sent as context
+#   timeout: 30                 # seconds per request
+#   request_options: {}         # extra JSON fields for every request, e.g. {reasoning_effort: none}
 
 # Hotkeys - single characters or special key names
 # Special keys: f1-f12, escape, space, enter, tab, backspace, delete,
@@ -263,6 +373,10 @@ hotkeys:
             "background_opacity": float(self.background_opacity),
             "hotkeys": {str(k): str(v) for k, v in self.hotkeys.items()},
         }
+        # Translation backend; the llm block is only written once the user has touched it
+        data["translation_backend"] = self.translation_backend.value
+        if self.translation_backend == TranslationBackend.LLM or self.llm != LLMSettings():
+            data["llm"] = self.llm.to_dict()
         # Only save font_family if user has chosen one (None = system default)
         if self.font_family is not None:
             data["font_family"] = str(self.font_family)

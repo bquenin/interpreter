@@ -36,7 +36,14 @@ from metrics import compare_results, format_scored_summary, score_results
 from review import create_blind_packet, create_reference_packet, score_blind_packet
 from runner import run_benchmark
 
-DEFAULT_CANDIDATES = ["quickmt", "lfm2-350m", "hy-mt-1.8b", "riva-4b-v2"]
+DEFAULT_CANDIDATES = [
+    "quickmt",
+    "lfm2-350m",
+    "hy-mt-1.8b",
+    "riva-4b-v2",
+    "sugoi-14b-ultra-q4",
+    "gemma3-12b-q4",
+]
 
 
 def _configure_console_utf8() -> None:

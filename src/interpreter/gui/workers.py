@@ -6,11 +6,15 @@ import time
 from PySide6.QtCore import QObject, Signal
 
 from .. import log
-from ..config import OverlayMode
+from ..config import Config, OverlayMode
 from ..ocr import OCR
-from ..translate import Translator
+from ..translate import TranslationEngine, create_translator
 
 logger = log.get_logger()
+
+# After this many consecutive translation failures the engine is marked as failed
+# (status "Error" + Fix Models) instead of retrying on every frame forever.
+MAX_CONSECUTIVE_TRANSLATION_FAILURES = 3
 
 
 def contains_japanese(text: str) -> bool:
@@ -85,23 +89,30 @@ class ProcessWorker(QObject):
     # Emitted when models are loaded and ready
     models_ready = Signal()
 
-    # Emitted when model loading fails
+    # Emitted when model loading fails, with a user-readable description
     models_failed = Signal(str)
 
     # Per-model status signals: status can be "loading", "downloading", "ready", "error"
     ocr_status = Signal(str)
     translation_status = Signal(str)
 
-    def __init__(self):
+    def __init__(self, config: Config):
         super().__init__()
+        self._config = config
         self._ocr: OCR | None = None
-        self._translator: Translator | None = None
+        self._translator: TranslationEngine | None = None
         self._mode = OverlayMode.BANNER
         self._confidence_threshold = 0.6
 
-        # Track which models failed (for "Fix Models" button)
+        # Track which models failed (for "Fix Models" button) and why
         self._ocr_failed = False
         self._translation_failed = False
+        self._ocr_error = ""
+        self._translation_error = ""
+        self._translation_failures = 0  # consecutive runtime failures since the last success
+
+        # Set when the UI changes the translation backend; handled on the worker thread
+        self._reload_translation = False
 
         # Threading
         self._frame_buffer = FrameBuffer()
@@ -137,6 +148,14 @@ class ProcessWorker(QObject):
         if self._running:
             self._frame_buffer.put(frame)
 
+    def reload_translation(self):
+        """Rebuild the translation engine from the current config (after a settings change).
+
+        Runs on the worker thread between frames, so OCR keeps its loaded model and
+        capture is not interrupted.
+        """
+        self._reload_translation = True  # picked up within the loop's 0.5 s poll interval
+
     def has_failed_models(self) -> bool:
         """Check if any models failed to load."""
         return self._ocr_failed or self._translation_failed
@@ -150,50 +169,95 @@ class ProcessWorker(QObject):
             failed.append("translation")
         return failed
 
+    def get_failure_message(self) -> str:
+        """Describe why loading failed, for the status bar."""
+        return "; ".join(m for m in (self._ocr_error, self._translation_error) if m)
+
     def _run(self):
         """Worker thread main loop."""
         logger.debug("worker thread starting")
 
-        # Load OCR model
+        self._load_ocr()
+        self._load_translator()
+        self._emit_models_status()
+
+        while self._running:
+            if self._reload_translation:
+                self._reload_translation = False
+                self._load_translator()
+                self._emit_models_status()
+
+            frame = self._frame_buffer.get(timeout=0.5)
+            # Only process frames if both models loaded successfully
+            if frame is not None and not (self._ocr_failed or self._translation_failed):
+                self._process_frame(frame)
+
+        logger.debug("worker thread stopped")
+
+    def _load_ocr(self):
+        """Load the OCR model, recording failure for the Fix Models flow."""
         self.ocr_status.emit("loading")
         try:
             self._ocr = OCR(confidence_threshold=self._confidence_threshold)
             self._ocr.load()
             self._ocr_failed = False
+            self._ocr_error = ""
             self.ocr_status.emit("ready")
             logger.debug("OCR model loaded")
         except Exception as e:
             self._ocr_failed = True
+            self._ocr_error = str(e)
             self.ocr_status.emit("error")
             logger.error("failed to load OCR model", error=str(e))
 
-        # Load translation model
+    def _load_translator(self):
+        """Build and load the configured translation engine."""
         self.translation_status.emit("loading")
+        self._translator = None
         try:
-            self._translator = Translator()
-            self._translator.load()
+            translator = create_translator(self._config)
+            translator.load()
+            self._translator = translator
             self._translation_failed = False
+            self._translation_error = ""
+            self._translation_failures = 0
             self.translation_status.emit("ready")
-            logger.debug("translation model loaded")
+            logger.debug("translation engine loaded", engine=translator.name)
         except Exception as e:
             self._translation_failed = True
+            self._translation_error = str(e)
             self.translation_status.emit("error")
-            logger.error("failed to load translation model", error=str(e))
+            logger.error("failed to load translation engine", error=str(e))
 
-        # Emit overall status
+    def _record_translation_failure(self, error: Exception) -> bool:
+        """Count a runtime translation failure; mark the engine failed after repeated ones.
+
+        A dead endpoint would otherwise keep showing "Ready" while every frame fails.
+        Once marked failed, frames are skipped until the UI reloads the engine
+        (Apply or Fix Models), which is the recovery path.
+
+        Returns:
+            True if the engine has just been marked as failed.
+        """
+        self._translation_failures += 1
+        if self._translation_failures < MAX_CONSECUTIVE_TRANSLATION_FAILURES:
+            return False
+        self._translation_failed = True
+        self._translation_error = str(error)
+        self.translation_status.emit("error")
+        self.models_failed.emit(self._translation_error)
+        logger.error(
+            "translation engine marked as failed",
+            failures=self._translation_failures,
+            error=self._translation_error,
+        )
+        return True
+
+    def _emit_models_status(self):
         if self._ocr_failed or self._translation_failed:
-            self.models_failed.emit("One or more models failed to load")
+            self.models_failed.emit(self.get_failure_message() or "One or more models failed to load")
         else:
             self.models_ready.emit()
-
-        # Only process frames if both models loaded successfully
-        if not self._ocr_failed and not self._translation_failed:
-            while self._running:
-                frame = self._frame_buffer.get(timeout=0.5)
-                if frame is not None:
-                    self._process_frame(frame)
-
-        logger.debug("worker thread stopped")
 
     def _process_frame(self, frame):
         """Process a frame through OCR and translation."""
@@ -255,10 +319,13 @@ class ProcessWorker(QObject):
                         translated, cached = self._translator.translate(region.text)
                         if not cached:
                             all_cached = False
+                        self._translation_failures = 0
                     except Exception as e:
                         logger.warning("Translation error", error=str(e), text=region.text[:50])
                         translated = region.text
                         all_cached = False
+                        if self._record_translation_failure(e):
+                            break
                 else:
                     continue
                 translated_regions.append((translated, region.bbox))
@@ -270,9 +337,11 @@ class ProcessWorker(QObject):
             if self._translator:
                 try:
                     translated, was_cached = self._translator.translate(text)
+                    self._translation_failures = 0
                 except Exception as e:
                     logger.warning("Translation error", error=str(e), text=text[:50])
                     translated = f"[{text}]"
+                    self._record_translation_failure(e)
             else:
                 translated = text
             translate_ms = int((time.perf_counter() - translate_start) * 1000)
