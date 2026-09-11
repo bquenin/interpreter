@@ -47,7 +47,9 @@
         "huggingface-hub==0.36.0",
         "hf-xet==1.6.0"
       ],
-      "uv_indexes": ["https://download.pytorch.org/whl/cu128"],
+      "uv_indexes": [
+        "https://download.pytorch.org/whl/cu128"
+      ],
       "generation": {
         "do_sample": true,
         "max_new_tokens": 256,
@@ -71,7 +73,9 @@
         "huggingface-hub==0.36.0",
         "hf-xet==1.6.0"
       ],
-      "uv_indexes": ["https://download.pytorch.org/whl/cu128"],
+      "uv_indexes": [
+        "https://download.pytorch.org/whl/cu128"
+      ],
       "generation": {
         "do_sample": true,
         "max_new_tokens": 256,
@@ -95,7 +99,9 @@
         "huggingface-hub==0.36.0",
         "hf-xet==1.6.0"
       ],
-      "uv_indexes": ["https://download.pytorch.org/whl/cu128"],
+      "uv_indexes": [
+        "https://download.pytorch.org/whl/cu128"
+      ],
       "generation": {
         "do_sample": false,
         "max_new_tokens": 256
@@ -116,10 +122,54 @@
         "huggingface-hub==0.36.0",
         "hf-xet==1.6.0"
       ],
-      "uv_indexes": ["https://download.pytorch.org/whl/cu128"],
+      "uv_indexes": [
+        "https://download.pytorch.org/whl/cu128"
+      ],
       "generation": {
         "do_sample": false,
         "max_new_tokens": 256
+      }
+    },
+    "sugoi-14b-ultra-q4": {
+      "label": "Sugoi 14B Ultra GGUF Q4_K_M via Ollama",
+      "adapter": "ollama",
+      "repo_id": "sugoitoolkit/Sugoi-14B-Ultra-GGUF",
+      "revision": "d8dd836bf519a604530779cbf5ce13ffb35c3eeb",
+      "ollama_model": "hf.co/sugoitoolkit/Sugoi-14B-Ultra-GGUF:Q4_K_M",
+      "ollama_digest": "e4afea968d865c77fac857a990ad8b55aef91d0e9d301b900de42126f95519c7",
+      "license": "Apache-2.0",
+      "deployment_status": "user_supplied_runtime",
+      "packages": [
+        "requests==2.33.0",
+        "pyyaml==6.0.3",
+        "huggingface-hub==1.2.3"
+      ],
+      "generation": {
+        "temperature": 0,
+        "seed": 42,
+        "num_predict": 256,
+        "think": false
+      }
+    },
+    "gemma3-12b-q4": {
+      "label": "Google Gemma 3 12B Q4_K_M via Ollama",
+      "adapter": "ollama",
+      "repo_id": "ollama.com/library/gemma3:12b",
+      "revision": null,
+      "ollama_model": "gemma3:12b",
+      "ollama_digest": "f4031aab637d1ffa37b42570452ae0e4fad0314754d17ded67322e4b95836f8a",
+      "license": "Gemma Terms of Use",
+      "deployment_status": "user_supplied_runtime",
+      "packages": [
+        "requests==2.33.0",
+        "pyyaml==6.0.3",
+        "huggingface-hub==1.2.3"
+      ],
+      "generation": {
+        "temperature": 0,
+        "seed": 42,
+        "num_predict": 256,
+        "think": false
       }
     }
   }

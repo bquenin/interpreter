@@ -242,6 +242,13 @@ def validate_model_registry(registry: dict[str, Any]) -> list[str]:
             errors.append(f"{prefix}.uv_indexes must be an HTTPS URL list when provided")
         if not isinstance(model.get("generation"), dict):
             errors.append(f"{prefix}.generation must be an object")
+        if model.get("adapter") == "ollama":
+            if not isinstance(model.get("ollama_model"), str) or not model["ollama_model"]:
+                errors.append(f"{prefix}.ollama_model must be a non-empty string")
+            if not re.fullmatch(r"[0-9a-f]{64}", str(model.get("ollama_digest"))):
+                errors.append(f"{prefix}.ollama_digest must be the model's manifest sha256 digest")
+        elif revision is None:
+            errors.append(f"{prefix}.revision is required for Hugging Face models")
     return errors
 
 

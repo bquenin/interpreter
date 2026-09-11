@@ -58,6 +58,16 @@ def load_application_translator(repo_root: Path):
     return _load_module("interpreter.translate", translate_path).Translator
 
 
+def load_application_llm_translator(repo_root: Path):
+    """Load production llm_translate.py (and the config it needs) next to translate.py."""
+
+    load_application_translator(repo_root)  # registers the interpreter package and log/model stubs
+    source_root = repo_root / "src" / "interpreter"
+    config_module = _load_module("interpreter.config", source_root / "config.py")
+    llm_module = _load_module("interpreter.llm_translate", source_root / "llm_translate.py")
+    return config_module, llm_module
+
+
 def setup_application_gpu(repo_root: Path) -> bool:
     """Run the same platform GPU bootstrap that the GUI performs at startup."""
 
@@ -543,8 +553,151 @@ class TranslateGemmaAdapter(TransformersAdapter):
         return value
 
 
+class OllamaAdapter(BaseAdapter):
+    """Exact application LLM-endpoint path against a locally running Ollama server.
+
+    The server decides the device and quantization; the benchmark verifies that the
+    pulled model matches the registry's manifest digest before measuring anything.
+    """
+
+    prompt_contract = (
+        "exact src/interpreter/llm_translate.py::LLMTranslator path: application system prompt, "
+        "Ollama native /api/chat with think=false, temperature 0, fixed seed, no context history; "
+        "cache cleared per call"
+    )
+
+    def _request(self, method: str, route: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+        try:
+            response = self.requests.request(method, f"{self.base_url}{route}", json=payload, timeout=60)
+            response.raise_for_status()
+            return response.json()
+        except self.requests.ConnectionError as exc:
+            raise BenchmarkError(
+                f"Cannot reach Ollama at {self.base_url}. Start it (or set INTERPRETER_OLLAMA_URL)."
+            ) from exc
+        except self.requests.RequestException as exc:
+            raise BenchmarkError(f"Ollama request {route} failed: {exc}") from exc
+
+    def load(self) -> None:
+        if self.device_preference != "auto":
+            raise BenchmarkError("The Ollama adapter cannot pick a device; the Ollama server decides placement")
+        try:
+            import requests
+        except ImportError as exc:
+            raise BenchmarkError("The Ollama adapter requires requests") from exc
+        self.requests = requests
+
+        config_module, llm_module = load_application_llm_translator(self.repo_root)
+        self.base_url = llm_module.normalize_base_url(
+            "ollama", os.environ.get("INTERPRETER_OLLAMA_URL", config_module.LLMSettings().base_url)
+        )
+        name = self.model["ollama_model"]
+
+        entry = next((m for m in self._request("GET", "/api/tags").get("models", []) if m.get("name") == name), None)
+        if entry is None:
+            raise BenchmarkError(f"{name} is not pulled on Ollama at {self.base_url}. Run: ollama pull {name}")
+        if entry.get("digest") != self.model["ollama_digest"]:
+            raise BenchmarkError(
+                f"Ollama has {name} at manifest digest {entry.get('digest')}, but models.json pins "
+                f"{self.model['ollama_digest']}"
+            )
+        self.ollama_entry = entry
+        self.ollama_show = self._request("POST", "/api/show", {"model": name})
+        self.ollama_version = self._request("GET", "/api/version").get("version")
+
+        # The application hardcodes its decoding settings; keep the registry honest about them.
+        application_generation = {
+            "temperature": llm_module.TEMPERATURE,
+            "seed": llm_module.SEED,
+            "num_predict": llm_module.MAX_OUTPUT_TOKENS,
+            "think": False,
+        }
+        if self.model["generation"] != application_generation:
+            raise BenchmarkError(
+                f"models.json generation for {self.model_id} must equal the application's settings "
+                f"{application_generation}"
+            )
+
+        settings = config_module.LLMSettings(
+            provider="ollama",
+            base_url=self.base_url,
+            model=name,
+            context_lines=0,  # benchmark pairs are independent; the app would replay recent lines
+            timeout=600,  # covers the first load of a multi-GB model on a slow disk
+        )
+        self.translator = llm_module.LLMTranslator(settings, cache_size=1)
+        self.translator.load()
+
+        running = next((m for m in self._request("GET", "/api/ps").get("models", []) if m.get("name") == name), None)
+        size = (running or {}).get("size") or 0
+        in_vram = (running or {}).get("size_vram") or 0
+        if running is None:
+            self.device = "unknown"
+        elif in_vram >= size:
+            self.device = "gpu"
+        elif in_vram == 0:
+            self.device = "cpu"
+        else:
+            self.device = f"gpu {in_vram * 100 // size}% / cpu"
+        details = entry.get("details") or {}
+        quantization = details.get("quantization_level")
+        if not quantization or quantization == "unknown":
+            quantization = name.rsplit(":", 1)[-1] if ":" in name else "unknown"
+        self.compute_type = f"gguf {quantization}"
+
+    def clear_cache(self) -> None:
+        self.translator._cache._cache.clear()
+        self.translator._history.clear()
+
+    def translate(self, text: str) -> str:
+        prediction, was_cached = self.translator.translate(text)
+        if was_cached:
+            raise BenchmarkError(
+                "Ollama translation unexpectedly used the application fuzzy cache during a measured call"
+            )
+        return prediction
+
+    def metadata(self) -> dict[str, Any]:
+        name = self.model["ollama_model"]
+        digest = self.ollama_entry["digest"]
+        size = self.ollama_entry.get("size")
+        model_info = self.ollama_show.get("model_info") or {}
+        return {
+            "id": self.model_id,
+            "registry": self.model,
+            "repo_id": self.model["repo_id"],
+            "adapter": self.model["adapter"],
+            "device_preference": self.device_preference,
+            "device": self.device,
+            "compute_type": self.compute_type,
+            "prompt_contract": self.prompt_contract,
+            "generation": self.model["generation"],
+            "generation_seed": self.generation_seed,
+            "runtime_setup": {
+                "ollama_url": self.base_url,
+                "ollama_version": self.ollama_version,
+                "system_prompt": self.translator.system_prompt,
+            },
+            # Ollama exposes the manifest digest, not per-file hashes; it pins the same bytes.
+            "artifacts": {
+                "resolved_revision": digest,
+                "bytes": size,
+                "fingerprint": digest,
+                "files": [{"path": name, "bytes": size, "sha256": digest}],
+                "ollama_details": self.ollama_entry.get("details"),
+                "ollama_model_info": {
+                    key: model_info[key]
+                    for key in ("general.architecture", "general.parameter_count", "general.name", "general.basename")
+                    if key in model_info
+                },
+                "ollama_capabilities": self.ollama_show.get("capabilities"),
+            },
+        }
+
+
 ADAPTERS = {
     "production": ProductionAdapter,
+    "ollama": OllamaAdapter,
     "quickmt": QuickMTAdapter,
     "lfm2": LFM2Adapter,
     "hy_mt": HYMTAdapter,
