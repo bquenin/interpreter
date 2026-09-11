@@ -122,6 +122,7 @@ class ProcessWorker(QObject):
         self._frame_buffer = FrameBuffer()
         self._thread: threading.Thread | None = None
         self._running = False
+        self._stopped = False  # set by stop(); signals are no longer emitted after that
 
     def set_mode(self, mode: OverlayMode):
         """Set the overlay mode."""
@@ -141,11 +142,31 @@ class ProcessWorker(QObject):
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
 
-    def stop(self):
-        """Stop the worker thread."""
+    def stop(self, timeout: float = 5.0):
+        """Stop the worker thread and wait for it to finish the frame in progress.
+
+        Waiting matters: the caller typically drops this object right after (quit,
+        Fix Models), and a frame still being processed would otherwise emit on a
+        deleted QObject. A thread stuck in a slow engine call is abandoned after
+        ``timeout`` seconds; it is a daemon thread and its emits are suppressed.
+        """
+        self._stopped = True
         self._running = False
         self._frame_buffer.close()
-        self._thread = None
+        thread, self._thread = self._thread, None
+        if thread is not None and thread is not threading.current_thread():
+            thread.join(timeout)
+            if thread.is_alive():
+                logger.warning("worker thread still busy after stop", timeout=timeout)
+
+    def _emit(self, signal, *args):
+        """Emit a signal unless the worker was stopped (the receivers may be gone by then)."""
+        if self._stopped:
+            return
+        try:
+            signal.emit(*args)
+        except RuntimeError:  # "Signal source has been deleted": raced with teardown
+            logger.debug("signal dropped after teardown")
 
     def submit_frame(self, frame):
         """Send a frame for processing (non-blocking)."""
@@ -220,7 +241,7 @@ class ProcessWorker(QObject):
 
     def _load_ocr(self):
         """Build and load the configured OCR engine, recording failure for the Fix Models flow."""
-        self.ocr_status.emit("loading")
+        self._emit(self.ocr_status, "loading")
         self._discard_ocr()
         try:
             ocr = create_ocr(self._config)
@@ -230,17 +251,17 @@ class ProcessWorker(QObject):
             self._ocr_failed = False
             self._ocr_error = ""
             self._ocr_failures = 0
-            self.ocr_status.emit("ready")
+            self._emit(self.ocr_status, "ready")
             logger.debug("OCR engine loaded", engine=ocr.name)
         except Exception as e:
             self._ocr_failed = True
             self._ocr_error = str(e)
-            self.ocr_status.emit("error")
+            self._emit(self.ocr_status, "error")
             logger.error("failed to load OCR engine", error=str(e))
 
     def _load_translator(self):
         """Build and load the configured translation engine."""
-        self.translation_status.emit("loading")
+        self._emit(self.translation_status, "loading")
         self._translator = None
         try:
             translator = create_translator(self._config)
@@ -249,12 +270,12 @@ class ProcessWorker(QObject):
             self._translation_failed = False
             self._translation_error = ""
             self._translation_failures = 0
-            self.translation_status.emit("ready")
+            self._emit(self.translation_status, "ready")
             logger.debug("translation engine loaded", engine=translator.name)
         except Exception as e:
             self._translation_failed = True
             self._translation_error = str(e)
-            self.translation_status.emit("error")
+            self._emit(self.translation_status, "error")
             logger.error("failed to load translation engine", error=str(e))
 
     def _record_ocr_failure(self, error: Exception) -> bool:
@@ -271,8 +292,8 @@ class ProcessWorker(QObject):
             return False
         self._ocr_failed = True
         self._ocr_error = str(error)
-        self.ocr_status.emit("error")
-        self.models_failed.emit(self._ocr_error)
+        self._emit(self.ocr_status, "error")
+        self._emit(self.models_failed, self._ocr_error)
         logger.error("OCR engine marked as failed", failures=self._ocr_failures, error=self._ocr_error)
         return True
 
@@ -291,8 +312,8 @@ class ProcessWorker(QObject):
             return False
         self._translation_failed = True
         self._translation_error = str(error)
-        self.translation_status.emit("error")
-        self.models_failed.emit(self._translation_error)
+        self._emit(self.translation_status, "error")
+        self._emit(self.models_failed, self._translation_error)
         logger.error(
             "translation engine marked as failed",
             failures=self._translation_failures,
@@ -302,9 +323,9 @@ class ProcessWorker(QObject):
 
     def _emit_models_status(self):
         if self._ocr_failed or self._translation_failed:
-            self.models_failed.emit(self.get_failure_message() or "One or more models failed to load")
+            self._emit(self.models_failed, self.get_failure_message() or "One or more models failed to load")
         else:
-            self.models_ready.emit()
+            self._emit(self.models_ready)
 
     def _process_frame(self, frame):
         """Process a frame through OCR and translation."""
@@ -330,24 +351,26 @@ class ProcessWorker(QObject):
             logger.error("OCR error", error=str(e))
             self._record_ocr_failure(e)
             return
+        if self._stopped:
+            return  # stopped while the engine was busy: the receivers are being torn down
 
         # Emit raw OCR results for visualization (e.g., OCR config dialog)
-        self.ocr_results_ready.emit(regions)
+        self._emit(self.ocr_results_ready, regions)
 
         if not text:
             if self._mode == OverlayMode.INPLACE:
-                self.regions_ready.emit([])
+                self._emit(self.regions_ready, [])
             else:
-                self.text_ready.emit("")
+                self._emit(self.text_ready, "")
             return
 
         # Skip translation for non-Japanese text
         if not contains_japanese(text):
             logger.debug("skipping translation - no Japanese characters detected")
             if self._mode == OverlayMode.INPLACE:
-                self.regions_ready.emit([])
+                self._emit(self.regions_ready, [])
             else:
-                self.text_ready.emit("")
+                self._emit(self.text_ready, "")
             return
 
         # Translation
@@ -381,7 +404,7 @@ class ProcessWorker(QObject):
             translate_ms = int((time.perf_counter() - translate_start) * 1000)
             was_cached = all_cached and len(translated_regions) > 0
 
-            self.regions_ready.emit(translated_regions)
+            self._emit(self.regions_ready, translated_regions)
         else:
             if self._translator:
                 try:
@@ -395,7 +418,7 @@ class ProcessWorker(QObject):
                 translated = text
             translate_ms = int((time.perf_counter() - translate_start) * 1000)
 
-            self.text_ready.emit(translated)
+            self._emit(self.text_ready, translated)
 
         total_ms = int((time.perf_counter() - frame_start) * 1000)
         translate_str = f"{translate_ms} (cached)" if was_cached else str(translate_ms)

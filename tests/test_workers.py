@@ -224,6 +224,51 @@ def test_reload_ocr_failure_is_recorded(ocr_worker, monkeypatch):
     assert ocr_worker._events[0] == ["loading", "error"]
 
 
+def test_stop_during_a_frame_suppresses_emits(ocr_worker):
+    """A frame that finishes after stop() must not emit on receivers being torn down."""
+    _, _, outputs = ocr_worker._events
+    ocr = ocr_worker._ocr
+    ocr.failing = False
+    original = ocr.extract_text_regions
+
+    def extract_then_stop(frame):
+        ocr_worker.stop()  # e.g. the window quit while the engine was busy
+        return original(frame)
+
+    ocr.extract_text_regions = extract_then_stop
+    ocr_worker._process_frame("frame")
+    assert outputs == []
+    assert ocr_worker._stopped
+
+
+def test_stop_waits_for_the_worker_thread(monkeypatch):
+    """stop() returns only once the thread is done, so the caller can safely drop the worker."""
+    import threading
+
+    started = threading.Event()
+    release = threading.Event()
+
+    class _SlowOCR(_FakeOCR):
+        def extract_text_regions(self, frame):
+            started.set()
+            release.wait(5)
+            return []
+
+    healthy = _FlakyTranslator()
+    healthy.failing = False
+    monkeypatch.setattr("interpreter.gui.workers.create_ocr", lambda config: _SlowOCR())
+    monkeypatch.setattr("interpreter.gui.workers.create_translator", lambda config: healthy)
+    worker = ProcessWorker(Config())
+    worker.start(0.6)
+    worker.submit_frame("frame")
+    assert started.wait(5)
+
+    thread = worker._thread
+    release.set()
+    worker.stop()
+    assert not thread.is_alive()
+
+
 def test_reload_ocr_sets_the_flag_for_the_worker_loop(ocr_worker):
     assert not ocr_worker._reload_ocr
     ocr_worker.reload_ocr()
