@@ -30,6 +30,7 @@ from .. import log
 from ..capture import Capture, WindowCapture, _is_wayland_session
 from ..capture.convert import bgra_to_rgb_pil
 from ..config import Config, LLMSettings, OCRBackend, OverlayMode, OwocrSettings, TranslationBackend
+from ..languages import DEFAULT_SOURCE_LANGUAGE, SOURCE_LANGUAGES
 from ..llm_translate import (
     DEFAULT_BASE_URLS,
     DEFAULT_SYSTEM_PROMPT,
@@ -56,6 +57,7 @@ from ..permissions import (
     request_accessibility,
     request_screen_recording,
 )
+from ..translate import SUGOI_ONLY_JAPANESE, SUGOI_SOURCE_LANGUAGE
 from . import keyboard
 from .ocr_config import OCRConfigDialog
 from .workers import ProcessWorker
@@ -114,6 +116,7 @@ class MainWindow(QMainWindow):
         # Settings snapshots of the in-flight Refresh / Test requests (stale results are dropped)
         self._llm_refresh_request: LLMSettings | None = None
         self._llm_test_request: LLMSettings | None = None
+        self._llm_test_language: str = self._config.source_language
         self._owocr_test_request: OwocrSettings | None = None
 
         # Overlays
@@ -442,6 +445,23 @@ class MainWindow(QMainWindow):
         engine_row.addWidget(self._apply_ocr_btn)
         group_layout.addLayout(engine_row)
 
+        # Source language row: MeikiOCR reads Japanese only, so the choice is pinned for it
+        language_row = QHBoxLayout()
+        language_row.addWidget(QLabel("Source language:"))
+        self._source_language_combo = QComboBox()
+        for language in SOURCE_LANGUAGES:
+            self._source_language_combo.addItem(language, language)
+        self._source_language_combo.setCurrentIndex(
+            max(0, self._source_language_combo.findData(self._config.source_language))
+        )
+        self._source_language_combo.setToolTip(
+            "Language of the game's text. MeikiOCR and Sugoi V4 only handle Japanese; other languages "
+            "need the owocr OCR engine and the LLM endpoint translation engine."
+        )
+        language_row.addWidget(self._source_language_combo, 1)
+        group_layout.addLayout(language_row)
+        self._sync_source_language_combo()
+
         # owocr panel (only visible for the owocr engine)
         self._owocr_panel = QWidget()
         owocr_grid = QGridLayout(self._owocr_panel)
@@ -495,7 +515,21 @@ class MainWindow(QMainWindow):
     def _on_ocr_engine_changed(self, _index: int):
         """Show the owocr panel only when the owocr engine is selected."""
         self._owocr_panel.setVisible(self._selected_ocr_backend() == OCRBackend.OWOCR)
+        self._sync_source_language_combo()
         self._grow_to_fit()
+
+    def _sync_source_language_combo(self):
+        """Pin the source language to Japanese while MeikiOCR is selected; free it for owocr."""
+        pluggable = self._selected_ocr_backend() == OCRBackend.OWOCR
+        if not pluggable:
+            self._source_language_combo.setCurrentIndex(self._source_language_combo.findData(DEFAULT_SOURCE_LANGUAGE))
+        self._source_language_combo.setEnabled(pluggable)
+
+    def _selected_source_language(self) -> str:
+        """The source language the OCR group would apply (Japanese whenever MeikiOCR is selected)."""
+        if self._selected_ocr_backend() != OCRBackend.OWOCR:
+            return DEFAULT_SOURCE_LANGUAGE
+        return self._source_language_combo.currentData() or DEFAULT_SOURCE_LANGUAGE
 
     def _set_owocr_result(self, text: str, error: bool = False):
         self._set_result_label(self._owocr_result_label, text, error)
@@ -535,13 +569,20 @@ class MainWindow(QMainWindow):
     def _apply_ocr_settings(self):
         """Save the OCR group to config and reload the engine in the worker."""
         backend = self._selected_ocr_backend()
+        source_language = self._selected_source_language()
+        if source_language != SUGOI_SOURCE_LANGUAGE and self._config.translation_backend == TranslationBackend.SUGOI:
+            # The owocr panel is visible whenever a non-Japanese source can be selected
+            self._set_owocr_result(SUGOI_ONLY_JAPANESE, error=True)
+            return
         if backend == OCRBackend.OWOCR:
             self._config.owocr = self._owocr_settings_from_ui()
             self._owocr_url_edit.setText(self._config.owocr.url)
             # Stale results from a previous Test or failure would contradict the new status
             warning = owocr_remote_warning(self._config.owocr.url)
             self._set_owocr_result(warning or "", error=bool(warning))
+        language_changed = source_language != self._config.source_language
         self._config.ocr_backend = backend
+        self._config.source_language = source_language
         self._config.save()
 
         self._ocr_engine_label.setText(self._ocr_engine_name())
@@ -549,6 +590,9 @@ class MainWindow(QMainWindow):
         self._fix_models_btn.setVisible(False)
         self.statusBar().showMessage("Reloading OCR engine...")
         self._process_worker.reload_ocr()
+        if language_changed:
+            # The LLM prompt names the source language, so the translation engine follows
+            self._process_worker.reload_translation()
 
     # ==================== TRANSLATION SETTINGS ====================
 
@@ -621,7 +665,9 @@ class MainWindow(QMainWindow):
         llm_grid.addWidget(QLabel("Prompt:"), 3, 0, Qt.AlignmentFlag.AlignTop)
         self._llm_prompt_edit = QPlainTextEdit(settings.system_prompt or DEFAULT_SYSTEM_PROMPT)
         self._llm_prompt_edit.setFixedHeight(64)
-        self._llm_prompt_edit.setToolTip("System prompt sent to the model. {target_language} is replaced.")
+        self._llm_prompt_edit.setToolTip(
+            "System prompt sent to the model. {source_language} and {target_language} are replaced."
+        )
         llm_grid.addWidget(self._llm_prompt_edit, 3, 1, 1, 3)
         reset_prompt_btn = QPushButton("Reset")
         reset_prompt_btn.setToolTip("Restore the default prompt")
@@ -762,13 +808,17 @@ class MainWindow(QMainWindow):
         if not settings.model:
             self._set_llm_result("Pick a model first.", error=True)
             return
+        # The source language the OCR group would apply, not the saved one: the Test must
+        # validate what the user is about to Apply, like every other pending field
+        source_language = self._selected_source_language()
         self._llm_test_request = settings
+        self._llm_test_language = source_language
         self._llm_test_btn.setEnabled(False)
-        self._set_llm_result("Testing (loading the model may take a moment)...")
+        self._set_llm_result(f"Testing with a {source_language} sample (loading the model may take a moment)...")
 
         def run():
             try:
-                self._llm_test_result.emit((settings, check_endpoint(settings)))
+                self._llm_test_result.emit((settings, check_endpoint(settings, source_language)))
             except Exception as e:
                 self._llm_test_result.emit((settings, str(e)))
 
@@ -780,7 +830,7 @@ class MainWindow(QMainWindow):
             return  # superseded by a newer Test
         self._llm_test_request = None
         self._llm_test_btn.setEnabled(True)
-        if settings != self._llm_settings_from_ui():
+        if settings != self._llm_settings_from_ui() or self._llm_test_language != self._selected_source_language():
             self._set_llm_result("Settings changed during the test; click Test again.", error=True)
             return
         if isinstance(result, str):
@@ -798,6 +848,11 @@ class MainWindow(QMainWindow):
                 self._set_llm_result("Pick a model before applying.", error=True)
                 return
             self._config.llm = settings
+        elif self._config.source_language != SUGOI_SOURCE_LANGUAGE:
+            # The LLM panel is hidden for Sugoi, so the refusal goes to the status row and bar
+            self._translation_status_label.setToolTip(SUGOI_ONLY_JAPANESE)
+            self.statusBar().showMessage(SUGOI_ONLY_JAPANESE)
+            return
         self._config.translation_backend = backend
         self._config.save()
 
@@ -986,7 +1041,12 @@ class MainWindow(QMainWindow):
             delete_model_cache("rtr46/meiki.text.detect.v0")
             delete_model_cache("rtr46/meiki.txt.recognition.v0")
             self._fixing_ocr = True
-        if "translation" in failed and self._config.translation_backend == TranslationBackend.SUGOI:
+        if (
+            "translation" in failed
+            and self._config.translation_backend == TranslationBackend.SUGOI
+            # A source-language conflict is a settings problem, not a corrupt download
+            and self._config.source_language == SUGOI_SOURCE_LANGUAGE
+        ):
             delete_model_cache("entai2965/sugoi-v4-ja-en-ctranslate2")
             self._fixing_translation = True
 

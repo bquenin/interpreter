@@ -124,7 +124,7 @@ Use `127.0.0.1`, not `localhost`: on Windows, `localhost` adds about two seconds
 - **Speed**: on an RTX 4070 Ti, Sugoi 14B Ultra answers in about 300 ms per line (1.2 s at p95) and `gemma3:4b` in about 100 ms. CPU-only machines take seconds per line, which is fine for dialogue and painful for menus. The fuzzy translation cache still avoids re-translating text that has not changed. Keep only one large model in use at a time: two 8 GB models on a 12 GB card evict each other on every request.
 - **Quality**: larger models keep names and tone more consistent, and the previous few lines are sent as context. They also know many games and may use the official localized names instead of a literal translation. Edit the **Prompt** if you want different behaviour.
 - **Reasoning models** (Qwen3 and friends): thinking is turned off automatically on Ollama. Other servers each have their own switch, so set it through `request_options` in `config.yml`; the fields are merged into every request, for example `request_options: {reasoning_effort: none}`. Stripping inline `<think>` blocks from the reply is only a fallback and does not save the thinking time. If a server rejects an option, the **Test** button shows its error.
-- **Target language**: the LLM engine can translate into any language the model handles. OCR is still Japanese only.
+- **Target language**: the LLM engine can translate into any language the model handles. For games that are not in Japanese, see *Games in Other Languages* below.
 - **Remote endpoints**: the API key is stored in plain text in `config.yml`, every line of game text leaves your machine, and each request may cost money. Nothing is sent anywhere unless you pick the LLM engine.
 
 The same settings live in `config.yml` under `translation_backend` and `llm` if you prefer editing them by hand.
@@ -156,9 +156,18 @@ MeikiOCR is the built-in default and needs no setup. If it struggles with a part
 - **Errors**: if owocr stops or is paused, the OCR status turns to *Error* after three failed frames. Start owocr again and click **Fix Models** to reconnect.
 - **One client at a time**: owocr broadcasts every result to every connected client, so run a dedicated owocr instance for Interpreter. owocr also listens on all network interfaces; keep port 7331 firewalled.
 - **Remote owocr**: owocr speaks plain `ws://`, so pointing Interpreter at another machine sends every screen capture unencrypted over the network. Interpreter warns when the address is not local. On an untrusted network put a TLS proxy in front of owocr and use a `wss://` URL.
-- **Languages**: translation is still limited to Japanese text in this version, whichever OCR engine reads it.
+- **Languages**: with owocr selected, the **Source language** dropdown in the OCR group unlocks. See *Games in Other Languages* below.
 
 The same settings live in `config.yml` under `ocr_backend` and `owocr`.
+
+## Games in Other Languages
+
+Interpreter can read and translate games in Chinese, Korean, English, French, German, Spanish, Italian, Portuguese and Russian, not only Japanese. The built-in engines cannot: MeikiOCR reads Japanese only and Sugoi V4 translates Japanese to English only. So a non-Japanese game needs both alternative engines:
+
+1. Run owocr with an engine that reads the script (Google Lens, Bing, OneOCR and Apple Live Text all do; see *Using a Different OCR Engine*). In the **OCR** group pick *owocr*, then choose the **Source language**. The dropdown is locked to Japanese while MeikiOCR is selected.
+2. In the **Translation** group pick *LLM endpoint* with a model that knows the language, set the **Target language**, click **Test** (it translates a sample line in the source language) and **Apply**.
+
+Apply refuses the combination of a non-Japanese source with Sugoi V4, and says so. The source language is also used to filter OCR noise: only regions that contain characters from that language's script are translated. The setting lives in `config.yml` as `source_language`.
 
 ## Troubleshooting
 

@@ -9,6 +9,7 @@ from pathlib import Path
 import yaml
 
 from . import log
+from .languages import DEFAULT_SOURCE_LANGUAGE, SOURCE_LANGUAGES, normalize_source_language
 
 
 class OverlayMode(str, Enum):
@@ -183,12 +184,14 @@ class Config:
         llm: LLMSettings | None = None,
         ocr_backend: OCRBackend = OCRBackend.MEIKI,
         owocr: OwocrSettings | None = None,
+        source_language: str = DEFAULT_SOURCE_LANGUAGE,
     ):
         self.window_title = window_title
         self.translation_backend = translation_backend
         self.llm = llm if llm is not None else LLMSettings()
         self.ocr_backend = ocr_backend
         self.owocr = owocr if owocr is not None else OwocrSettings()
+        self.source_language = source_language  # language of the game's text, see languages.SOURCE_LANGUAGES
         self.ocr_confidence = ocr_confidence  # Global default
         self.overlay_mode = overlay_mode
         self.font_family = font_family  # None = system default
@@ -261,6 +264,15 @@ class Config:
                 logger.warning("invalid ocr_backend, using meiki", backend=ocr_backend_str)
                 ocr_backend = OCRBackend.MEIKI
 
+            source_language_str = data.get("source_language", DEFAULT_SOURCE_LANGUAGE)
+            source_language = normalize_source_language(source_language_str)
+            if source_language.lower() != str(source_language_str).strip().lower():
+                logger.warning(
+                    "unsupported source_language, using default",
+                    value=source_language_str,
+                    supported=", ".join(SOURCE_LANGUAGES),
+                )
+
             return cls(
                 window_title=data.get("window_title", cls.DEFAULT_WINDOW_TITLE),
                 ocr_confidence=float(data.get("ocr_confidence", cls.DEFAULT_OCR_CONFIDENCE)),
@@ -280,6 +292,7 @@ class Config:
                 llm=LLMSettings.from_dict(data.get("llm")),
                 ocr_backend=ocr_backend,
                 owocr=OwocrSettings.from_dict(data.get("owocr")),
+                source_language=source_language,
             )
 
         # No config file found - create default in home directory
@@ -337,6 +350,11 @@ background_opacity: 0.8  # 0.0 (transparent) to 1.0 (opaque)
 # owocr:
 #   url: ws://127.0.0.1:7331
 #   timeout: 10                 # seconds to wait for each frame's result
+
+# Language of the game's text. MeikiOCR and Sugoi V4 only handle Japanese; other languages
+# need the owocr OCR engine and the LLM translation engine. One of: Japanese, Chinese, Korean,
+# English, French, German, Spanish, Italian, Portuguese, Russian
+source_language: Japanese
 
 # Hotkeys - single characters or special key names
 # Special keys: f1-f12, escape, space, enter, tab, backspace, delete,
@@ -446,6 +464,7 @@ hotkeys:
         data["ocr_backend"] = self.ocr_backend.value
         if self.ocr_backend == OCRBackend.OWOCR or self.owocr != OwocrSettings():
             data["owocr"] = self.owocr.to_dict()
+        data["source_language"] = str(self.source_language)
         # Only save font_family if user has chosen one (None = system default)
         if self.font_family is not None:
             data["font_family"] = str(self.font_family)
@@ -458,17 +477,12 @@ hotkeys:
         # Convert keys to plain strings to avoid Python-specific YAML tags
         if self.exclusion_zones:
             data["exclusion_zones"] = {
-                str(k): [
-                    {str(zk): float(zv) for zk, zv in zone.items()}
-                    for zone in zones
-                ]
+                str(k): [{str(zk): float(zv) for zk, zv in zone.items()} for zone in zones]
                 for k, zones in self.exclusion_zones.items()
             }
         # Save per-window OCR confidence if any are defined
         if self.ocr_confidence_per_window:
-            data["ocr_confidence_per_window"] = {
-                str(k): float(v) for k, v in self.ocr_confidence_per_window.items()
-            }
+            data["ocr_confidence_per_window"] = {str(k): float(v) for k, v in self.ocr_confidence_per_window.items()}
 
         with open(config_path, "w", encoding="utf-8") as f:
             yaml.dump(data, f, default_flow_style=False, allow_unicode=True)

@@ -5,6 +5,7 @@ from PySide6.QtWidgets import QApplication, QComboBox, QLabel, QLineEdit, QPlain
 
 from interpreter.config import Config, LLMSettings, OCRBackend, OwocrSettings, TranslationBackend
 from interpreter.gui.main_window import MainWindow
+from interpreter.languages import SOURCE_LANGUAGES
 from interpreter.llm_translate import DEFAULT_SYSTEM_PROMPT, PROVIDER_LABELS, PROVIDERS
 
 
@@ -34,7 +35,55 @@ def _panel(config: Config) -> MainWindow:
     win._llm_result_label = QLabel()
     win._llm_refresh_request = None
     win._llm_test_request = None
+    win._llm_test_language = config.source_language
+    # The Test button reads the pending source language from the OCR group
+    win._ocr_engine_combo = QComboBox()
+    win._ocr_engine_combo.addItem("MeikiOCR", OCRBackend.MEIKI.value)
+    win._ocr_engine_combo.addItem("owocr", OCRBackend.OWOCR.value)
+    win._ocr_engine_combo.setCurrentIndex(win._ocr_engine_combo.findData(config.ocr_backend.value))
+    win._source_language_combo = QComboBox()
+    for language in SOURCE_LANGUAGES:
+        win._source_language_combo.addItem(language, language)
+    win._source_language_combo.setCurrentIndex(win._source_language_combo.findData(config.source_language))
     return win
+
+
+def test_llm_test_uses_the_pending_source_language(qapp, monkeypatch):
+    """Greptile: Test must validate the language the user selected, not the last applied one."""
+    import interpreter.gui.main_window as module
+
+    seen = {}
+
+    def fake_check(settings, source_language):
+        seen["language"] = source_language
+        return ("Bonjour", 3)
+
+    class _Inline:
+        def __init__(self, target, daemon):
+            self._target = target
+
+        def start(self):
+            self._target()
+
+    monkeypatch.setattr(module, "check_endpoint", fake_check)
+    monkeypatch.setattr(module.threading, "Thread", _Inline)
+    win = _panel(Config(ocr_backend=OCRBackend.OWOCR, llm=LLMSettings(model="m"), source_language="Japanese"))
+    done = []
+    win._llm_test_result = type("S", (), {"emit": lambda self, payload: done.append(payload)})()
+    win._source_language_combo.setCurrentIndex(win._source_language_combo.findData("Korean"))  # not applied yet
+
+    win._test_llm_endpoint()
+
+    assert seen["language"] == "Korean"
+    assert "Korean sample" in win._llm_result_label.toolTip()
+    win._on_llm_test_done(done[0])
+    assert win._llm_result_label.toolTip() == "OK in 3 ms: Bonjour"
+
+    # Language changed while a test was in flight: the result is discarded
+    win._test_llm_endpoint()
+    win._source_language_combo.setCurrentIndex(win._source_language_combo.findData("Chinese"))
+    win._on_llm_test_done(done[1])
+    assert "click Test again" in win._llm_result_label.toolTip()
 
 
 def _ocr_panel(config: Config) -> MainWindow:

@@ -367,12 +367,26 @@ class Translator:
         return self._translator is not None
 
 
+SUGOI_SOURCE_LANGUAGE = "Japanese"
+SUGOI_ONLY_JAPANESE = (
+    "Sugoi V4 only translates Japanese. Set the source language to Japanese or pick the LLM endpoint engine."
+)
+
+
 def create_translator(config: "Config") -> TranslationEngine:
-    """Build the translation engine selected in the configuration."""
+    """Build the translation engine selected in the configuration.
+
+    Raises:
+        ModelLoadError: If the built-in engine cannot handle the configured source language.
+    """
     from .config import TranslationBackend
 
     if config.translation_backend == TranslationBackend.LLM:
         from .llm_translate import LLMTranslator
 
-        return LLMTranslator(config.llm)
+        return LLMTranslator(config.llm, source_language=config.source_language)
+    if config.source_language != SUGOI_SOURCE_LANGUAGE:
+        from .models import ModelLoadError
+
+        raise ModelLoadError(SUGOI_ONLY_JAPANESE)
     return Translator()
