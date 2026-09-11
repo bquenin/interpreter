@@ -176,6 +176,21 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(16, 12, 16, 8)
         layout.setSpacing(12)
 
+        layout.addWidget(self._build_capture_group())
+        layout.addWidget(self._build_appearance_group())
+        layout.addWidget(self._build_ocr_group())
+        layout.addWidget(self._build_translation_group())
+        layout.addWidget(self._build_status_group())
+        self._setup_hotkeys()
+
+        # Stretch at bottom
+        layout.addStretch()
+
+        # Status bar
+        self.statusBar().showMessage("Idle")
+
+    def _build_capture_group(self) -> QGroupBox:
+        """Window selection, capture controls and the preview."""
         # ==================== CAPTURE ====================
         # Window selection + Preview in one logical group
         capture_group = QGroupBox("Capture")
@@ -236,8 +251,10 @@ class MainWindow(QMainWindow):
         self._preview_label.setProperty("role", "preview")
         capture_layout.addWidget(self._preview_label, 0, Qt.AlignmentFlag.AlignHCenter)
 
-        layout.addWidget(capture_group)
+        return capture_group
 
+    def _build_appearance_group(self) -> QGroupBox:
+        """Overlay mode, hotkeys and the visual settings."""
         # ==================== APPEARANCE ====================
         # Overlay mode + all visual settings
         appearance_group = QGroupBox("Appearance")
@@ -277,6 +294,7 @@ class MainWindow(QMainWindow):
 
         # Mode switch hotkey picker
         mode_switch_str = self._config.hotkeys.get("switch_mode", "m")
+        self._mode_switch_str = mode_switch_str
         self._mode_hotkey = QKeySequenceEdit(self._hotkey_str_to_qkeysequence(mode_switch_str))
         self._mode_hotkey.setFixedWidth(80)
         self._mode_hotkey.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
@@ -299,6 +317,7 @@ class MainWindow(QMainWindow):
         mode_row.addWidget(self._pause_btn)
 
         hotkey_str = self._config.hotkeys.get("toggle_overlay", "space")
+        self._hotkey_str = hotkey_str
         self._pause_hotkey = QKeySequenceEdit(self._hotkey_str_to_qkeysequence(hotkey_str))
         self._pause_hotkey.setFixedWidth(80)
         self._pause_hotkey.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
@@ -352,14 +371,10 @@ class MainWindow(QMainWindow):
 
         appearance_layout.addLayout(visual_grid)
 
-        layout.addWidget(appearance_group)
+        return appearance_group
 
-        # ==================== OCR ====================
-        layout.addWidget(self._build_ocr_group())
-
-        # ==================== TRANSLATION ====================
-        layout.addWidget(self._build_translation_group())
-
+    def _build_status_group(self) -> QGroupBox:
+        """Engine status rows and the Fix Models button."""
         # ==================== STATUS ====================
         # Models status (at bottom, less prominent)
         status_group = QGroupBox("Status")
@@ -392,23 +407,19 @@ class MainWindow(QMainWindow):
         # Set column stretch so status is right-aligned
         status_layout.setColumnStretch(1, 1)
 
-        layout.addWidget(status_group)
+        return status_group
 
+    def _setup_hotkeys(self):
+        """Global hotkey listener, from the strings read by the appearance builder."""
         # Global hotkey listener - load from config
-        self._current_hotkey = self._qt_key_to_key(hotkey_str)
+        self._current_hotkey = self._qt_key_to_key(self._hotkey_str)
         self._keyboard_listener = keyboard.Listener(on_press=self._on_key_press)
         self._keyboard_listener.start()
         self.hotkey_pressed.connect(self._toggle_pause)
 
         # Mode switch hotkey
-        self._mode_switch_hotkey = self._qt_key_to_key(mode_switch_str)
+        self._mode_switch_hotkey = self._qt_key_to_key(self._mode_switch_str)
         self.mode_switch_pressed.connect(self._toggle_mode)
-
-        # Stretch at bottom
-        layout.addStretch()
-
-        # Status bar
-        self.statusBar().showMessage("Idle")
 
     # ==================== OCR SETTINGS ====================
 
