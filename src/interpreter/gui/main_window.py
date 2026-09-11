@@ -116,6 +116,7 @@ class MainWindow(QMainWindow):
         # Settings snapshots of the in-flight Refresh / Test requests (stale results are dropped)
         self._llm_refresh_request: LLMSettings | None = None
         self._llm_test_request: LLMSettings | None = None
+        self._llm_test_language: str = self._config.source_language
         self._owocr_test_request: OwocrSettings | None = None
 
         # Overlays
@@ -807,10 +808,13 @@ class MainWindow(QMainWindow):
         if not settings.model:
             self._set_llm_result("Pick a model first.", error=True)
             return
+        # The source language the OCR group would apply, not the saved one: the Test must
+        # validate what the user is about to Apply, like every other pending field
+        source_language = self._selected_source_language()
         self._llm_test_request = settings
-        source_language = self._config.source_language
+        self._llm_test_language = source_language
         self._llm_test_btn.setEnabled(False)
-        self._set_llm_result("Testing (loading the model may take a moment)...")
+        self._set_llm_result(f"Testing with a {source_language} sample (loading the model may take a moment)...")
 
         def run():
             try:
@@ -826,7 +830,7 @@ class MainWindow(QMainWindow):
             return  # superseded by a newer Test
         self._llm_test_request = None
         self._llm_test_btn.setEnabled(True)
-        if settings != self._llm_settings_from_ui():
+        if settings != self._llm_settings_from_ui() or self._llm_test_language != self._selected_source_language():
             self._set_llm_result("Settings changed during the test; click Test again.", error=True)
             return
         if isinstance(result, str):
