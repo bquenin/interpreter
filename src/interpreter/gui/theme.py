@@ -213,6 +213,65 @@ QLabel[role="preview"] {{
     border-radius: {RADIUS}px;
 }}
 
+/* Sidebar navigation */
+QListWidget[role="nav"] {{
+    background: transparent;
+    border: none;
+    outline: none;
+    font-size: 14px;
+}}
+QListWidget[role="nav"]::item {{
+    padding: 10px 14px;
+    margin: 2px 0;
+    border-radius: 8px;
+    color: #b6bdcc;
+}}
+QListWidget[role="nav"]::item:hover {{
+    background: #1f2430;
+}}
+QListWidget[role="nav"]::item:selected {{
+    background: #4f8cff;
+    color: white;
+    font-weight: 600;
+}}
+
+/* Header */
+QLabel[role="app-title"] {{
+    font - size: 18px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}}
+QFrame[role="pill"] {{
+    background: #0f1115;
+    border: 1px solid #2c3240;
+    border-radius: 14px;
+    padding: 2px 10px;
+}}
+QLabel[role="hint"] {{
+    color: #8a93a6;
+    font-size: 12px;
+}}
+QLabel[role="hint-warn"] {{
+    color: #ffb454;
+    font-size: 12px;
+}}
+QListWidget[role="feed"] {{
+    background: #0f1115;
+    border: 1px solid #262b36;
+    border-radius: 8px;
+    padding: 4px;
+}}
+QListWidget[role="feed"]::item {{
+    padding: 6px 8px;
+    border-bottom: 1px solid #1c2029;
+}}
+
+QWidget[role="sample-stage"] {{
+    background: #05060a;
+    border: 1px solid #262b36;
+    border-radius: 8px;
+}}
+
 /* Status bar */
 QStatusBar {{
     background: {BG};

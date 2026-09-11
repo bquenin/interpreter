@@ -17,16 +17,18 @@ from PySide6.QtWidgets import (
     QKeySequenceEdit,
     QLabel,
     QLineEdit,
+    QListWidget,
     QMainWindow,
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
     QSlider,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
 
-from .. import log
+from .. import __version__, log
 from ..capture import Capture, WindowCapture, _is_wayland_session
 from ..capture.convert import bgra_to_rgb_pil
 from ..config import Config, LLMSettings, OCRBackend, OverlayMode, OwocrSettings, TranslationBackend
@@ -86,9 +88,13 @@ class MainWindow(QMainWindow):
     # Result of the owocr Test button (round-trip ms); str = error
     _owocr_test_result = Signal(object)
 
+    PREVIEW_WIDTH = 560  # the preview is the centre of the Play page
+
     def __init__(self, config: Config):
         super().__init__()
         self._config = config
+        self._last_ocr_results: list = []
+        self._last_feed_text = ""
 
         self.setWindowTitle("Interpreter")
 
@@ -176,18 +182,179 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(16, 12, 16, 8)
         layout.setSpacing(12)
 
-        layout.addWidget(self._build_capture_group())
-        layout.addWidget(self._build_appearance_group())
-        layout.addWidget(self._build_ocr_group())
-        layout.addWidget(self._build_translation_group())
-        layout.addWidget(self._build_status_group())
-        self._setup_hotkeys()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
-        # Stretch at bottom
-        layout.addStretch()
+        # Build every widget first (the builders own the widget references), then arrange
+        capture_group = self._build_capture_group()
+        appearance_group = self._build_appearance_group()
+        pair_card = self._build_language_pair_card()
+        ocr_group = self._build_ocr_group()
+        translation_group = self._build_translation_group()
+        header = self._build_header()
+        self._setup_hotkeys()
+        self._llm_language_edit.setEnabled(self._config.translation_backend == TranslationBackend.LLM)
+        self._update_pair_hint()
+
+        layout.addWidget(header)
+
+        body = QHBoxLayout()
+        body.setContentsMargins(0, 0, 0, 0)
+        body.setSpacing(0)
+
+        # Sidebar navigation
+        self._nav = QListWidget()
+        self._nav.setProperty("role", "nav")
+        self._nav.setFixedWidth(170)
+        for name in ("Play", "Overlay", "Engines"):
+            self._nav.addItem(name)
+        nav_box = QWidget()
+        nav_layout = QVBoxLayout(nav_box)
+        nav_layout.setContentsMargins(12, 12, 4, 12)
+        nav_layout.addWidget(self._nav)
+        version = QLabel(f"v{__version__}")
+        version.setProperty("role", "hint")
+        nav_layout.addWidget(version)
+        body.addWidget(nav_box)
+
+        # Pages
+        self._pages = QStackedWidget()
+        self._pages.addWidget(self._build_play_page(capture_group))
+        self._pages.addWidget(self._page(appearance_group))
+        self._pages.addWidget(self._page(pair_card, ocr_group, translation_group))
+        self._nav.currentRowChanged.connect(self._pages.setCurrentIndex)
+        self._nav.setCurrentRow(0)
+        body.addWidget(self._pages, 1)
+        layout.addLayout(body, 1)
 
         # Status bar
         self.statusBar().showMessage("Idle")
+
+    @staticmethod
+    def _page(*widgets) -> QWidget:
+        """A settings page: the given cards stacked, then empty space."""
+        page = QWidget()
+        page_layout = QVBoxLayout(page)
+        page_layout.setContentsMargins(12, 12, 16, 12)
+        page_layout.setSpacing(12)
+        for widget in widgets:
+            page_layout.addWidget(widget)
+        page_layout.addStretch()
+        return page
+
+    def _build_play_page(self, capture_group: QGroupBox) -> QWidget:
+        """Everything used during a session: window, preview, mode, hide, and the feed."""
+        session = QGroupBox("Session")
+        session_layout = QVBoxLayout(session)
+        self._mode_row_widget.setParent(None)
+        session_layout.addWidget(self._mode_row_widget)
+        hint = QLabel("Hotkeys work while the game has focus. Banner shows one subtitle; Inplace draws over the text.")
+        hint.setProperty("role", "hint")
+        hint.setWordWrap(True)
+        session_layout.addWidget(hint)
+
+        feed_group = QGroupBox("Translations")
+        feed_layout = QVBoxLayout(feed_group)
+        self._feed = QListWidget()
+        self._feed.setProperty("role", "feed")
+        self._feed.setWordWrap(True)
+        self._feed.setMinimumHeight(120)
+        feed_layout.addWidget(self._feed)
+
+        page = self._page(capture_group, session, feed_group)
+        if is_macos():
+            permissions = QGridLayout()
+            self._setup_permissions_ui(permissions)
+            page.layout().insertLayout(page.layout().count() - 1, permissions)
+        return page
+
+    def _build_header(self) -> QWidget:
+        """App title on the left, engine status pills and Fix Models on the right."""
+        header = QWidget()
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(20, 12, 16, 4)
+        title = QLabel("Interpreter")
+        title.setProperty("role", "app-title")
+        header_layout.addWidget(title)
+        header_layout.addStretch()
+
+        self._ocr_engine_label = QLabel(self._ocr_engine_name())
+        self._ocr_status_label = QLabel("Loading...")
+        header_layout.addWidget(self._pill("OCR", self._ocr_engine_label, self._ocr_status_label))
+        self._translation_engine_label = QLabel(self._translation_engine_name())
+        self._translation_status_label = QLabel("Loading...")
+        header_layout.addWidget(
+            self._pill("Translation", self._translation_engine_label, self._translation_status_label)
+        )
+
+        self._fix_models_btn = QPushButton("Fix Models")
+        self._fix_models_btn.clicked.connect(self._on_fix_models)
+        self._fix_models_btn.setVisible(False)
+        header_layout.addWidget(self._fix_models_btn)
+        return header
+
+    @staticmethod
+    def _pill(kind: str, engine_label: QLabel, status_label: QLabel) -> QFrame:
+        pill = QFrame()
+        pill.setProperty("role", "pill")
+        pill_layout = QHBoxLayout(pill)
+        pill_layout.setContentsMargins(6, 2, 6, 2)
+        pill_layout.setSpacing(6)
+        kind_label = QLabel(kind)
+        kind_label.setProperty("role", "hint")
+        pill_layout.addWidget(kind_label)
+        pill_layout.addWidget(engine_label)
+        pill_layout.addWidget(status_label)
+        return pill
+
+    def _build_language_pair_card(self) -> QGroupBox:
+        """Pick the language pair first; the engines below then explain what they can do."""
+        card = QGroupBox("Languages")
+        grid = QGridLayout(card)
+        grid.addWidget(QLabel("Game text:"), 0, 0)
+        self._source_language_combo = QComboBox()
+        for language in SOURCE_LANGUAGES:
+            self._source_language_combo.addItem(language, language)
+        self._source_language_combo.setCurrentIndex(
+            max(0, self._source_language_combo.findData(self._config.source_language))
+        )
+        self._source_language_combo.setToolTip("Language of the game's text")
+        self._source_language_combo.currentIndexChanged.connect(lambda _i: self._update_pair_hint())
+        grid.addWidget(self._source_language_combo, 0, 1)
+        arrow = QLabel("\u2192")
+        arrow.setProperty("role", "hint")
+        grid.addWidget(arrow, 0, 2)
+        grid.addWidget(QLabel("Translate to:"), 0, 3)
+        self._llm_language_edit = QLineEdit(self._config.llm.target_language)
+        self._llm_language_edit.setToolTip("Sugoi V4 always outputs English; the LLM engine can output any language")
+        grid.addWidget(self._llm_language_edit, 0, 4)
+        self._pair_hint = QLabel("")
+        self._pair_hint.setWordWrap(True)
+        grid.addWidget(self._pair_hint, 1, 0, 1, 5)
+        grid.setColumnStretch(1, 1)
+        grid.setColumnStretch(4, 1)
+        return card
+
+    def _update_pair_hint(self):
+        """Explain, in one line, whether the selected engines can serve the selected pair."""
+        if not hasattr(self, "_pair_hint") or not hasattr(self, "_engine_combo"):
+            return
+        source = self._selected_source_language()
+        chosen = self._source_language_combo.currentData()
+        problems = []
+        if self._selected_ocr_backend() != OCRBackend.OWOCR and chosen != DEFAULT_SOURCE_LANGUAGE:
+            problems.append(f"MeikiOCR reads Japanese only: pick the owocr engine to read {chosen}.")
+        if self._selected_backend() == TranslationBackend.SUGOI and source != SUGOI_SOURCE_LANGUAGE:
+            problems.append("Sugoi V4 translates Japanese to English only: pick the LLM endpoint engine.")
+        if problems:
+            set_role(self._pair_hint, "hint-warn")
+            self._pair_hint.setText(" ".join(problems))
+        else:
+            set_role(self._pair_hint, "hint")
+            target = self._llm_language_edit.text().strip() or "English"
+            if self._selected_backend() == TranslationBackend.SUGOI:
+                target = "English"
+            self._pair_hint.setText(f"{source} \u2192 {target}: the selected engines handle this pair.")
 
     def _build_capture_group(self) -> QGroupBox:
         """Window selection, capture controls and the preview."""
@@ -257,11 +424,13 @@ class MainWindow(QMainWindow):
         """Overlay mode, hotkeys and the visual settings."""
         # ==================== APPEARANCE ====================
         # Overlay mode + all visual settings
-        appearance_group = QGroupBox("Appearance")
+        appearance_group = QGroupBox("Overlay style")
         appearance_layout = QVBoxLayout(appearance_group)
 
-        # Mode row (Banner/Inplace toggle + hotkeys)
-        mode_row = QHBoxLayout()
+        # Mode row (Banner/Inplace toggle + hotkeys), a widget so a layout can move it
+        self._mode_row_widget = QWidget()
+        mode_row = QHBoxLayout(self._mode_row_widget)
+        mode_row.setContentsMargins(0, 0, 0, 0)
         mode_row.addWidget(QLabel("Mode:"))
 
         self._mode_group = QButtonGroup(self)
@@ -324,7 +493,7 @@ class MainWindow(QMainWindow):
         self._pause_hotkey.keySequenceChanged.connect(self._on_pause_hotkey_changed)
         mode_row.addWidget(self._pause_hotkey)
 
-        appearance_layout.addLayout(mode_row)
+        appearance_layout.addWidget(self._mode_row_widget)
 
         # Visual settings grid
         visual_grid = QGridLayout()
@@ -371,7 +540,36 @@ class MainWindow(QMainWindow):
 
         appearance_layout.addLayout(visual_grid)
 
+        # Live sample: exactly what a subtitle looks like with these settings
+        sample_row = QHBoxLayout()
+        sample_caption = QLabel("Sample:")
+        sample_row.addWidget(sample_caption)
+        sample_box = QWidget()
+        sample_box.setProperty("role", "sample-stage")
+        sample_box.setMinimumHeight(96)
+        sample_layout = QVBoxLayout(sample_box)
+        sample_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._style_sample = QLabel("Brave hero, you must defeat the demon king.")
+        self._style_sample.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        sample_layout.addWidget(self._style_sample, 0, Qt.AlignmentFlag.AlignCenter)
+        sample_row.addWidget(sample_box, 1)
+        appearance_layout.addLayout(sample_row)
+        self._update_style_sample()
+
         return appearance_group
+
+    def _update_style_sample(self):
+        """Render the sample subtitle with the current font, colours and opacity."""
+        font = QFont(self._config.font_family) if self._config.font_family else QFont()
+        font.setPointSize(self._config.font_size)
+        font.setBold(True)
+        self._style_sample.setFont(font)
+        bg = self._config.background_color.lstrip("#")
+        r, g, b = int(bg[0:2], 16), int(bg[2:4], 16), int(bg[4:6], 16)
+        self._style_sample.setStyleSheet(
+            f"color: {self._config.font_color}; background-color: rgba({r}, {g}, {b}, "
+            f"{self._config.background_opacity:.2f}); padding: 6px 12px; border-radius: 6px;"
+        )
 
     def _build_status_group(self) -> QGroupBox:
         """Engine status rows and the Fix Models button."""
@@ -444,21 +642,7 @@ class MainWindow(QMainWindow):
         engine_row.addWidget(self._apply_ocr_btn)
         group_layout.addLayout(engine_row)
 
-        # Source language row: MeikiOCR reads Japanese only, so the choice is pinned for it
-        language_row = QHBoxLayout()
-        language_row.addWidget(QLabel("Source language:"))
-        self._source_language_combo = QComboBox()
-        for language in SOURCE_LANGUAGES:
-            self._source_language_combo.addItem(language, language)
-        self._source_language_combo.setCurrentIndex(
-            max(0, self._source_language_combo.findData(self._config.source_language))
-        )
-        self._source_language_combo.setToolTip(
-            "Language of the game's text. MeikiOCR and Sugoi V4 only handle Japanese; other languages "
-            "need the owocr OCR engine and the LLM endpoint translation engine."
-        )
-        language_row.addWidget(self._source_language_combo, 1)
-        group_layout.addLayout(language_row)
+        # The source language lives in the language pair card (built first)
         self._sync_source_language_combo()
 
         # owocr panel (only visible for the owocr engine)
@@ -515,6 +699,7 @@ class MainWindow(QMainWindow):
         """Show the owocr panel only when the owocr engine is selected."""
         self._owocr_panel.setVisible(self._selected_ocr_backend() == OCRBackend.OWOCR)
         self._sync_source_language_combo()
+        self._update_pair_hint()
         self._grow_to_fit()
 
     def _sync_source_language_combo(self):
@@ -652,9 +837,7 @@ class MainWindow(QMainWindow):
         self._llm_refresh_btn.clicked.connect(self._refresh_llm_models)
         llm_grid.addWidget(self._llm_refresh_btn, 1, 2)
 
-        llm_grid.addWidget(QLabel("Target language:"), 1, 3)
-        self._llm_language_edit = QLineEdit(settings.target_language)
-        llm_grid.addWidget(self._llm_language_edit, 1, 4)
+        # Target language lives in the language pair card
 
         llm_grid.addWidget(QLabel("API key:"), 2, 0)
         self._llm_api_key_edit = QLineEdit(settings.api_key)
@@ -722,7 +905,10 @@ class MainWindow(QMainWindow):
 
     def _on_engine_changed(self, _index: int):
         """Show the LLM panel only when the LLM engine is selected."""
-        self._llm_panel.setVisible(self._selected_backend() == TranslationBackend.LLM)
+        is_llm = self._selected_backend() == TranslationBackend.LLM
+        self._llm_panel.setVisible(is_llm)
+        self._llm_language_edit.setEnabled(is_llm)  # Sugoi V4 always outputs English
+        self._update_pair_hint()
         self._grow_to_fit()
 
     def _grow_to_fit(self):
@@ -1471,7 +1657,7 @@ class MainWindow(QMainWindow):
         frame_h, frame_w = frame.shape[:2]
 
         # Scale to max 320 width while preserving aspect ratio
-        max_preview_width = 320
+        max_preview_width = self.PREVIEW_WIDTH
         scale = max_preview_width / frame_w
         preview_w = int(frame_w * scale)
         preview_h = int(frame_h * scale)
@@ -1488,6 +1674,17 @@ class MainWindow(QMainWindow):
                 h = int(zone.get("height", 0) * preview_h)
                 # Semi-transparent red fill with red outline
                 draw.rectangle([x, y, x + w, y + h], fill=(255, 0, 0, 60), outline=(255, 0, 0, 180))
+
+        # Live OCR boxes: what the engine read on the last processed frame
+        if self._last_ocr_results:
+            draw = ImageDraw.Draw(preview, "RGBA")
+            for result in self._last_ocr_results:
+                box = result.bbox
+                if not box:
+                    continue
+                x, y = int(box["x"] * scale), int(box["y"] * scale)
+                w, h = int(box["width"] * scale), int(box["height"] * scale)
+                draw.rectangle([x, y, x + w, y + h], outline=(79, 140, 255, 220), width=2)
 
         data = preview.tobytes("raw", "RGB")
         qimg = QImage(data, preview_w, preview_h, preview_w * 3, QImage.Format.Format_RGB888)
@@ -1516,6 +1713,17 @@ class MainWindow(QMainWindow):
         """Handle translated text (banner mode)."""
         if not self._paused:
             self._banner_overlay.set_text(translated)
+            self._feed_add(translated)
+
+    def _feed_add(self, text: str):
+        """Append a translation to the feed (newest on top, consecutive duplicates skipped)."""
+        text = " ".join(text.split())
+        if not text or text == self._last_feed_text:
+            return
+        self._last_feed_text = text
+        self._feed.insertItem(0, text)
+        while self._feed.count() > 100:
+            self._feed.takeItem(self._feed.count() - 1)
 
     def _on_regions_ready(self, regions: list):
         """Handle translated regions (inplace mode)."""
@@ -1525,9 +1733,11 @@ class MainWindow(QMainWindow):
             if self._capture:
                 content_offset = self._capture.get_content_offset()
             self._inplace_overlay.set_regions(regions, content_offset)
+            self._feed_add(" / ".join(text for text, _ in regions if text))
 
     def _on_ocr_results_ready(self, results: list):
-        """Handle raw OCR results (for OCR config dialog visualization)."""
+        """Handle raw OCR results (preview boxes and the OCR config dialog)."""
+        self._last_ocr_results = results
         if self._ocr_config_dialog:
             self._ocr_config_dialog.update_ocr_results(results)
 
@@ -1537,6 +1747,7 @@ class MainWindow(QMainWindow):
         self._font_label.setText(f"{value}pt")
         self._banner_overlay.set_font_size(value)
         self._inplace_overlay.set_font_size(value)
+        self._update_style_sample()
 
     def _on_opacity_changed(self, value: int):
         opacity = value / 100.0
@@ -1544,6 +1755,7 @@ class MainWindow(QMainWindow):
         self._opacity_label.setText(f"{value}%")
         self._banner_overlay.set_opacity(opacity)
         self._inplace_overlay.set_opacity(opacity)
+        self._update_style_sample()
 
     def _pick_font_family(self):
         # Initialize dialog with current font
@@ -1560,6 +1772,7 @@ class MainWindow(QMainWindow):
             self._font_family_btn.setText(font_family)
             self._banner_overlay.set_font_family(font_family)
             self._inplace_overlay.set_font_family(font_family)
+            self._update_style_sample()
 
     def _pick_font_color(self):
         color = QColorDialog.getColor()
@@ -1569,6 +1782,7 @@ class MainWindow(QMainWindow):
             self._font_color_btn.setStyleSheet(f"background-color: {hex_color};")
             self._banner_overlay.set_colors(hex_color, self._config.background_color)
             self._inplace_overlay.set_colors(hex_color, self._config.background_color)
+            self._update_style_sample()
 
     def _pick_bg_color(self):
         color = QColorDialog.getColor()
@@ -1578,6 +1792,7 @@ class MainWindow(QMainWindow):
             self._bg_color_btn.setStyleSheet(f"background-color: {hex_color};")
             self._banner_overlay.set_colors(self._config.font_color, hex_color)
             self._inplace_overlay.set_colors(self._config.font_color, hex_color)
+            self._update_style_sample()
 
     def _apply_exclusion_zones(self, frame):
         """Apply exclusion zones to frame by masking out excluded regions.

@@ -157,7 +157,9 @@ class OCRConfigDialog(QDialog):
     # Emitted when confidence slider changes (float: new threshold)
     confidence_changed = Signal(float)
 
-    def __init__(self, parent=None, window_title: str = "", initial_confidence: float = 0.6, initial_zones: list | None = None):
+    def __init__(
+        self, parent=None, window_title: str = "", initial_confidence: float = 0.6, initial_zones: list | None = None
+    ):
         super().__init__(parent)
         self.setWindowTitle(f"Configure OCR: {window_title}" if window_title else "Configure OCR")
         self.setMinimumSize(1000, 700)
@@ -352,7 +354,11 @@ class OCRConfigDialog(QDialog):
 
         # Update scene background - remove old pixmap
         for item in list(self._scene.items()):
-            if not isinstance(item, ExclusionZoneItem) and item not in self._ocr_boxes and item != self._current_draw_rect:
+            if (
+                not isinstance(item, ExclusionZoneItem)
+                and item not in self._ocr_boxes
+                and item != self._current_draw_rect
+            ):
                 self._scene.removeItem(item)
 
         pixmap_item = self._scene.addPixmap(pixmap)
