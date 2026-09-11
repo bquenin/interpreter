@@ -60,6 +60,7 @@ from ..permissions import (
 from ..translate import SUGOI_ONLY_JAPANESE, SUGOI_SOURCE_LANGUAGE
 from . import keyboard
 from .ocr_config import OCRConfigDialog
+from .theme import ERROR, OK, set_role
 from .workers import ProcessWorker
 
 logger = log.get_logger()
@@ -172,6 +173,8 @@ class MainWindow(QMainWindow):
         central = QWidget()
         self.setCentralWidget(central)
         layout = QVBoxLayout(central)
+        layout.setContentsMargins(16, 12, 16, 8)
+        layout.setSpacing(12)
 
         # ==================== CAPTURE ====================
         # Window selection + Preview in one logical group
@@ -189,6 +192,7 @@ class MainWindow(QMainWindow):
         if self._is_wayland_session:
             # Wayland: single toggle button for capture
             self._select_window_btn = QPushButton("Start Capture")
+            self._select_window_btn.setProperty("primary", True)
             self._select_window_btn.setEnabled(False)  # Disabled until models are loaded
             self._select_window_btn.clicked.connect(self._toggle_wayland_capture)
             window_row.addWidget(self._select_window_btn, 1)
@@ -206,6 +210,7 @@ class MainWindow(QMainWindow):
             window_row.addWidget(self._window_combo, 1)
 
             self._start_btn = QPushButton("Start Capture")
+            self._start_btn.setProperty("primary", True)
             self._start_btn.setEnabled(False)  # Disabled until models are loaded
             self._start_btn.clicked.connect(self._toggle_capture)
             window_row.addWidget(self._start_btn)
@@ -225,10 +230,10 @@ class MainWindow(QMainWindow):
         # Preview (centered, aspect ratio preserved)
         self._preview_label = QLabel()
         self._preview_label.setMinimumSize(320, 180)  # Minimum size, will grow to match aspect ratio
-        self._preview_label.setFrameStyle(QFrame.Shape.Box)
+        self._preview_label.setFrameStyle(QFrame.Shape.NoFrame)
         self._preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._preview_label.setText("No preview")
-        self._preview_label.setStyleSheet("background-color: #2a2a2a; color: #888;")
+        self._preview_label.setProperty("role", "preview")
         capture_layout.addWidget(self._preview_label, 0, Qt.AlignmentFlag.AlignHCenter)
 
         layout.addWidget(capture_group)
@@ -255,27 +260,9 @@ class MainWindow(QMainWindow):
         self._inplace_btn.setChecked(self._mode == OverlayMode.INPLACE)
         self._mode_group.addButton(self._inplace_btn, 1)
 
-        # Style as segmented control (dark mode friendly)
-        segment_style = """
-            QPushButton {
-                padding: 6px 16px;
-                border: 1px solid #555;
-                background-color: #3a3a3a;
-                color: #ccc;
-            }
-            QPushButton:checked {
-                background-color: #0078d4;
-                color: white;
-                border-color: #0078d4;
-            }
-            QPushButton:hover:!checked {
-                background-color: #4a4a4a;
-            }
-        """
-        self._banner_btn.setStyleSheet(
-            segment_style + "QPushButton { border-radius: 4px 0 0 4px; border-right: none; }"
-        )
-        self._inplace_btn.setStyleSheet(segment_style + "QPushButton { border-radius: 0 4px 4px 0; }")
+        # Styled as a segmented control by the theme (see theme.py)
+        self._banner_btn.setProperty("segment", "left")
+        self._inplace_btn.setProperty("segment", "right")
 
         self._mode_group.idClicked.connect(self._on_mode_changed)
 
@@ -440,6 +427,7 @@ class MainWindow(QMainWindow):
         self._ocr_engine_combo.currentIndexChanged.connect(self._on_ocr_engine_changed)
         engine_row.addWidget(self._ocr_engine_combo, 1)
         self._apply_ocr_btn = QPushButton("Apply")
+        self._apply_ocr_btn.setProperty("primary", True)
         self._apply_ocr_btn.setToolTip("Save these settings and reload the OCR engine")
         self._apply_ocr_btn.clicked.connect(self._apply_ocr_settings)
         engine_row.addWidget(self._apply_ocr_btn)
@@ -487,7 +475,7 @@ class MainWindow(QMainWindow):
         owocr_grid.addWidget(self._owocr_result_label, 1, 1, 1, 2)
 
         note = QLabel("owocr returns no confidence scores; the OCR confidence slider has no effect with this engine.")
-        note.setStyleSheet("color: gray;")
+        note.setProperty("role", "muted")
         note.setWordWrap(True)
         owocr_grid.addWidget(note, 2, 0, 1, 3)
 
@@ -611,6 +599,7 @@ class MainWindow(QMainWindow):
         self._engine_combo.currentIndexChanged.connect(self._on_engine_changed)
         engine_row.addWidget(self._engine_combo, 1)
         self._apply_translation_btn = QPushButton("Apply")
+        self._apply_translation_btn.setProperty("primary", True)
         self._apply_translation_btn.setToolTip("Save these settings and reload the translation engine")
         self._apply_translation_btn.clicked.connect(self._apply_translation_settings)
         engine_row.addWidget(self._apply_translation_btn)
@@ -745,7 +734,7 @@ class MainWindow(QMainWindow):
     @staticmethod
     def _set_result_label(label: QLabel, text: str, error: bool = False):
         """Show a one-line result under a settings panel; the full text is in the tooltip."""
-        label.setStyleSheet("color: #d9534f;" if error else "color: green;")
+        label.setStyleSheet(f"color: {ERROR};" if error else f"color: {OK};")
         label.setToolTip(text)
         # Elide instead of wrapping: the window's minimum size is locked, so a taller
         # label would overlap the prompt box instead of growing the panel.
@@ -897,21 +886,21 @@ class MainWindow(QMainWindow):
         # Screen Recording
         if check_screen_recording():
             self._screen_recording_status.setText("✓ Granted")
-            self._screen_recording_status.setStyleSheet("color: green;")
+            set_role(self._screen_recording_status, "status-ok")
             self._screen_recording_btn.setVisible(False)
         else:
             self._screen_recording_status.setText("✗ Required")
-            self._screen_recording_status.setStyleSheet("color: red;")
+            set_role(self._screen_recording_status, "status-error")
             self._screen_recording_btn.setVisible(True)
 
         # Accessibility
         if check_accessibility():
             self._accessibility_status.setText("✓ Granted")
-            self._accessibility_status.setStyleSheet("color: green;")
+            set_role(self._accessibility_status, "status-ok")
             self._accessibility_btn.setVisible(False)
         else:
             self._accessibility_status.setText("✗ Required")
-            self._accessibility_status.setStyleSheet("color: red;")
+            set_role(self._accessibility_status, "status-error")
             self._accessibility_btn.setVisible(True)
 
     def _on_request_screen_recording(self):
@@ -980,7 +969,7 @@ class MainWindow(QMainWindow):
             self._fixing_ocr = False
             self._ocr_status_label.setToolTip("")
             # A recovered endpoint must not keep showing its old connection error
-            if self._config.ocr_backend == OCRBackend.OWOCR and "d9534f" in self._owocr_result_label.styleSheet():
+            if self._config.ocr_backend == OCRBackend.OWOCR and ERROR in self._owocr_result_label.styleSheet():
                 warning = owocr_remote_warning(self._config.owocr.url)
                 self._set_owocr_result(warning or "", error=bool(warning))
         self._update_status_label(self._ocr_status_label, status)
@@ -1001,16 +990,16 @@ class MainWindow(QMainWindow):
         """Update a model status label with appropriate text and style."""
         if status == "loading":
             label.setText("Loading...")
-            label.setStyleSheet("")
+            set_role(label, "status-busy")
         elif status == "downloading":
             label.setText("Downloading...")
-            label.setStyleSheet("")
+            set_role(label, "status-busy")
         elif status == "ready":
             label.setText("Ready")
-            label.setStyleSheet("color: green;")
+            set_role(label, "status-ok")
         elif status == "error":
             label.setText("Error")
-            label.setStyleSheet("color: red;")
+            set_role(label, "status-error")
 
     def _update_fix_button_visibility(self):
         """Show/hide the Fix Models button based on model status."""

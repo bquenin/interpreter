@@ -67,6 +67,10 @@ class InterpreterApp:
         self._app = QApplication(sys.argv)
         self._app.setApplicationName("Interpreter")
 
+        from .theme import apply_theme
+
+        apply_theme(self._app)
+
         # Set application icon
         icon_path = self._get_icon_path()
         icon = None

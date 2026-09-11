@@ -5,6 +5,7 @@ from PySide6.QtWidgets import QApplication, QComboBox, QLabel, QLineEdit, QPlain
 
 from interpreter.config import Config, LLMSettings, OCRBackend, OwocrSettings, TranslationBackend
 from interpreter.gui.main_window import MainWindow
+from interpreter.gui.theme import ERROR
 from interpreter.languages import SOURCE_LANGUAGES
 from interpreter.llm_translate import DEFAULT_SYSTEM_PROMPT, PROVIDER_LABELS, PROVIDERS
 
@@ -130,7 +131,7 @@ def test_stale_owocr_test_results_are_ignored(qapp):
     win._owocr_test_request = pending
     win._on_owocr_test_done((pending, "Cannot reach owocr"))
     assert win._owocr_result_label.toolTip() == "Cannot reach owocr"
-    assert "d9534f" in win._owocr_result_label.styleSheet()
+    assert ERROR in win._owocr_result_label.styleSheet()
 
     # Settings edited while the request was in flight: the result is discarded
     pending = win._owocr_settings_from_ui()
