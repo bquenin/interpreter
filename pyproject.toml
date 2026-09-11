@@ -50,6 +50,7 @@ dependencies = [
     "pyobjc-framework-cocoa>=12.1; sys_platform == 'darwin'",
     # Linux only - global hotkeys (evdev-binary provides pre-built wheels, no kernel headers needed)
     "evdev-binary>=1.9.0; sys_platform == 'linux'",
+    "websockets>=13",
 ]
 
 [project.scripts]
