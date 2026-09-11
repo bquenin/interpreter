@@ -103,7 +103,7 @@ Use `127.0.0.1`, not `localhost`: on Windows, `localhost` adds about two seconds
 
 - **Speed**: on an RTX 4070 Ti, Sugoi 14B Ultra answers in about 300 ms per line (1.2 s at p95) and `gemma3:4b` in about 100 ms. CPU-only machines take seconds per line, which is fine for dialogue and painful for menus. The fuzzy translation cache still avoids re-translating text that has not changed. Keep only one large model in use at a time: two 8 GB models on a 12 GB card evict each other on every request.
 - **Quality**: larger models keep names and tone more consistent, and the previous few lines are sent as context. They also know many games and may use the official localized names instead of a literal translation. Edit the **Prompt** if you want different behaviour.
-- **Reasoning models** (Qwen3 and friends): thinking is turned off automatically on Ollama. On other servers, inline `<think>` blocks are stripped from the reply.
+- **Reasoning models** (Qwen3 and friends): thinking is turned off automatically on Ollama. Other servers each have their own switch, so set it through `request_options` in `config.yml`; the fields are merged into every request, for example `request_options: {reasoning_effort: none}`. Stripping inline `<think>` blocks from the reply is only a fallback and does not save the thinking time. If a server rejects an option, the **Test** button shows its error.
 - **Target language**: the LLM engine can translate into any language the model handles. OCR is still Japanese only.
 - **Remote endpoints**: the API key is stored in plain text in `config.yml`, every line of game text leaves your machine, and each request may cost money. Nothing is sent anywhere unless you pick the LLM engine.
 

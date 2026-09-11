@@ -2,6 +2,7 @@
 
 import os
 from dataclasses import asdict, dataclass, fields
+from dataclasses import field as dataclass_field
 from enum import Enum
 from pathlib import Path
 
@@ -39,6 +40,10 @@ class LLMSettings:
     system_prompt: str | None = None  # None = built-in default; may contain {target_language}
     context_lines: int = 3  # Previous lines replayed as conversation history
     timeout: float = 30.0  # Seconds per request
+    # Extra JSON fields merged into every chat request, for provider/model-specific
+    # controls the app does not know about (e.g. {"reasoning_effort": "none"} on an
+    # OpenAI-compatible server, or {"options": {"num_ctx": 2048}} on Ollama).
+    request_options: dict = dataclass_field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, data: dict | None) -> "LLMSettings":
@@ -55,6 +60,12 @@ class LLMSettings:
             try:
                 if field.name == "system_prompt":
                     kwargs[field.name] = str(value) if value else None
+                elif field.name == "request_options":
+                    if value is None:
+                        continue
+                    if not isinstance(value, dict):
+                        raise TypeError("request_options must be a mapping")
+                    kwargs[field.name] = {str(k): v for k, v in value.items()}
                 elif isinstance(default, bool):
                     kwargs[field.name] = bool(value)
                 elif isinstance(default, int):
@@ -83,6 +94,8 @@ class LLMSettings:
         data = asdict(self)
         if self.system_prompt is None:
             del data["system_prompt"]
+        if not self.request_options:
+            del data["request_options"]
         return data
 
 
@@ -258,6 +271,7 @@ background_opacity: 0.8  # 0.0 (transparent) to 1.0 (opaque)
 #   target_language: English
 #   context_lines: 3            # previous lines sent as context
 #   timeout: 30                 # seconds per request
+#   request_options: {}         # extra JSON fields for every request, e.g. {reasoning_effort: none}
 
 # Hotkeys - single characters or special key names
 # Special keys: f1-f12, escape, space, enter, tab, backspace, delete,

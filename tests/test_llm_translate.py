@@ -403,3 +403,58 @@ class TestSettingsGuards:
     def test_normalize_base_url_rejects_unknown_provider(self):
         with pytest.raises(ValueError, match="Unsupported LLM provider"):
             normalize_base_url("banana", "http://x")
+
+
+class TestRequestOptions:
+    def test_openai_options_are_merged_into_payload(self):
+        settings = LLMSettings(provider="openai", model="m", request_options={"reasoning_effort": "none"})
+        translator = LLMTranslator(settings)
+        translator._loaded = True
+        post = MagicMock(return_value=_response(_openai_reply("Hi")))
+        translator._session.post = post
+
+        translator.translate("こんにちは")
+
+        payload = post.call_args.kwargs["json"]
+        assert payload["reasoning_effort"] == "none"
+        assert payload["temperature"] == 0  # defaults untouched
+
+    def test_ollama_options_merge_one_level_and_can_override_defaults(self):
+        settings = LLMSettings(
+            provider="ollama", model="m", request_options={"think": True, "options": {"num_ctx": 2048}}
+        )
+        translator = LLMTranslator(settings)
+        translator._loaded = True
+        post = MagicMock(return_value=_response(_ollama_reply("Hi")))
+        translator._session.post = post
+
+        translator.translate("こんにちは")
+
+        payload = post.call_args.kwargs["json"]
+        assert payload["think"] is True
+        assert payload["options"]["num_ctx"] == 2048
+        assert payload["options"]["temperature"] == 0  # sibling defaults kept
+
+    def test_rejected_option_surfaces_server_error(self):
+        settings = LLMSettings(provider="openai", model="m", request_options={"bogus": 1})
+        translator = LLMTranslator(settings)
+        translator._session.post = MagicMock(
+            return_value=_response({"error": {"message": "unknown field 'bogus'"}}, 400)
+        )
+        with pytest.raises(ModelLoadError, match="HTTP 400: unknown field 'bogus'"):
+            translator.load()
+
+    def test_config_round_trip_and_validation(self, tmp_path):
+        path = tmp_path / "config.yml"
+        config = Config(
+            translation_backend=TranslationBackend.LLM,
+            llm=LLMSettings(model="m", request_options={"reasoning_effort": "none", "options": {"num_ctx": 2048}}),
+        )
+        config.save(str(path))
+        assert Config.load(str(path)).llm.request_options == {"reasoning_effort": "none", "options": {"num_ctx": 2048}}
+
+        # Empty mapping is not persisted; a non-mapping falls back to the default
+        Config(translation_backend=TranslationBackend.LLM, llm=LLMSettings(model="m")).save(str(path))
+        assert "request_options" not in path.read_text(encoding="utf-8")
+        path.write_text("translation_backend: llm\nllm:\n  model: m\n  request_options: nope\n", encoding="utf-8")
+        assert Config.load(str(path)).llm.request_options == {}

@@ -164,6 +164,24 @@ def clean_output(raw: str) -> str:
     return normalize_output(text)
 
 
+def merge_request_options(payload: dict, options: dict) -> dict:
+    """Overlay user-supplied request fields on a payload (one level deep for mappings).
+
+    Lets users pass provider/model-specific controls the app does not model, such as
+    ``reasoning_effort`` on an OpenAI-compatible server or Ollama ``options``. User
+    values win over the defaults, so a setting can also override e.g. ``think``.
+    Servers that reject an option answer with an HTTP error, which the Test button
+    surfaces verbatim.
+    """
+    merged = dict(payload)
+    for key, value in (options or {}).items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = {**merged[key], **value}
+        else:
+            merged[key] = value
+    return merged
+
+
 class LLMTranslator:
     """Translates Japanese text with a chat model behind an HTTP endpoint.
 
@@ -294,6 +312,7 @@ class LLMTranslator:
             "keep_alive": OLLAMA_KEEP_ALIVE,
             "options": {"temperature": TEMPERATURE, "seed": SEED, "num_predict": MAX_OUTPUT_TOKENS},
         }
+        payload = merge_request_options(payload, self._settings.request_options)
         response = self._session.post(
             f"{base}/api/chat",
             json=payload,
@@ -313,6 +332,7 @@ class LLMTranslator:
             "seed": SEED,
             "max_tokens": MAX_OUTPUT_TOKENS,
         }
+        payload = merge_request_options(payload, self._settings.request_options)
         response = self._session.post(
             f"{base}/chat/completions",
             json=payload,

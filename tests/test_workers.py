@@ -115,3 +115,26 @@ def test_reload_clears_failure_state(worker, monkeypatch):
     assert worker._translation_failures == 0
     assert worker._translation_error == ""
     assert worker._events[0][-1] == "ready"
+
+
+def test_reload_builds_a_fresh_engine_so_caches_do_not_leak_across_settings(monkeypatch):
+    """Changing model, target language or prompt must not reuse the old engine's cache."""
+    from interpreter.config import LLMSettings, TranslationBackend
+    from interpreter.llm_translate import LLMTranslator
+
+    config = Config(translation_backend=TranslationBackend.LLM, llm=LLMSettings(model="m", target_language="English"))
+    worker = ProcessWorker(config)
+    monkeypatch.setattr(LLMTranslator, "load", lambda self: None)
+
+    worker._load_translator()
+    first = worker._translator
+    first._cache.put("こんにちは", "Hello")
+    assert first.translate("こんにちは") == ("Hello", True)
+
+    config.llm = LLMSettings(model="m", target_language="French")
+    worker._load_translator()
+    second = worker._translator
+
+    assert second is not first
+    assert second._cache.get("こんにちは") is None
+    assert second.system_prompt != first.system_prompt
