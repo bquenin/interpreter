@@ -11,7 +11,7 @@ from collections import deque
 import requests
 
 from . import log
-from .config import LLMSettings
+from .config import LLM_PROVIDERS, LLMSettings
 from .models import ModelLoadError
 from .translate import (
     DEFAULT_CACHE_SIZE,
@@ -24,7 +24,8 @@ logger = log.get_logger()
 
 PROVIDER_OLLAMA = "ollama"
 PROVIDER_OPENAI = "openai"
-PROVIDERS = (PROVIDER_OLLAMA, PROVIDER_OPENAI)
+PROVIDERS = LLM_PROVIDERS
+assert PROVIDERS == (PROVIDER_OLLAMA, PROVIDER_OPENAI)
 PROVIDER_LABELS = {
     PROVIDER_OLLAMA: "Ollama",
     PROVIDER_OPENAI: "OpenAI-compatible",
@@ -81,6 +82,8 @@ def normalize_base_url(provider: str, base_url: str) -> str:
     Ollama's native API lives at the server root, while OpenAI-compatible servers
     expose their routes under ``/v1``. Users paste either form, so accept both.
     """
+    if provider not in DEFAULT_BASE_URLS:
+        raise ValueError(f"Unsupported LLM provider '{provider}'. Use one of: {', '.join(PROVIDERS)}.")
     url = ((base_url or "").strip() or DEFAULT_BASE_URLS[provider]).rstrip("/")
     if provider == PROVIDER_OLLAMA:
         if url.endswith("/v1"):
@@ -175,6 +178,10 @@ class LLMTranslator:
         cache_size: int = DEFAULT_CACHE_SIZE,
         similarity_threshold: float = DEFAULT_SIMILARITY_THRESHOLD,
     ):
+        if settings.provider not in PROVIDERS:
+            raise ModelLoadError(f"Unsupported LLM provider '{settings.provider}'. Use one of: {', '.join(PROVIDERS)}.")
+        if not settings.timeout > 0:
+            raise ModelLoadError(f"LLM timeout must be a positive number of seconds, got {settings.timeout!r}.")
         self._settings = settings
         self._cache = TranslationCache(cache_size, similarity_threshold)
         self._history: deque[tuple[str, str]] = deque(maxlen=max(0, settings.context_lines))

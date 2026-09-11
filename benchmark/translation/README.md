@@ -32,7 +32,7 @@ No synthetic text or generated screenshots are accepted. Downloaded source files
 
 ## Models
 
-`models.json` pins every repository to a full Hugging Face revision and pins its benchmark packages. The default overnight matrix is:
+`models.json` pins every Hugging Face repository to a full revision, pins the two Ollama models to their manifest digests, and pins each candidate's benchmark packages. The default overnight matrix is:
 
 | ID | Model | Parameters/artifacts | Inference profile |
 |---|---|---|---|
@@ -66,7 +66,7 @@ $env:PYTHONUTF8 = "1"
 
 On macOS/Linux, replace `.\.venv\Scripts\python.exe` with `.venv/bin/python`.
 
-The default matrix runs production plus all four accessible candidates, three timed repeats, two warm-ups, chrF++/BLEU, pinned WMT22 COMET, and a paired comparison for each candidate. It can download roughly 17 GB of model and metric artifacts. Raw and scored JSON reports go to ignored `benchmark/translation/results/`.
+The default matrix runs production plus all six accessible candidates (the four Hugging Face candidates and the two Ollama ones), three timed repeats, two warm-ups, chrF++/BLEU, pinned WMT22 COMET, and a paired comparison for each candidate. It can download roughly 17 GB of Hugging Face model and metric artifacts; the two Ollama models (about 16 GB) must be pulled separately with `ollama pull`, and they are skipped with a recorded failure when no Ollama server is running. Raw and scored JSON reports go to ignored `benchmark/translation/results/`.
 
 Useful smaller commands:
 

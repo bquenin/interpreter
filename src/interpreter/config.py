@@ -24,6 +24,9 @@ class TranslationBackend(str, Enum):
     LLM = "llm"  # Ollama or any OpenAI-compatible chat endpoint
 
 
+LLM_PROVIDERS = ("ollama", "openai")
+
+
 @dataclass
 class LLMSettings:
     """Connection and prompt settings for the LLM endpoint translation backend."""
@@ -62,6 +65,17 @@ class LLMSettings:
                     kwargs[field.name] = str(value) if value is not None else default
             except (TypeError, ValueError):
                 logger.warning("invalid llm setting, using default", key=field.name, value=value)
+
+        # Values that parse but would break the HTTP client or route to the wrong API
+        if kwargs.get("provider") not in (None, *LLM_PROVIDERS):
+            logger.warning("unsupported llm provider, using default", provider=kwargs["provider"])
+            del kwargs["provider"]
+        if "timeout" in kwargs and not (0 < kwargs["timeout"] < float("inf")):
+            logger.warning("llm timeout must be a positive number, using default", timeout=kwargs["timeout"])
+            del kwargs["timeout"]
+        if "context_lines" in kwargs and kwargs["context_lines"] < 0:
+            logger.warning("llm context_lines cannot be negative, using default", value=kwargs["context_lines"])
+            del kwargs["context_lines"]
         return cls(**kwargs)
 
     def to_dict(self) -> dict:

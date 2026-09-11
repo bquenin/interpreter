@@ -371,3 +371,35 @@ class TestConfigRoundTrip:
         loaded = Config.load(str(path))
         assert loaded.translation_backend == TranslationBackend.SUGOI
         assert loaded.llm == LLMSettings()
+
+    @pytest.mark.parametrize(
+        ("yaml_block", "field", "expected"),
+        [
+            ("provider: banana", "provider", "ollama"),
+            ("timeout: 0", "timeout", 30.0),
+            ("timeout: -5", "timeout", 30.0),
+            ("timeout: .inf", "timeout", 30.0),
+            ("timeout: .nan", "timeout", 30.0),
+            ("context_lines: -1", "context_lines", 3),
+        ],
+    )
+    def test_unusable_values_fall_back_to_defaults(self, tmp_path, yaml_block, field, expected):
+        path = tmp_path / "config.yml"
+        path.write_text(f"translation_backend: llm\nllm:\n  model: m\n  {yaml_block}\n", encoding="utf-8")
+        loaded = Config.load(str(path))
+        assert getattr(loaded.llm, field) == expected
+        assert loaded.llm.model == "m"
+
+
+class TestSettingsGuards:
+    def test_unknown_provider_is_rejected_before_any_request(self):
+        with pytest.raises(ModelLoadError, match="Unsupported LLM provider 'banana'"):
+            LLMTranslator(LLMSettings(provider="banana", model="m"))
+
+    def test_non_positive_timeout_is_rejected(self):
+        with pytest.raises(ModelLoadError, match="timeout must be a positive number"):
+            LLMTranslator(LLMSettings(provider="ollama", model="m", timeout=0))
+
+    def test_normalize_base_url_rejects_unknown_provider(self):
+        with pytest.raises(ValueError, match="Unsupported LLM provider"):
+            normalize_base_url("banana", "http://x")

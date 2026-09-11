@@ -38,6 +38,7 @@ from ..llm_translate import (
     check_endpoint,
     describe_request_error,
     list_models,
+    normalize_base_url,
     provider_label,
 )
 from ..overlay import BannerOverlay, InplaceOverlay
@@ -102,6 +103,9 @@ class MainWindow(QMainWindow):
         self._process_worker = self._create_worker()
         self._llm_models_result.connect(self._on_llm_models_listed)
         self._llm_test_result.connect(self._on_llm_test_done)
+        # Settings snapshots of the in-flight Refresh / Test requests (stale results are dropped)
+        self._llm_refresh_request: LLMSettings | None = None
+        self._llm_test_request: LLMSettings | None = None
 
         # Overlays
         self._banner_overlay = BannerOverlay(
@@ -550,22 +554,40 @@ class MainWindow(QMainWindow):
         width = max(label.width() - 4, 200)
         label.setText(label.fontMetrics().elidedText(text, Qt.TextElideMode.ElideRight, width))
 
+    @staticmethod
+    def _endpoint_identity(settings: LLMSettings) -> tuple[str, str, str]:
+        """The parts of the settings that decide which server a model list came from."""
+        return (settings.provider, normalize_base_url(settings.provider, settings.base_url), settings.api_key)
+
     def _refresh_llm_models(self):
-        """List the server's models on a background thread."""
+        """List the server's models on a background thread.
+
+        The request carries the settings it was made with; a result is dropped if a
+        newer request superseded it or the endpoint fields changed meanwhile, so a slow
+        old server can never overwrite the model list of the one now selected.
+        """
         settings = self._llm_settings_from_ui()
+        self._llm_refresh_request = settings
         self._llm_refresh_btn.setEnabled(False)
         self._set_llm_result("Listing models...")
 
         def run():
             try:
-                self._llm_models_result.emit(list_models(settings))
+                self._llm_models_result.emit((settings, list_models(settings)))
             except Exception as e:
-                self._llm_models_result.emit(describe_request_error(e, settings))
+                self._llm_models_result.emit((settings, describe_request_error(e, settings)))
 
         threading.Thread(target=run, daemon=True).start()
 
-    def _on_llm_models_listed(self, result):
+    def _on_llm_models_listed(self, payload):
+        settings, result = payload
+        if settings is not self._llm_refresh_request:
+            return  # superseded by a newer Refresh; that one re-enables the button
+        self._llm_refresh_request = None
         self._llm_refresh_btn.setEnabled(True)
+        if self._endpoint_identity(settings) != self._endpoint_identity(self._llm_settings_from_ui()):
+            self._set_llm_result("Endpoint changed while listing models; click Refresh again.", error=True)
+            return
         if isinstance(result, str):
             self._set_llm_result(result, error=True)
             return
@@ -588,19 +610,27 @@ class MainWindow(QMainWindow):
         if not settings.model:
             self._set_llm_result("Pick a model first.", error=True)
             return
+        self._llm_test_request = settings
         self._llm_test_btn.setEnabled(False)
         self._set_llm_result("Testing (loading the model may take a moment)...")
 
         def run():
             try:
-                self._llm_test_result.emit(check_endpoint(settings))
+                self._llm_test_result.emit((settings, check_endpoint(settings)))
             except Exception as e:
-                self._llm_test_result.emit(str(e))
+                self._llm_test_result.emit((settings, str(e)))
 
         threading.Thread(target=run, daemon=True).start()
 
-    def _on_llm_test_done(self, result):
+    def _on_llm_test_done(self, payload):
+        settings, result = payload
+        if settings is not self._llm_test_request:
+            return  # superseded by a newer Test
+        self._llm_test_request = None
         self._llm_test_btn.setEnabled(True)
+        if settings != self._llm_settings_from_ui():
+            self._set_llm_result("Settings changed during the test; click Test again.", error=True)
+            return
         if isinstance(result, str):
             self._set_llm_result(result, error=True)
             return

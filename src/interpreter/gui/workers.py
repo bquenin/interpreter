@@ -12,6 +12,10 @@ from ..translate import TranslationEngine, create_translator
 
 logger = log.get_logger()
 
+# After this many consecutive translation failures the engine is marked as failed
+# (status "Error" + Fix Models) instead of retrying on every frame forever.
+MAX_CONSECUTIVE_TRANSLATION_FAILURES = 3
+
 
 def contains_japanese(text: str) -> bool:
     """Check if text contains Japanese characters."""
@@ -105,6 +109,7 @@ class ProcessWorker(QObject):
         self._translation_failed = False
         self._ocr_error = ""
         self._translation_error = ""
+        self._translation_failures = 0  # consecutive runtime failures since the last success
 
         # Set when the UI changes the translation backend; handled on the worker thread
         self._reload_translation = False
@@ -215,6 +220,7 @@ class ProcessWorker(QObject):
             self._translator = translator
             self._translation_failed = False
             self._translation_error = ""
+            self._translation_failures = 0
             self.translation_status.emit("ready")
             logger.debug("translation engine loaded", engine=translator.name)
         except Exception as e:
@@ -222,6 +228,30 @@ class ProcessWorker(QObject):
             self._translation_error = str(e)
             self.translation_status.emit("error")
             logger.error("failed to load translation engine", error=str(e))
+
+    def _record_translation_failure(self, error: Exception) -> bool:
+        """Count a runtime translation failure; mark the engine failed after repeated ones.
+
+        A dead endpoint would otherwise keep showing "Ready" while every frame fails.
+        Once marked failed, frames are skipped until the UI reloads the engine
+        (Apply or Fix Models), which is the recovery path.
+
+        Returns:
+            True if the engine has just been marked as failed.
+        """
+        self._translation_failures += 1
+        if self._translation_failures < MAX_CONSECUTIVE_TRANSLATION_FAILURES:
+            return False
+        self._translation_failed = True
+        self._translation_error = str(error)
+        self.translation_status.emit("error")
+        self.models_failed.emit(self._translation_error)
+        logger.error(
+            "translation engine marked as failed",
+            failures=self._translation_failures,
+            error=self._translation_error,
+        )
+        return True
 
     def _emit_models_status(self):
         if self._ocr_failed or self._translation_failed:
@@ -289,10 +319,13 @@ class ProcessWorker(QObject):
                         translated, cached = self._translator.translate(region.text)
                         if not cached:
                             all_cached = False
+                        self._translation_failures = 0
                     except Exception as e:
                         logger.warning("Translation error", error=str(e), text=region.text[:50])
                         translated = region.text
                         all_cached = False
+                        if self._record_translation_failure(e):
+                            break
                 else:
                     continue
                 translated_regions.append((translated, region.bbox))
@@ -304,9 +337,11 @@ class ProcessWorker(QObject):
             if self._translator:
                 try:
                     translated, was_cached = self._translator.translate(text)
+                    self._translation_failures = 0
                 except Exception as e:
                     logger.warning("Translation error", error=str(e), text=text[:50])
                     translated = f"[{text}]"
+                    self._record_translation_failure(e)
             else:
                 translated = text
             translate_ms = int((time.perf_counter() - translate_start) * 1000)
