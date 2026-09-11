@@ -1691,7 +1691,9 @@ class MainWindow(QMainWindow):
         pixmap = QPixmap.fromImage(qimg)
 
         # Resize label to match preview aspect ratio
-        self._preview_label.setFixedSize(preview_w, preview_h)
+        if self._preview_label.size() != pixmap.size():
+            self._preview_label.setFixedSize(preview_w, preview_h)
+            self._grow_to_fit()  # a taller preview must not squeeze the rest of the page
         self._preview_label.setPixmap(pixmap)
 
         # Update exclusion editor dialog if open

@@ -102,11 +102,11 @@ QPushButton[primary="true"]:disabled {{
     border-color: #26314a;
     color: #7f8aa3;
 }}
-QPushButton[segment="true"] {{
+QPushButton[segment="left"], QPushButton[segment="right"] {{
     border-radius: 0;
     padding: 6px 18px;
 }}
-QPushButton[segment="true"]:checked {{
+QPushButton[segment="left"]:checked, QPushButton[segment="right"]:checked {{
     background: {ACCENT};
     border-color: {ACCENT};
     color: white;
