@@ -307,6 +307,23 @@ class TestMainWindow:
         assert config.source_language == "Japanese"
         win._process_worker.reload_translation.assert_called_once()  # prompt no longer says Chinese
 
+    def test_fix_models_does_not_delete_sugoi_for_a_language_conflict(self, qapp, monkeypatch):
+        """A hand-edited config pairing Sugoi with a non-Japanese source must not wipe the model cache."""
+        config = Config(
+            ocr_backend=OCRBackend.OWOCR, translation_backend=TranslationBackend.SUGOI, source_language="Korean"
+        )
+        win = _panel(config)
+        win._fixing_ocr = win._fixing_translation = False
+        win._process_worker.get_failed_models.return_value = ["translation"]
+        deleted = []
+        monkeypatch.setattr("interpreter.models.delete_model_cache", deleted.append)
+
+        win._on_fix_models()
+
+        assert deleted == []
+        win._process_worker.reload_translation.assert_called_once()
+        win._process_worker.stop.assert_not_called()  # no worker restart, nothing to download
+
     def test_apply_translation_refuses_sugoi_with_non_japanese_source(self, qapp):
         config = Config(
             ocr_backend=OCRBackend.OWOCR, translation_backend=TranslationBackend.LLM, source_language="English"

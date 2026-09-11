@@ -1037,7 +1037,12 @@ class MainWindow(QMainWindow):
             delete_model_cache("rtr46/meiki.text.detect.v0")
             delete_model_cache("rtr46/meiki.txt.recognition.v0")
             self._fixing_ocr = True
-        if "translation" in failed and self._config.translation_backend == TranslationBackend.SUGOI:
+        if (
+            "translation" in failed
+            and self._config.translation_backend == TranslationBackend.SUGOI
+            # A source-language conflict is a settings problem, not a corrupt download
+            and self._config.source_language == SUGOI_SOURCE_LANGUAGE
+        ):
             delete_model_cache("entai2965/sugoi-v4-ja-en-ctranslate2")
             self._fixing_translation = True
 
