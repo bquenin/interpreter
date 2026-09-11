@@ -525,8 +525,10 @@ class MainWindow(QMainWindow):
             api_key=self._llm_api_key_edit.text().strip(),
             target_language=self._llm_language_edit.text().strip() or "English",
             system_prompt=None if not prompt or prompt == DEFAULT_SYSTEM_PROMPT else prompt,
+            # Config-only fields (no widgets) are carried over so Apply never drops them
             context_lines=self._config.llm.context_lines,
             timeout=self._config.llm.timeout,
+            request_options=dict(self._config.llm.request_options),
         )
 
     def _on_engine_changed(self, _index: int):
