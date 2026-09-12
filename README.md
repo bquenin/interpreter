@@ -88,6 +88,12 @@ interpreter-v2
 
 This opens the GUI where you can select a window to capture and configure all settings.
 
+### Capturing a console through a capture card
+
+The source list also shows video devices (capture cards, webcams). Pick your card there to translate a console game without going through OBS: the console plays on the TV through the card's passthrough, and the banner with the translation floats on the PC screen. Video sources are banner mode only, since there is no window on screen to draw over. Exclusion zones and the OCR confidence are remembered per device, like they are per window.
+
+On macOS the first capture triggers the camera permission prompt for the terminal that launched Interpreter.
+
 ## Overlay Modes
 
 ### Banner Mode (default)

@@ -5,6 +5,7 @@ import threading
 from PIL import ImageDraw
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QFont, QImage, QKeySequence, QPixmap
+from PySide6.QtMultimedia import QMediaDevices
 from PySide6.QtWidgets import (
     QButtonGroup,
     QColorDialog,
@@ -32,6 +33,7 @@ from PySide6.QtWidgets import (
 from .. import __version__, log
 from ..capture import Capture, WindowCapture, _is_wayland_session
 from ..capture.convert import bgra_to_rgb_pil
+from ..capture.video_device import VideoDeviceCapture, device_id, find_video_device, list_video_devices
 from ..config import Config, LLMSettings, OCRBackend, OverlayMode, OwocrSettings, TranslationBackend
 from ..languages import DEFAULT_SOURCE_LANGUAGE, SOURCE_LANGUAGES
 from ..llm_translate import (
@@ -74,6 +76,7 @@ MAX_FONT_SIZE = 72
 
 # Fixed processing interval (2 FPS)
 PROCESS_INTERVAL_MS = 500
+NO_SIGNAL_NOTICE_MS = 3000  # video device session without frames before the status bar says so
 
 
 class MainWindow(QMainWindow):
@@ -111,6 +114,12 @@ class MainWindow(QMainWindow):
         self._is_wayland_session = _is_wayland_session
         self._wayland_portal = None  # WaylandPortalCapture instance (for managing portal session lifecycle)
         self._wayland_selecting = False  # Guard against re-entry during portal flow
+        # Video device sessions are banner only; the user's mode is restored afterwards
+        self._banner_only = False
+        self._mode_before_video: OverlayMode | None = None
+        # Consecutive processing ticks without a frame (a capture card with the console off)
+        self._frames_missing = 0
+        self._waiting_for_signal = False
         self._fixing_ocr = False  # Track if we're re-downloading OCR model
         self._fixing_translation = False  # Track if we're re-downloading translation model
 
@@ -157,13 +166,17 @@ class MainWindow(QMainWindow):
         self._last_frame = None
         self._last_bounds = {}
 
+        # Re-list the sources when a capture card or webcam is plugged in or removed
+        self._media_devices = QMediaDevices(self)
+        self._media_devices.videoInputsChanged.connect(self._on_video_devices_changed)
+
         self._setup_ui()
         # Auto-size window to fit all widgets, then lock minimum size
         self.adjustSize()
         self.setMinimumSize(self.size())
         # Open with room for the capture preview; the user can still shrink to the minimum
         self.resize(self.width(), max(self.height(), 680))
-        self._refresh_windows()
+        self._refresh_sources()
         self._load_models()
 
     def _create_worker(self) -> ProcessWorker:
@@ -367,57 +380,35 @@ class MainWindow(QMainWindow):
             self._pair_hint.setText(f"{source} \u2192 {target}: the selected engines handle this pair.")
 
     def _build_capture_group(self) -> QGroupBox:
-        """Window selection, capture controls and the preview."""
+        """Source selection, capture controls and the preview."""
         # ==================== CAPTURE ====================
-        # Window selection + Preview in one logical group
+        # Source selection + Preview in one logical group
         capture_group = QGroupBox("Capture")
         capture_layout = QVBoxLayout(capture_group)
 
-        # Window selection row
-        window_row = QHBoxLayout()
+        # Source row: windows (or the Wayland portal picker) and video devices in one list
+        source_row = QHBoxLayout()
 
-        # Configure OCR button (shared by both Wayland and X11)
+        self._window_combo = QComboBox()
+        self._window_combo.setMinimumWidth(250)
+        source_row.addWidget(self._window_combo, 1)
+
+        self._start_btn = QPushButton("Start Capture")
+        self._start_btn.setProperty("primary", True)
+        self._start_btn.setEnabled(False)  # Disabled until models are loaded
+        self._start_btn.clicked.connect(self._toggle_capture)
+        source_row.addWidget(self._start_btn)
+
+        refresh_btn = QPushButton("Refresh")
+        refresh_btn.clicked.connect(self._refresh_sources)
+        source_row.addWidget(refresh_btn)
+
         self._ocr_config_btn = QPushButton("Configure OCR")
         self._ocr_config_btn.setEnabled(False)  # Disabled until capturing
         self._ocr_config_btn.clicked.connect(self._open_ocr_config)
+        source_row.addWidget(self._ocr_config_btn)
 
-        if self._is_wayland_session:
-            # Wayland: single toggle button for capture
-            self._select_window_btn = QPushButton("Start Capture")
-            self._select_window_btn.setProperty("primary", True)
-            self._select_window_btn.setEnabled(False)  # Disabled until models are loaded
-            self._select_window_btn.clicked.connect(self._toggle_wayland_capture)
-            window_row.addWidget(self._select_window_btn, 1)
-            window_row.addWidget(self._ocr_config_btn)
-
-            # Not used in Wayland mode
-            self._window_combo = None
-            self._start_btn = None
-            self._stop_btn = None
-        else:
-            # X11/macOS/Windows: dropdown + start/refresh buttons
-            self._window_combo = QComboBox()
-            self._window_combo.setMinimumWidth(250)
-            self._window_combo.activated.connect(self._on_window_selected)
-            window_row.addWidget(self._window_combo, 1)
-
-            self._start_btn = QPushButton("Start Capture")
-            self._start_btn.setProperty("primary", True)
-            self._start_btn.setEnabled(False)  # Disabled until models are loaded
-            self._start_btn.clicked.connect(self._toggle_capture)
-            window_row.addWidget(self._start_btn)
-
-            refresh_btn = QPushButton("Refresh")
-            refresh_btn.clicked.connect(self._refresh_windows)
-            window_row.addWidget(refresh_btn)
-
-            window_row.addWidget(self._ocr_config_btn)
-
-            # Not used in X11 mode
-            self._select_window_btn = None
-            self._stop_btn = None
-
-        capture_layout.addLayout(window_row)
+        capture_layout.addLayout(source_row)
 
         # Preview (centered, aspect ratio preserved)
         self._preview_label = QLabel()
@@ -1144,21 +1135,13 @@ class MainWindow(QMainWindow):
 
     def _on_models_ready(self):
         """Handle models loaded signal from worker thread."""
-        # Enable the appropriate capture button
-        if self._start_btn:
-            self._start_btn.setEnabled(True)
-        if self._select_window_btn:
-            self._select_window_btn.setEnabled(True)
+        self._start_btn.setEnabled(True)
         self.statusBar().showMessage("Ready")
         logger.debug("models loaded")
 
     def _on_models_failed(self, error: str):
         """Handle model loading failure from worker thread."""
-        # Disable the appropriate capture button
-        if self._start_btn:
-            self._start_btn.setEnabled(False)
-        if self._select_window_btn:
-            self._select_window_btn.setEnabled(False)
+        self._start_btn.setEnabled(False)
         self._show_fix_models_button()
         self.statusBar().showMessage(f"Model loading failed: {error[:120]}")
         # Full message on hover, since the status bar truncates
@@ -1272,31 +1255,88 @@ class MainWindow(QMainWindow):
         self._process_worker.set_mode(self._mode)
         self._process_worker.start(self._config.ocr_confidence)
 
-    def _refresh_windows(self):
-        """Refresh the window list (X11 only)."""
-        if self._is_wayland_session or self._window_combo is None:
-            return
+    def _refresh_sources(self):
+        """Refresh the source list: windows (or the Wayland picker) followed by video devices.
 
+        Each item carries a (kind, value) tuple: ("portal", None), ("window", index into
+        self._windows_list) or ("device", (device id, device name)).
+
+        A source the user already picked stays selected when it is still there; otherwise
+        the source captured last (from the config) is selected.
+        """
+        previous = self._source_key(self._window_combo.currentData())
         self._window_combo.clear()
-        self._windows_list = WindowCapture.list_windows()
         selected_idx = -1
 
-        for i, win in enumerate(self._windows_list):
-            title = win.get("title", "Unknown")
-            bounds = win.get("bounds", {})
-            width = bounds.get("width", 0)
-            height = bounds.get("height", 0)
-            if len(title) > 50:
-                title = title[:50] + "..."
-            display_text = f"{title} ({width}x{height})"
-            self._window_combo.addItem(display_text)
+        if self._is_wayland_session:
+            # Wayland has no window list; the portal shows the system picker on start
+            self._windows_list = []
+            self._window_combo.addItem("Window (system picker)", ("portal", None))
+            selected_idx = 0
+        else:
+            self._windows_list = WindowCapture.list_windows()
+            for i, win in enumerate(self._windows_list):
+                title = win.get("title", "Unknown")
+                bounds = win.get("bounds", {})
+                width = bounds.get("width", 0)
+                height = bounds.get("height", 0)
+                if len(title) > 50:
+                    title = title[:50] + "..."
+                self._window_combo.addItem(f"{title} ({width}x{height})", ("window", i))
 
-            # Auto-select if matches config
-            if self._config.window_title and self._config.window_title.lower() in win.get("title", "").lower():
-                selected_idx = i
+                # Auto-select if matches config
+                if self._config.window_title and self._config.window_title.lower() in win.get("title", "").lower():
+                    selected_idx = self._window_combo.count() - 1
+
+        devices = list_video_devices()
+        if devices:
+            if self._window_combo.count():
+                self._window_combo.insertSeparator(self._window_combo.count())
+            names_seen: dict[str, int] = {}
+            id_match = name_match = -1
+            for device in devices:
+                name = device.description()
+                id_text = device_id(device)
+                # Two cards of the same model: number the display text, the id tells them apart
+                names_seen[name] = names_seen.get(name, 0) + 1
+                label = f"Video device: {name}" + (f" ({names_seen[name]})" if names_seen[name] > 1 else "")
+                self._window_combo.addItem(label, ("device", (id_text, name)))
+                if self._config.video_device_id and self._config.video_device_id == id_text:
+                    id_match = self._window_combo.count() - 1
+                elif name_match < 0 and self._config.video_device and self._config.video_device == name:
+                    name_match = self._window_combo.count() - 1
+            # A video device captured last wins over the window title match: by id, else by name
+            device_match = id_match if id_match >= 0 else name_match
+            if device_match >= 0:
+                selected_idx = device_match
+
+        # Keep what the user had picked, if it is still there
+        if previous is not None:
+            for i in range(self._window_combo.count()):
+                if self._source_key(self._window_combo.itemData(i)) == previous:
+                    selected_idx = i
+                    break
 
         if selected_idx >= 0:
             self._window_combo.setCurrentIndex(selected_idx)
+
+    def _source_key(self, data) -> tuple | None:
+        """Stable identity of a source item, independent of its position in the list."""
+        if not data:
+            return None
+        kind, value = data
+        if kind == "window":
+            if value >= len(self._windows_list):
+                return None
+            return ("window", self._windows_list[value].get("id"))
+        if kind == "device":
+            return ("device", value[0])
+        return (kind,)
+
+    def _on_video_devices_changed(self):
+        """A video device was plugged in or removed; re-list unless a capture is running."""
+        if not self._capturing:
+            self._refresh_sources()
 
     def _toggle_capture(self):
         """Start or stop capture."""
@@ -1306,19 +1346,20 @@ class MainWindow(QMainWindow):
             self._start_capture()
 
     def _start_capture(self):
-        """Start capturing the selected window."""
-        # Wayland session: always use portal capture
-        if self._is_wayland_session:
+        """Start capturing the selected source."""
+        kind, value = self._window_combo.currentData() or (None, None)
+        if kind == "portal":
             self._start_wayland_capture()
             return
-
-        # X11 session: use selected window from list
-        idx = self._window_combo.currentIndex()
-        if idx < 0 or idx >= len(self._windows_list):
-            self.statusBar().showMessage("No window selected")
+        if kind == "device":
+            id_text, name = value
+            self._start_video_capture(name, id_text)
+            return
+        if kind != "window" or value >= len(self._windows_list):
+            self.statusBar().showMessage("No source selected")
             return
 
-        window = self._windows_list[idx]
+        window = self._windows_list[value]
         title = window.get("title", "")
         window_id = window.get("id")
         bounds = window.get("bounds")
@@ -1349,8 +1390,7 @@ class MainWindow(QMainWindow):
 
         self._last_ocr_results = []  # boxes from a previous session must not outlive it
         self._paused = False
-        if self._start_btn:
-            self._start_btn.setText("Stop Capture")
+        self._start_btn.setText("Stop Capture")
         self._pause_btn.setEnabled(True)
         self._pause_btn.setText("Hide")
         self._ocr_config_btn.setEnabled(True)
@@ -1358,6 +1398,8 @@ class MainWindow(QMainWindow):
 
         # Update config with selected window
         self._config.window_title = title
+        self._config.video_device = ""
+        self._config.video_device_id = ""
         self._current_window_title = title  # Store for exclusion zone lookup
 
         # Set per-window OCR confidence
@@ -1367,17 +1409,71 @@ class MainWindow(QMainWindow):
         # Show overlay
         self._show_overlay()
 
-    def _on_window_selected(self, index: int):
-        """Handle window selection change (X11 only)."""
-        # Not used in Wayland mode
-        pass
+    def _start_video_capture(self, name: str, id_text: str = ""):
+        """Start capturing a video device (capture card, webcam), by id when known, else by name."""
+        device = find_video_device(name, id_text)
+        if device is None:
+            self.statusBar().showMessage(f"Video device not found: {name[:40]}")
+            self._refresh_sources()
+            return
 
-    def _toggle_wayland_capture(self):
-        """Toggle Wayland capture on/off."""
-        if self._capturing:
-            self._stop_capture()
+        try:
+            self._capture = VideoDeviceCapture(device, self)
+            self._capture.start()
+        except Exception as e:
+            logger.error("video device capture failed", device=name, error=str(e))
+            first_line = (str(e).splitlines() or [""])[0]
+            self.statusBar().showMessage(f"Capture failed: {first_line[:100]}")
+            self._capture = None
+            return
+
+        self._process_timer.setInterval(PROCESS_INTERVAL_MS)
+        self._process_timer.start()
+
+        self._capturing = True
+        self._frames_missing = 0
+        self._waiting_for_signal = False
+
+        self._last_ocr_results = []  # boxes from a previous session must not outlive it
+        self._paused = False
+        self._start_btn.setText("Stop Capture")
+        self._pause_btn.setEnabled(True)
+        self._pause_btn.setText("Hide")
+        self._ocr_config_btn.setEnabled(True)
+        self.statusBar().showMessage(f"Capturing video device '{name[:40]}'")
+
+        # Remember the device; exclusion zones and OCR confidence are keyed by its name
+        self._config.video_device = name
+        self._config.video_device_id = device_id(device)
+        self._current_window_title = name
+        self._process_worker.set_confidence_threshold(self._config.get_ocr_confidence(name))
+
+        # Nothing on screen to draw over: banner mode for the whole session
+        self._set_banner_only(True)
+        self._show_overlay()
+
+    def _set_banner_only(self, banner_only: bool):
+        """Lock the overlay to banner mode (video device sessions) or lift the lock again.
+
+        The user's chosen mode is restored when the lock is lifted and is never written to
+        the config by the forced switch.
+        """
+        self._banner_only = banner_only
+        if banner_only:
+            self._inplace_btn.setEnabled(False)
+            self._inplace_btn.setToolTip("Video devices have no window on screen to draw over: banner mode only")
+            if self._mode == OverlayMode.INPLACE:
+                self._mode_before_video = self._mode
+                self._banner_btn.setChecked(True)
+                self._apply_mode(OverlayMode.BANNER, persist=False)
         else:
-            self._start_wayland_capture()
+            self._inplace_btn.setEnabled(True)
+            self._inplace_btn.setToolTip("")
+            if self._mode_before_video is not None:
+                restored, self._mode_before_video = self._mode_before_video, None
+                self._inplace_btn.setChecked(restored == OverlayMode.INPLACE)
+                self._banner_btn.setChecked(restored == OverlayMode.BANNER)
+                self._apply_mode(restored, persist=False)
 
     def _start_wayland_capture(self):
         """Start Wayland capture using xdg-desktop-portal."""
@@ -1389,8 +1485,7 @@ class MainWindow(QMainWindow):
         self._wayland_selecting = True
 
         self.statusBar().showMessage("Select a window...")
-        if self._select_window_btn:
-            self._select_window_btn.setEnabled(False)
+        self._start_btn.setEnabled(False)
 
         try:
             self._wayland_portal = WaylandPortalCapture()
@@ -1401,8 +1496,7 @@ class MainWindow(QMainWindow):
 
             if not stream_info:
                 self.statusBar().showMessage("Window selection cancelled")
-                if self._select_window_btn:
-                    self._select_window_btn.setEnabled(True)
+                self._start_btn.setEnabled(True)
                 self._wayland_portal.close()
                 self._wayland_portal = None
                 return
@@ -1427,12 +1521,13 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage("Capturing Wayland window...")
 
             # Update button to show stop action
-            if self._select_window_btn:
-                self._select_window_btn.setText("Stop Capture")
-                self._select_window_btn.setEnabled(True)
+            self._start_btn.setText("Stop Capture")
+            self._start_btn.setEnabled(True)
 
             # Store window title for exclusion zone lookup (Wayland doesn't have window titles)
             self._current_window_title = "Wayland Capture"
+            self._config.video_device = ""
+            self._config.video_device_id = ""
 
             # Set per-window OCR confidence
             confidence = self._config.get_ocr_confidence(self._current_window_title)
@@ -1444,8 +1539,7 @@ class MainWindow(QMainWindow):
         except Exception as e:
             logger.error("failed to start wayland capture", error=str(e))
             self.statusBar().showMessage("Wayland capture failed")
-            if self._select_window_btn:
-                self._select_window_btn.setEnabled(True)
+            self._start_btn.setEnabled(True)
             self._wayland_selecting = False
             if self._wayland_portal:
                 self._wayland_portal.close()
@@ -1460,6 +1554,10 @@ class MainWindow(QMainWindow):
             self._capture.stop()
             self._capture = None
 
+        # No-signal notice belongs to the video device session that just ended
+        self._frames_missing = 0
+        self._waiting_for_signal = False
+
         # Close Wayland portal session if active
         if self._wayland_portal:
             self._wayland_portal.close()
@@ -1473,14 +1571,8 @@ class MainWindow(QMainWindow):
         self._ocr_config_btn.setEnabled(False)
         self.statusBar().showMessage("Ready")
 
-        # Update UI based on session type
-        if self._is_wayland_session:
-            if self._select_window_btn:
-                self._select_window_btn.setText("Start Capture")
-                self._select_window_btn.setEnabled(True)
-        else:
-            if self._start_btn:
-                self._start_btn.setText("Start Capture")
+        self._start_btn.setText("Start Capture")
+        self._start_btn.setEnabled(True)
 
         # Clear preview
         self._preview_pixmap = None
@@ -1491,6 +1583,9 @@ class MainWindow(QMainWindow):
         self._banner_overlay.hide()
         self._inplace_overlay.clear_regions()
         self._inplace_overlay.hide()
+
+        # Give the inplace mode back after a video device session
+        self._set_banner_only(False)
 
     def _toggle_pause(self):
         """Toggle pause state."""
@@ -1508,6 +1603,8 @@ class MainWindow(QMainWindow):
 
     def _toggle_mode(self):
         """Toggle between banner and inplace mode via hotkey."""
+        if not self._inplace_btn.isEnabled():
+            return  # video device session: banner only
         new_mode_id = 0 if self._mode == OverlayMode.INPLACE else 1
         [self._banner_btn, self._inplace_btn][new_mode_id].setChecked(True)
         self._on_mode_changed(new_mode_id)
@@ -1616,10 +1713,17 @@ class MainWindow(QMainWindow):
 
     def _on_mode_changed(self, button_id: int):
         """Handle mode selection change."""
-        self._mode = OverlayMode.BANNER if button_id == 0 else OverlayMode.INPLACE
+        # A click on Banner during a video device session must not overwrite the saved choice
+        mode = OverlayMode.BANNER if button_id == 0 else OverlayMode.INPLACE
+        self._apply_mode(mode, persist=not self._banner_only)
+
+    def _apply_mode(self, mode: OverlayMode, persist: bool):
+        """Switch the overlay mode; persist=False for the temporary switch of a video device session."""
+        self._mode = mode
 
         self._process_worker.set_mode(self._mode)
-        self._config.overlay_mode = self._mode
+        if persist:
+            self._config.overlay_mode = self._mode
 
         if self._capturing and not self._paused:
             self._show_overlay()
@@ -1654,10 +1758,13 @@ class MainWindow(QMainWindow):
         # Get frame using unified capture interface
         frame = self._capture.get_frame()
 
-        # Check if window was closed
+        # Check if the window was closed or the video device went away
         if self._capture.window_invalid:
-            logger.info("window closed, stopping capture")
+            error = getattr(self._capture, "error", None)
+            logger.info("capture source gone, stopping capture", error=error)
             self._stop_capture()
+            if error:
+                self.statusBar().showMessage(f"Video device stopped: {error[:100]}")
             return
 
         # Get bounds (None on Wayland, dict on X11/Windows/macOS)
@@ -1670,7 +1777,19 @@ class MainWindow(QMainWindow):
             overlay.ensure_above(getattr(self._capture, "window_id", None))
 
         if frame is None:
+            # A capture card keeps the session open with no frames while the console is off;
+            # say so after a few seconds instead of leaving a silent blank preview
+            if isinstance(self._capture, VideoDeviceCapture):
+                self._frames_missing += 1
+                if self._frames_missing * PROCESS_INTERVAL_MS >= NO_SIGNAL_NOTICE_MS and not self._waiting_for_signal:
+                    self._waiting_for_signal = True
+                    self.statusBar().showMessage(f"Waiting for a video signal from '{self._capture.name[:40]}'...")
             return
+
+        if self._waiting_for_signal and isinstance(self._capture, VideoDeviceCapture):
+            self.statusBar().showMessage(f"Capturing video device '{self._capture.name[:40]}'")
+        self._waiting_for_signal = False
+        self._frames_missing = 0
 
         self._last_frame = frame
         self._last_bounds = bounds
