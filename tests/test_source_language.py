@@ -3,7 +3,7 @@
 from unittest.mock import MagicMock
 
 import pytest
-from PySide6.QtWidgets import QApplication, QComboBox, QLabel, QLineEdit, QPushButton
+from PySide6.QtWidgets import QApplication, QComboBox, QLabel, QLineEdit, QPlainTextEdit, QPushButton
 
 from interpreter.config import Config, LLMSettings, OCRBackend, OverlayMode, OwocrSettings, TranslationBackend
 from interpreter.gui.main_window import MainWindow
@@ -16,7 +16,7 @@ from interpreter.languages import (
     contains_script,
     normalize_source_language,
 )
-from interpreter.llm_translate import DEFAULT_SYSTEM_PROMPT, LLMTranslator, check_endpoint
+from interpreter.llm_translate import DEFAULT_SYSTEM_PROMPT, PROVIDER_LABELS, PROVIDERS, LLMTranslator, check_endpoint
 from interpreter.models import ModelLoadError
 from interpreter.ocr import OCRResult
 from interpreter.translate import SUGOI_ONLY_JAPANESE, Translator, create_translator
@@ -242,6 +242,20 @@ def _panel(config: Config) -> MainWindow:
     win._engine_combo.addItem("Sugoi", TranslationBackend.SUGOI.value)
     win._engine_combo.addItem("LLM", TranslationBackend.LLM.value)
     win._engine_combo.setCurrentIndex(win._engine_combo.findData(config.translation_backend.value))
+    win._translation_engine_label = QLabel()
+    win._pair_hint = QLabel()
+    win._llm_provider_combo = QComboBox()
+    for provider in PROVIDERS:
+        win._llm_provider_combo.addItem(PROVIDER_LABELS[provider], provider)
+    win._llm_provider_combo.setCurrentIndex(win._llm_provider_combo.findData(config.llm.provider))
+    win._llm_url_edit = QLineEdit(config.llm.base_url)
+    win._llm_model_combo = QComboBox()
+    win._llm_model_combo.setEditable(True)
+    win._llm_model_combo.setCurrentText(config.llm.model)
+    win._llm_api_key_edit = QLineEdit(config.llm.api_key)
+    win._llm_language_edit = QLineEdit(config.llm.target_language)
+    win._llm_prompt_edit = QPlainTextEdit(config.llm.system_prompt or DEFAULT_SYSTEM_PROMPT)
+    win._llm_result_label = QLabel()
     win._process_worker = MagicMock()
     win._grow_to_fit = MagicMock()
     win.statusBar = MagicMock()
@@ -270,42 +284,78 @@ class TestMainWindow:
         assert win._selected_source_language() == "Japanese"
         assert not win._source_language_combo.isEnabled()
 
-    def test_apply_ocr_refuses_non_japanese_with_sugoi(self, qapp):
+    def test_apply_refuses_pending_non_japanese_source_with_sugoi(self, qapp):
+        """The check uses the pending pair, not the saved one (saved source is Japanese here)."""
         config = Config(ocr_backend=OCRBackend.OWOCR, owocr=OwocrSettings())
         win = _panel(config)
         win._source_language_combo.setCurrentIndex(win._source_language_combo.findData("English"))
 
-        win._apply_ocr_settings()
+        win._apply_engines()
 
-        assert win._owocr_result_label.toolTip() == SUGOI_ONLY_JAPANESE
+        assert win._pair_hint.text() == SUGOI_ONLY_JAPANESE
         assert config.source_language == "Japanese"
         config.save.assert_not_called()
         win._process_worker.reload_ocr.assert_not_called()
+        win._process_worker.reload_translation.assert_not_called()
 
-    def test_apply_ocr_saves_the_language_and_reloads_both_engines(self, qapp):
-        config = Config(ocr_backend=OCRBackend.OWOCR, translation_backend=TranslationBackend.LLM)
-        win = _panel(config)
-        win._source_language_combo.setCurrentIndex(win._source_language_combo.findData("Chinese"))
-
-        win._apply_ocr_settings()
-
-        assert config.source_language == "Chinese"
-        config.save.assert_called_once()
-        win._process_worker.reload_ocr.assert_called_once()
-        win._process_worker.reload_translation.assert_called_once()
-
-    def test_apply_ocr_with_meiki_forces_japanese(self, qapp):
+    def test_apply_saves_the_whole_pair_at_once(self, qapp):
+        """Greptile: Korean -> French must be saved as Korean -> French, never half of it."""
         config = Config(
-            ocr_backend=OCRBackend.OWOCR, translation_backend=TranslationBackend.LLM, source_language="Chinese"
+            ocr_backend=OCRBackend.OWOCR, translation_backend=TranslationBackend.LLM, llm=LLMSettings(model="m")
+        )
+        win = _panel(config)
+        win._source_language_combo.setCurrentIndex(win._source_language_combo.findData("Korean"))
+        win._llm_language_edit.setText("French")
+
+        win._apply_engines()
+
+        assert (config.source_language, config.llm.target_language) == ("Korean", "French")
+        config.save.assert_called_once()
+        win._process_worker.reload_ocr.assert_not_called()  # OCR engine and settings unchanged
+        win._process_worker.reload_translation.assert_called_once()  # prompt names both languages
+        assert "Korean" in win._pair_hint.text() and "French" in win._pair_hint.text()
+
+    def test_apply_reloads_only_what_changed(self, qapp):
+        config = Config(ocr_backend=OCRBackend.MEIKI, translation_backend=TranslationBackend.SUGOI)
+        win = _panel(config)
+
+        win._apply_engines()
+        win._process_worker.reload_ocr.assert_not_called()
+        win._process_worker.reload_translation.assert_not_called()
+        win.statusBar().showMessage.assert_called_with("Engines unchanged")
+
+        win._ocr_engine_combo.setCurrentIndex(win._ocr_engine_combo.findData(OCRBackend.OWOCR.value))
+        win._apply_engines()
+        assert config.ocr_backend == OCRBackend.OWOCR
+        win._process_worker.reload_ocr.assert_called_once()
+        win._process_worker.reload_translation.assert_not_called()
+
+    def test_apply_with_meiki_forces_japanese(self, qapp):
+        config = Config(
+            ocr_backend=OCRBackend.OWOCR,
+            translation_backend=TranslationBackend.LLM,
+            llm=LLMSettings(model="m"),
+            source_language="Chinese",
         )
         win = _panel(config)
         win._ocr_engine_combo.setCurrentIndex(win._ocr_engine_combo.findData(OCRBackend.MEIKI.value))
 
-        win._apply_ocr_settings()
+        win._apply_engines()
 
         assert config.ocr_backend == OCRBackend.MEIKI
         assert config.source_language == "Japanese"
+        win._process_worker.reload_ocr.assert_called_once()
         win._process_worker.reload_translation.assert_called_once()  # prompt no longer says Chinese
+
+    def test_apply_requires_a_model_for_the_llm_engine(self, qapp):
+        config = Config(ocr_backend=OCRBackend.OWOCR)
+        win = _panel(config)
+        win._engine_combo.setCurrentIndex(win._engine_combo.findData(TranslationBackend.LLM.value))
+
+        win._apply_engines()
+
+        assert "model" in win._llm_result_label.toolTip()
+        config.save.assert_not_called()
 
     def test_fix_models_does_not_delete_sugoi_for_a_language_conflict(self, qapp, monkeypatch):
         """A hand-edited config pairing Sugoi with a non-Japanese source must not wipe the model cache."""
@@ -324,16 +374,19 @@ class TestMainWindow:
         win._process_worker.reload_translation.assert_called_once()
         win._process_worker.stop.assert_not_called()  # no worker restart, nothing to download
 
-    def test_apply_translation_refuses_sugoi_with_non_japanese_source(self, qapp):
+    def test_apply_refuses_switching_to_sugoi_with_a_non_japanese_source(self, qapp):
         config = Config(
-            ocr_backend=OCRBackend.OWOCR, translation_backend=TranslationBackend.LLM, source_language="English"
+            ocr_backend=OCRBackend.OWOCR,
+            translation_backend=TranslationBackend.LLM,
+            llm=LLMSettings(model="m"),
+            source_language="English",
         )
         win = _panel(config)
         win._engine_combo.setCurrentIndex(win._engine_combo.findData(TranslationBackend.SUGOI.value))
 
-        win._apply_translation_settings()
+        win._apply_engines()
 
         assert config.translation_backend == TranslationBackend.LLM
-        assert win._translation_status_label.toolTip() == SUGOI_ONLY_JAPANESE
+        assert win._pair_hint.text() == SUGOI_ONLY_JAPANESE
         win.statusBar().showMessage.assert_called_with(SUGOI_ONLY_JAPANESE)
         config.save.assert_not_called()
