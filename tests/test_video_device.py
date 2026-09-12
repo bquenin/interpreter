@@ -124,3 +124,33 @@ def test_config_omits_empty_video_device(tmp_path):
     Config(config_path=str(path)).save()
     assert "video_device" not in path.read_text(encoding="utf-8")
     assert Config.load(str(path)).video_device == ""
+
+
+def test_live_capture_from_attached_device(qapp):
+    """Live check, skipped unless a video device (capture card, webcam) is attached.
+
+    Run it with a device plugged in: uv run pytest tests/test_video_device.py -k live -s
+    """
+    from PySide6.QtCore import QDeadlineTimer
+
+    from interpreter.capture.video_device import list_video_devices
+
+    devices = list_video_devices()
+    if not devices:
+        pytest.skip("no video device attached")
+
+    capture = VideoDeviceCapture(devices[0])
+    capture.start()
+    try:
+        frame = None
+        deadline = QDeadlineTimer(8000)
+        while frame is None and not deadline.hasExpired() and not capture.window_invalid:
+            qapp.processEvents()
+            frame = capture.get_frame()
+        assert capture.error is None, capture.error
+        assert frame is not None, "no frame within 8 s"
+        assert frame.ndim == 3 and frame.shape[2] == 4 and frame.dtype == np.uint8
+        print(f"\n{capture.name}: {frame.shape[1]}x{frame.shape[0]}, mean brightness {frame[..., :3].mean():.1f}")
+    finally:
+        capture.stop()
+        qapp.processEvents()
