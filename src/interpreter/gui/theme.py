@@ -237,7 +237,7 @@ QListWidget[role="nav"]::item:selected {{
 
 /* Header */
 QLabel[role="app-title"] {{
-    font - size: 18px;
+    font-size: 18px;
     font-weight: 700;
     letter-spacing: 0.5px;
 }}

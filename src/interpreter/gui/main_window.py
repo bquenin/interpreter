@@ -101,6 +101,7 @@ class MainWindow(QMainWindow):
 
         # State
         self._capturing = False
+        self._last_ocr_results = []
         self._mode = config.overlay_mode
         self._windows_list: list[dict] = []
         self._paused = False
@@ -224,7 +225,7 @@ class MainWindow(QMainWindow):
         self._pages = QStackedWidget()
         self._pages.addWidget(self._build_play_page(capture_group))
         self._pages.addWidget(self._page(appearance_group))
-        self._pages.addWidget(self._page(pair_card, ocr_group, translation_group))
+        self._pages.addWidget(self._build_engines_page(pair_card, ocr_group, translation_group))
         self._nav.currentRowChanged.connect(self._pages.setCurrentIndex)
         self._nav.setCurrentRow(0)
         body.addWidget(self._pages, 1)
@@ -302,6 +303,19 @@ class MainWindow(QMainWindow):
         pill_layout.addWidget(engine_label)
         pill_layout.addWidget(status_label)
         return pill
+
+    def _build_engines_page(self, *cards) -> QWidget:
+        """Language pair, OCR engine and translation engine, saved together by one Apply."""
+        page = self._page(*cards)
+        actions = QHBoxLayout()
+        actions.addStretch()
+        self._apply_engines_btn = QPushButton("Apply")
+        self._apply_engines_btn.setProperty("primary", True)
+        self._apply_engines_btn.setToolTip("Save the language pair and both engines, and reload what changed")
+        self._apply_engines_btn.clicked.connect(self._apply_engines)
+        actions.addWidget(self._apply_engines_btn)
+        page.layout().insertLayout(page.layout().count() - 1, actions)
+        return page
 
     def _build_language_pair_card(self) -> QGroupBox:
         """Pick the language pair first; the engines below then explain what they can do."""
@@ -640,11 +654,6 @@ class MainWindow(QMainWindow):
         self._ocr_engine_combo.setCurrentIndex(self._ocr_engine_combo.findData(self._config.ocr_backend.value))
         self._ocr_engine_combo.currentIndexChanged.connect(self._on_ocr_engine_changed)
         engine_row.addWidget(self._ocr_engine_combo, 1)
-        self._apply_ocr_btn = QPushButton("Apply")
-        self._apply_ocr_btn.setProperty("primary", True)
-        self._apply_ocr_btn.setToolTip("Save these settings and reload the OCR engine")
-        self._apply_ocr_btn.clicked.connect(self._apply_ocr_settings)
-        engine_row.addWidget(self._apply_ocr_btn)
         group_layout.addLayout(engine_row)
 
         # The source language lives in the language pair card (built first)
@@ -755,33 +764,63 @@ class MainWindow(QMainWindow):
             f"OK in {result} ms. {warning}" if warning else f"OK in {result} ms", error=bool(warning)
         )
 
-    def _apply_ocr_settings(self):
-        """Save the OCR group to config and reload the engine in the worker."""
-        backend = self._selected_ocr_backend()
-        source_language = self._selected_source_language()
-        if source_language != SUGOI_SOURCE_LANGUAGE and self._config.translation_backend == TranslationBackend.SUGOI:
-            # The owocr panel is visible whenever a non-Japanese source can be selected
-            self._set_owocr_result(SUGOI_ONLY_JAPANESE, error=True)
-            return
-        if backend == OCRBackend.OWOCR:
-            self._config.owocr = self._owocr_settings_from_ui()
-            self._owocr_url_edit.setText(self._config.owocr.url)
-            # Stale results from a previous Test or failure would contradict the new status
-            warning = owocr_remote_warning(self._config.owocr.url)
-            self._set_owocr_result(warning or "", error=bool(warning))
-        language_changed = source_language != self._config.source_language
-        self._config.ocr_backend = backend
-        self._config.source_language = source_language
-        self._config.save()
+    def _apply_engines(self):
+        """Save the Engines page as one unit: the language pair, the OCR engine and the translation engine.
 
+        Validating the pending pair against the pending engines here (instead of per group) means the
+        visible source-to-target pair is what gets saved, never half of it.
+        """
+        config = self._config
+        ocr_backend = self._selected_ocr_backend()
+        translation_backend = self._selected_backend()
+        source_language = self._selected_source_language()
+        if translation_backend == TranslationBackend.SUGOI and source_language != SUGOI_SOURCE_LANGUAGE:
+            self._set_pair_error(SUGOI_ONLY_JAPANESE)
+            return
+        llm = self._llm_settings_from_ui()  # carries the target language from the pair card
+        if translation_backend == TranslationBackend.LLM and not llm.model:
+            self._set_llm_result("Pick a model before applying.", error=True)
+            self._set_pair_error("Pick an LLM model before applying.")
+            return
+        owocr = self._owocr_settings_from_ui() if ocr_backend == OCRBackend.OWOCR else config.owocr
+
+        ocr_changed = ocr_backend != config.ocr_backend or owocr != config.owocr
+        translation_changed = (
+            translation_backend != config.translation_backend
+            or llm != config.llm
+            or source_language != config.source_language  # the LLM prompt names the source language
+        )
+        config.ocr_backend = ocr_backend
+        config.owocr = owocr
+        config.translation_backend = translation_backend
+        config.llm = llm
+        config.source_language = source_language
+        config.save()
+
+        if ocr_backend == OCRBackend.OWOCR:
+            self._owocr_url_edit.setText(owocr.url)
+            warning = owocr_remote_warning(owocr.url)
+            self._set_owocr_result(warning or "", error=bool(warning))
         self._ocr_engine_label.setText(self._ocr_engine_name())
-        self._ocr_status_label.setToolTip("")
+        self._translation_engine_label.setText(self._translation_engine_name())
+        self._update_pair_hint()
+        if not (ocr_changed or translation_changed):
+            self.statusBar().showMessage("Engines unchanged")
+            return
         self._fix_models_btn.setVisible(False)
-        self.statusBar().showMessage("Reloading OCR engine...")
-        self._process_worker.reload_ocr()
-        if language_changed:
-            # The LLM prompt names the source language, so the translation engine follows
+        if ocr_changed:
+            self._ocr_status_label.setToolTip("")
+            self._process_worker.reload_ocr()
+        if translation_changed:
+            self._translation_status_label.setToolTip("")
             self._process_worker.reload_translation()
+        self.statusBar().showMessage("Reloading engines...")
+
+    def _set_pair_error(self, message: str):
+        """Show why the Engines page could not be applied, next to the language pair."""
+        set_role(self._pair_hint, "hint-warn")
+        self._pair_hint.setText(message)
+        self.statusBar().showMessage(message)
 
     # ==================== TRANSLATION SETTINGS ====================
 
@@ -799,11 +838,6 @@ class MainWindow(QMainWindow):
         self._engine_combo.setCurrentIndex(self._engine_combo.findData(self._config.translation_backend.value))
         self._engine_combo.currentIndexChanged.connect(self._on_engine_changed)
         engine_row.addWidget(self._engine_combo, 1)
-        self._apply_translation_btn = QPushButton("Apply")
-        self._apply_translation_btn.setProperty("primary", True)
-        self._apply_translation_btn.setToolTip("Save these settings and reload the translation engine")
-        self._apply_translation_btn.clicked.connect(self._apply_translation_settings)
-        engine_row.addWidget(self._apply_translation_btn)
         group_layout.addLayout(engine_row)
 
         # LLM panel (only visible for the LLM engine)
@@ -1029,29 +1063,6 @@ class MainWindow(QMainWindow):
             return
         translation, ms = result
         self._set_llm_result(f"OK in {ms} ms: {translation}")
-
-    def _apply_translation_settings(self):
-        """Save the Translation group to config and reload the engine in the worker."""
-        backend = self._selected_backend()
-        if backend == TranslationBackend.LLM:
-            settings = self._llm_settings_from_ui()
-            if not settings.model:
-                self._set_llm_result("Pick a model before applying.", error=True)
-                return
-            self._config.llm = settings
-        elif self._config.source_language != SUGOI_SOURCE_LANGUAGE:
-            # The LLM panel is hidden for Sugoi, so the refusal goes to the status row and bar
-            self._translation_status_label.setToolTip(SUGOI_ONLY_JAPANESE)
-            self.statusBar().showMessage(SUGOI_ONLY_JAPANESE)
-            return
-        self._config.translation_backend = backend
-        self._config.save()
-
-        self._translation_engine_label.setText(self._translation_engine_name())
-        self._translation_status_label.setToolTip("")
-        self._fix_models_btn.setVisible(False)
-        self.statusBar().showMessage("Reloading translation engine...")
-        self._process_worker.reload_translation()
 
     def _setup_permissions_ui(self, status_layout: QGridLayout):
         """Set up macOS permissions in the status section."""
@@ -1335,6 +1346,8 @@ class MainWindow(QMainWindow):
         self._process_timer.start()
 
         self._capturing = True
+
+        self._last_ocr_results = []  # boxes from a previous session must not outlive it
         self._paused = False
         if self._start_btn:
             self._start_btn.setText("Stop Capture")
@@ -1405,6 +1418,8 @@ class MainWindow(QMainWindow):
             self._process_timer.start()
 
             self._capturing = True
+
+            self._last_ocr_results = []  # boxes from a previous session must not outlive it
             self._paused = False
             self._pause_btn.setEnabled(True)
             self._pause_btn.setText("Hide")
@@ -1451,6 +1466,8 @@ class MainWindow(QMainWindow):
             self._wayland_portal = None
 
         self._capturing = False
+
+        self._last_ocr_results = []
         self._paused = False
         self._pause_btn.setEnabled(False)
         self._ocr_config_btn.setEnabled(False)
