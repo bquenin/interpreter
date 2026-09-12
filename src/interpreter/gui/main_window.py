@@ -160,6 +160,8 @@ class MainWindow(QMainWindow):
         # Auto-size window to fit all widgets, then lock minimum size
         self.adjustSize()
         self.setMinimumSize(self.size())
+        # Open with room for the capture preview; the user can still shrink to the minimum
+        self.resize(self.width(), max(self.height(), 680))
         self._refresh_windows()
         self._load_models()
 
@@ -255,6 +257,7 @@ class MainWindow(QMainWindow):
         session_layout.addWidget(hint)
 
         page = self._page(capture_group, session)
+        page.layout().setStretch(0, 1)  # the capture card absorbs extra height, not a spacer
         if is_macos():
             permissions = QGridLayout()
             self._setup_permissions_ui(permissions)
@@ -411,8 +414,8 @@ class MainWindow(QMainWindow):
         self._preview_label.setProperty("role", "preview")
         # Ignored horizontally: a QLabel's size hint is its pixmap, which would make the window
         # grow to fit the scaled preview and then scale the preview to the wider window again.
-        self._preview_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
-        capture_layout.addWidget(self._preview_label)
+        self._preview_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Ignored)
+        capture_layout.addWidget(self._preview_label, 1)
 
         return capture_group
 
@@ -1464,8 +1467,6 @@ class MainWindow(QMainWindow):
 
         # Clear preview
         self._preview_pixmap = None
-        self._preview_label.setMinimumHeight(180)
-        self._preview_label.setMaximumHeight(16777215)
         self._preview_label.clear()
         self._preview_label.setText("No preview")
 
@@ -1718,11 +1719,9 @@ class MainWindow(QMainWindow):
         """Scale the rendered preview to the card's current width, keeping the aspect ratio."""
         if self._preview_pixmap is None:
             return
-        width = max(self._preview_label.width(), 320)
-        scaled = self._preview_pixmap.scaledToWidth(width, Qt.TransformationMode.SmoothTransformation)
-        if self._preview_label.height() != scaled.height():
-            self._preview_label.setFixedHeight(scaled.height())
-            self._grow_to_fit()  # a taller preview must not squeeze the rest of the page
+        scaled = self._preview_pixmap.scaled(
+            self._preview_label.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
+        )
         self._preview_label.setPixmap(scaled)
 
     def resizeEvent(self, event):
