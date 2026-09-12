@@ -1554,6 +1554,10 @@ class MainWindow(QMainWindow):
             self._capture.stop()
             self._capture = None
 
+        # No-signal notice belongs to the video device session that just ended
+        self._frames_missing = 0
+        self._waiting_for_signal = False
+
         # Close Wayland portal session if active
         if self._wayland_portal:
             self._wayland_portal.close()
@@ -1782,9 +1786,9 @@ class MainWindow(QMainWindow):
                     self.statusBar().showMessage(f"Waiting for a video signal from '{self._capture.name[:40]}'...")
             return
 
-        if self._waiting_for_signal:
-            self._waiting_for_signal = False
+        if self._waiting_for_signal and isinstance(self._capture, VideoDeviceCapture):
             self.statusBar().showMessage(f"Capturing video device '{self._capture.name[:40]}'")
+        self._waiting_for_signal = False
         self._frames_missing = 0
 
         self._last_frame = frame

@@ -358,3 +358,100 @@ def test_banner_click_during_video_session_is_not_persisted(qapp):
     assert config.overlay_mode == OverlayMode.INPLACE
     win._on_mode_changed(0)  # a real choice after the session is saved
     assert config.overlay_mode == OverlayMode.BANNER
+
+
+def test_no_signal_state_is_reset_when_capture_stops(qapp, monkeypatch):
+    """Greptile: a window capture after a stopped, signal-less video session must not touch .name."""
+    import numpy as np
+    from PySide6.QtCore import QTimer
+    from PySide6.QtWidgets import QLabel, QMainWindow, QPushButton
+
+    import interpreter.gui.main_window as module
+    from interpreter.config import OverlayMode
+
+    class NoSignalVideo:
+        """A video device that never delivers a frame."""
+
+        name = "Silent card"
+        bounds = None
+        window_invalid = False
+
+        def get_frame(self):
+            return None
+
+        def stop(self):
+            pass
+
+    class WindowLike:
+        """The shape of WindowCapture the frame loop relies on, without a .name attribute."""
+
+        bounds = {"x": 0, "y": 0, "width": 4, "height": 2}
+        window_invalid = False
+
+        def get_frame(self):
+            f = np.zeros((2, 4, 4), np.uint8)
+            f[..., 3] = 255
+            return f
+
+        def stop(self):
+            pass
+
+    class Overlay:
+        def hide(self):
+            pass
+
+        def clear_regions(self):
+            pass
+
+        def ensure_above(self, window_id):
+            pass
+
+    # The frame loop tells video sources apart with isinstance
+    monkeypatch.setattr(module, "VideoDeviceCapture", NoSignalVideo)
+
+    win = MainWindow.__new__(MainWindow)
+    QMainWindow.__init__(win)
+    win._config = Config(overlay_mode=OverlayMode.BANNER)
+    win._mode = OverlayMode.BANNER
+    win._paused = True  # keep the loop away from the preview, overlays and the worker
+    win._capturing = True
+    win._frames_missing = 0
+    win._waiting_for_signal = False
+    win._last_ocr_results = []
+    win._last_frame = None
+    win._process_timer = QTimer()
+    win._wayland_portal = None
+    win._pause_btn = QPushButton()
+    win._ocr_config_btn = QPushButton()
+    win._start_btn = QPushButton()
+    win._preview_label = QLabel()
+    win._preview_pixmap = None
+    win._banner_only = False
+    win._mode_before_video = None
+    win._inplace_btn = QPushButton()
+    win._banner_btn = QPushButton()
+    win._banner_overlay = win._inplace_overlay = Overlay()
+    win._current_window_title = ""
+    win._ocr_config_dialog = None
+    win._last_bounds = {}
+    win._process_worker = type("W", (), {"submit_frame": lambda self, f: None})()
+
+    win._capture = NoSignalVideo()
+    for _ in range(8):  # 4 s of ticks without a frame
+        win._capture_and_process()
+    assert win._waiting_for_signal
+    assert "Waiting for a video signal" in win.statusBar().currentMessage()
+
+    win._stop_capture()
+    assert not win._waiting_for_signal and win._frames_missing == 0
+
+    # A window capture must get past the no-signal block on its first frame
+    win._capture = WindowLike()
+    win._capturing = True
+    win._paused = True
+    monkeypatch.setattr(win, "_last_frame", None)
+    try:
+        win._capture_and_process()
+    except AttributeError as e:  # the exact failure Greptile described
+        pytest.fail(str(e))
+    assert win._last_frame is not None
