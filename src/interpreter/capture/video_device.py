@@ -45,9 +45,25 @@ def list_video_devices() -> list[QCameraDevice]:
     return list(QMediaDevices.videoInputs())
 
 
-def find_video_device(name: str) -> QCameraDevice | None:
-    """Find an attached device by its description (the name shown in the source list)."""
-    for device in list_video_devices():
+def device_id(device: QCameraDevice) -> str:
+    """The device's unique id as text (a Media Foundation symbolic link, an AVFoundation unique
+    id, or a /dev/video path). Tells two devices of the same model apart."""
+    return bytes(device.id()).decode("utf-8", "replace")
+
+
+def find_video_device(name: str, id_text: str = "") -> QCameraDevice | None:
+    """Find an attached device, by unique id when one is given, else by description.
+
+    The id wins when it is present: two cards of the same model share a description.
+    The name is the fallback because ids can change on Linux (/dev/video numbering
+    follows plug order) while the description stays put.
+    """
+    devices = list_video_devices()
+    if id_text:
+        for device in devices:
+            if device_id(device) == id_text:
+                return device
+    for device in devices:
         if device.description() == name:
             return device
     return None

@@ -154,3 +154,39 @@ def test_live_capture_from_attached_device(qapp):
     finally:
         capture.stop()
         qapp.processEvents()
+
+
+class FakeDevice:
+    def __init__(self, name: str, id_text: str):
+        self._name = name
+        self._id = id_text.encode()
+
+    def description(self) -> str:
+        return self._name
+
+    def id(self) -> bytes:
+        return self._id
+
+
+def test_find_video_device_matches_id_before_name(monkeypatch):
+    """Greptile: two cards of the same model share a description; the id tells them apart."""
+    import interpreter.capture.video_device as module
+
+    first, second = FakeDevice("USB Video", "usb#1"), FakeDevice("USB Video", "usb#2")
+    monkeypatch.setattr(module, "list_video_devices", lambda: [first, second])
+    assert find_video_device("USB Video", "usb#2") is second
+    assert find_video_device("USB Video", "usb#1") is first
+    # Unknown id (Linux renumbered /dev/video) falls back to the name
+    assert find_video_device("USB Video", "usb#9") is first
+    assert find_video_device("USB Video") is first
+    assert find_video_device("Other", "usb#9") is None
+
+
+def test_config_round_trips_video_device_id(tmp_path):
+    path = tmp_path / "config.yml"
+    config = Config(config_path=str(path))
+    config.video_device = "USB Video"
+    config.video_device_id = r"\?\usb#vid_1234&pid_5678"
+    config.save()
+    loaded = Config.load(str(path))
+    assert (loaded.video_device, loaded.video_device_id) == ("USB Video", r"\?\usb#vid_1234&pid_5678")

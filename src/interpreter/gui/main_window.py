@@ -33,7 +33,7 @@ from PySide6.QtWidgets import (
 from .. import __version__, log
 from ..capture import Capture, WindowCapture, _is_wayland_session
 from ..capture.convert import bgra_to_rgb_pil
-from ..capture.video_device import VideoDeviceCapture, find_video_device, list_video_devices
+from ..capture.video_device import VideoDeviceCapture, device_id, find_video_device, list_video_devices
 from ..config import Config, LLMSettings, OCRBackend, OverlayMode, OwocrSettings, TranslationBackend
 from ..languages import DEFAULT_SOURCE_LANGUAGE, SOURCE_LANGUAGES
 from ..llm_translate import (
@@ -76,6 +76,7 @@ MAX_FONT_SIZE = 72
 
 # Fixed processing interval (2 FPS)
 PROCESS_INTERVAL_MS = 500
+NO_SIGNAL_NOTICE_MS = 3000  # video device session without frames before the status bar says so
 
 
 class MainWindow(QMainWindow):
@@ -113,8 +114,12 @@ class MainWindow(QMainWindow):
         self._is_wayland_session = _is_wayland_session
         self._wayland_portal = None  # WaylandPortalCapture instance (for managing portal session lifecycle)
         self._wayland_selecting = False  # Guard against re-entry during portal flow
-        # Overlay mode to restore after a video device session (video sources are banner only)
+        # Video device sessions are banner only; the user's mode is restored afterwards
+        self._banner_only = False
         self._mode_before_video: OverlayMode | None = None
+        # Consecutive processing ticks without a frame (a capture card with the console off)
+        self._frames_missing = 0
+        self._waiting_for_signal = False
         self._fixing_ocr = False  # Track if we're re-downloading OCR model
         self._fixing_translation = False  # Track if we're re-downloading translation model
 
@@ -1254,8 +1259,12 @@ class MainWindow(QMainWindow):
         """Refresh the source list: windows (or the Wayland picker) followed by video devices.
 
         Each item carries a (kind, value) tuple: ("portal", None), ("window", index into
-        self._windows_list) or ("device", device name).
+        self._windows_list) or ("device", (device id, device name)).
+
+        A source the user already picked stays selected when it is still there; otherwise
+        the source captured last (from the config) is selected.
         """
+        previous = self._source_key(self._window_combo.currentData())
         self._window_combo.clear()
         selected_idx = -1
 
@@ -1283,15 +1292,46 @@ class MainWindow(QMainWindow):
         if devices:
             if self._window_combo.count():
                 self._window_combo.insertSeparator(self._window_combo.count())
+            names_seen: dict[str, int] = {}
+            id_match = name_match = -1
             for device in devices:
                 name = device.description()
-                self._window_combo.addItem(f"Video device: {name}", ("device", name))
-                # A video device captured last wins over the window title match
-                if self._config.video_device and self._config.video_device == name:
-                    selected_idx = self._window_combo.count() - 1
+                id_text = device_id(device)
+                # Two cards of the same model: number the display text, the id tells them apart
+                names_seen[name] = names_seen.get(name, 0) + 1
+                label = f"Video device: {name}" + (f" ({names_seen[name]})" if names_seen[name] > 1 else "")
+                self._window_combo.addItem(label, ("device", (id_text, name)))
+                if self._config.video_device_id and self._config.video_device_id == id_text:
+                    id_match = self._window_combo.count() - 1
+                elif name_match < 0 and self._config.video_device and self._config.video_device == name:
+                    name_match = self._window_combo.count() - 1
+            # A video device captured last wins over the window title match: by id, else by name
+            device_match = id_match if id_match >= 0 else name_match
+            if device_match >= 0:
+                selected_idx = device_match
+
+        # Keep what the user had picked, if it is still there
+        if previous is not None:
+            for i in range(self._window_combo.count()):
+                if self._source_key(self._window_combo.itemData(i)) == previous:
+                    selected_idx = i
+                    break
 
         if selected_idx >= 0:
             self._window_combo.setCurrentIndex(selected_idx)
+
+    def _source_key(self, data) -> tuple | None:
+        """Stable identity of a source item, independent of its position in the list."""
+        if not data:
+            return None
+        kind, value = data
+        if kind == "window":
+            if value >= len(self._windows_list):
+                return None
+            return ("window", self._windows_list[value].get("id"))
+        if kind == "device":
+            return ("device", value[0])
+        return (kind,)
 
     def _on_video_devices_changed(self):
         """A video device was plugged in or removed; re-list unless a capture is running."""
@@ -1312,7 +1352,8 @@ class MainWindow(QMainWindow):
             self._start_wayland_capture()
             return
         if kind == "device":
-            self._start_video_capture(value)
+            id_text, name = value
+            self._start_video_capture(name, id_text)
             return
         if kind != "window" or value >= len(self._windows_list):
             self.statusBar().showMessage("No source selected")
@@ -1358,6 +1399,7 @@ class MainWindow(QMainWindow):
         # Update config with selected window
         self._config.window_title = title
         self._config.video_device = ""
+        self._config.video_device_id = ""
         self._current_window_title = title  # Store for exclusion zone lookup
 
         # Set per-window OCR confidence
@@ -1367,9 +1409,9 @@ class MainWindow(QMainWindow):
         # Show overlay
         self._show_overlay()
 
-    def _start_video_capture(self, name: str):
-        """Start capturing a video device (capture card, webcam) by name."""
-        device = find_video_device(name)
+    def _start_video_capture(self, name: str, id_text: str = ""):
+        """Start capturing a video device (capture card, webcam), by id when known, else by name."""
+        device = find_video_device(name, id_text)
         if device is None:
             self.statusBar().showMessage(f"Video device not found: {name[:40]}")
             self._refresh_sources()
@@ -1389,6 +1431,8 @@ class MainWindow(QMainWindow):
         self._process_timer.start()
 
         self._capturing = True
+        self._frames_missing = 0
+        self._waiting_for_signal = False
 
         self._last_ocr_results = []  # boxes from a previous session must not outlive it
         self._paused = False
@@ -1400,6 +1444,7 @@ class MainWindow(QMainWindow):
 
         # Remember the device; exclusion zones and OCR confidence are keyed by its name
         self._config.video_device = name
+        self._config.video_device_id = device_id(device)
         self._current_window_title = name
         self._process_worker.set_confidence_threshold(self._config.get_ocr_confidence(name))
 
@@ -1413,6 +1458,7 @@ class MainWindow(QMainWindow):
         The user's chosen mode is restored when the lock is lifted and is never written to
         the config by the forced switch.
         """
+        self._banner_only = banner_only
         if banner_only:
             self._inplace_btn.setEnabled(False)
             self._inplace_btn.setToolTip("Video devices have no window on screen to draw over: banner mode only")
@@ -1481,6 +1527,7 @@ class MainWindow(QMainWindow):
             # Store window title for exclusion zone lookup (Wayland doesn't have window titles)
             self._current_window_title = "Wayland Capture"
             self._config.video_device = ""
+            self._config.video_device_id = ""
 
             # Set per-window OCR confidence
             confidence = self._config.get_ocr_confidence(self._current_window_title)
@@ -1662,7 +1709,9 @@ class MainWindow(QMainWindow):
 
     def _on_mode_changed(self, button_id: int):
         """Handle mode selection change."""
-        self._apply_mode(OverlayMode.BANNER if button_id == 0 else OverlayMode.INPLACE, persist=True)
+        # A click on Banner during a video device session must not overwrite the saved choice
+        mode = OverlayMode.BANNER if button_id == 0 else OverlayMode.INPLACE
+        self._apply_mode(mode, persist=not self._banner_only)
 
     def _apply_mode(self, mode: OverlayMode, persist: bool):
         """Switch the overlay mode; persist=False for the temporary switch of a video device session."""
@@ -1724,7 +1773,19 @@ class MainWindow(QMainWindow):
             overlay.ensure_above(getattr(self._capture, "window_id", None))
 
         if frame is None:
+            # A capture card keeps the session open with no frames while the console is off;
+            # say so after a few seconds instead of leaving a silent blank preview
+            if isinstance(self._capture, VideoDeviceCapture):
+                self._frames_missing += 1
+                if self._frames_missing * PROCESS_INTERVAL_MS >= NO_SIGNAL_NOTICE_MS and not self._waiting_for_signal:
+                    self._waiting_for_signal = True
+                    self.statusBar().showMessage(f"Waiting for a video signal from '{self._capture.name[:40]}'...")
             return
+
+        if self._waiting_for_signal:
+            self._waiting_for_signal = False
+            self.statusBar().showMessage(f"Capturing video device '{self._capture.name[:40]}'")
+        self._frames_missing = 0
 
         self._last_frame = frame
         self._last_bounds = bounds

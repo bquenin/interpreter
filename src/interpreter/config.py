@@ -186,10 +186,14 @@ class Config:
         owocr: OwocrSettings | None = None,
         source_language: str = DEFAULT_SOURCE_LANGUAGE,
         video_device: str = "",
+        video_device_id: str = "",
     ):
         self.window_title = window_title
-        # Video device (capture card, webcam) captured last; empty means a window was captured last
+        # Video device (capture card, webcam) captured last; empty means a window was captured last.
+        # The name is what the user sees and what keys exclusion zones; the id tells two devices
+        # of the same model apart (it is matched first, the name is the fallback).
         self.video_device = video_device
+        self.video_device_id = video_device_id
         self.translation_backend = translation_backend
         self.llm = llm if llm is not None else LLMSettings()
         self.ocr_backend = ocr_backend
@@ -297,6 +301,7 @@ class Config:
                 owocr=OwocrSettings.from_dict(data.get("owocr")),
                 source_language=source_language,
                 video_device=str(data.get("video_device") or ""),
+                video_device_id=str(data.get("video_device_id") or ""),
             )
 
         # No config file found - create default in home directory
@@ -476,6 +481,8 @@ hotkeys:
         # Only written while a video device is the selected source
         if self.video_device:
             data["video_device"] = str(self.video_device)
+            if self.video_device_id:
+                data["video_device_id"] = str(self.video_device_id)
         # Only save font_family if user has chosen one (None = system default)
         if self.font_family is not None:
             data["font_family"] = str(self.font_family)
