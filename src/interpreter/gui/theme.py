@@ -30,7 +30,7 @@ STYLESHEET = f"""
 QMainWindow, QDialog {{
     background: {BG};
 }}
-QWidget {{
+QMainWindow QWidget, QDialog, QDialog QWidget {{
     color: {TEXT};
     font-size: 13px;
 }}

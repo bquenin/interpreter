@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
+    QSizePolicy,
     QSlider,
     QStackedWidget,
     QVBoxLayout,
@@ -88,13 +89,13 @@ class MainWindow(QMainWindow):
     # Result of the owocr Test button (round-trip ms); str = error
     _owocr_test_result = Signal(object)
 
-    PREVIEW_WIDTH = 560  # the preview is the centre of the Play page
+    PREVIEW_WIDTH = 960  # rendered once at this width, then scaled down to the card
 
     def __init__(self, config: Config):
         super().__init__()
         self._config = config
         self._last_ocr_results: list = []
-        self._last_feed_text = ""
+        self._preview_pixmap: QPixmap | None = None
 
         self.setWindowTitle("Interpreter")
 
@@ -253,15 +254,7 @@ class MainWindow(QMainWindow):
         hint.setWordWrap(True)
         session_layout.addWidget(hint)
 
-        feed_group = QGroupBox("Translations")
-        feed_layout = QVBoxLayout(feed_group)
-        self._feed = QListWidget()
-        self._feed.setProperty("role", "feed")
-        self._feed.setWordWrap(True)
-        self._feed.setMinimumHeight(120)
-        feed_layout.addWidget(self._feed)
-
-        page = self._page(capture_group, session, feed_group)
+        page = self._page(capture_group, session)
         if is_macos():
             permissions = QGridLayout()
             self._setup_permissions_ui(permissions)
@@ -416,7 +409,10 @@ class MainWindow(QMainWindow):
         self._preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._preview_label.setText("No preview")
         self._preview_label.setProperty("role", "preview")
-        capture_layout.addWidget(self._preview_label, 0, Qt.AlignmentFlag.AlignHCenter)
+        # Ignored horizontally: a QLabel's size hint is its pixmap, which would make the window
+        # grow to fit the scaled preview and then scale the preview to the wider window again.
+        self._preview_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        capture_layout.addWidget(self._preview_label)
 
         return capture_group
 
@@ -551,6 +547,10 @@ class MainWindow(QMainWindow):
         sample_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._style_sample = QLabel("Brave hero, you must defeat the demon king.")
         self._style_sample.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._style_sample.setWordWrap(True)
+        # The sample must never dictate the window width (a big font would)
+        sample_box.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        sample_box.setMinimumWidth(320)
         sample_layout.addWidget(self._style_sample, 0, Qt.AlignmentFlag.AlignCenter)
         sample_row.addWidget(sample_box, 1)
         appearance_layout.addLayout(sample_row)
@@ -566,9 +566,11 @@ class MainWindow(QMainWindow):
         self._style_sample.setFont(font)
         bg = self._config.background_color.lstrip("#")
         r, g, b = int(bg[0:2], 16), int(bg[2:4], 16), int(bg[4:6], 16)
+        family = f"font-family: '{self._config.font_family}';" if self._config.font_family else ""
         self._style_sample.setStyleSheet(
             f"color: {self._config.font_color}; background-color: rgba({r}, {g}, {b}, "
-            f"{self._config.background_opacity:.2f}); padding: 6px 12px; border-radius: 6px;"
+            f"{self._config.background_opacity:.2f}); padding: 6px 12px; border-radius: 6px; "
+            f"font-size: {self._config.font_size}pt; font-weight: 700; {family}"
         )
 
     def _build_status_group(self) -> QGroupBox:
@@ -1461,6 +1463,9 @@ class MainWindow(QMainWindow):
                 self._start_btn.setText("Start Capture")
 
         # Clear preview
+        self._preview_pixmap = None
+        self._preview_label.setMinimumHeight(180)
+        self._preview_label.setMaximumHeight(16777215)
         self._preview_label.clear()
         self._preview_label.setText("No preview")
 
@@ -1657,7 +1662,7 @@ class MainWindow(QMainWindow):
         frame_h, frame_w = frame.shape[:2]
 
         # Scale to max 320 width while preserving aspect ratio
-        max_preview_width = self.PREVIEW_WIDTH
+        max_preview_width = min(self.PREVIEW_WIDTH, frame_w)  # render once at good quality, fit later
         scale = max_preview_width / frame_w
         preview_w = int(frame_w * scale)
         preview_h = int(frame_h * scale)
@@ -1691,10 +1696,8 @@ class MainWindow(QMainWindow):
         pixmap = QPixmap.fromImage(qimg)
 
         # Resize label to match preview aspect ratio
-        if self._preview_label.size() != pixmap.size():
-            self._preview_label.setFixedSize(preview_w, preview_h)
-            self._grow_to_fit()  # a taller preview must not squeeze the rest of the page
-        self._preview_label.setPixmap(pixmap)
+        self._preview_pixmap = pixmap
+        self._fit_preview()
 
         # Update exclusion editor dialog if open
         if self._ocr_config_dialog:
@@ -1711,21 +1714,25 @@ class MainWindow(QMainWindow):
         if not self._paused:
             self._process_worker.submit_frame(frame_for_ocr)
 
+    def _fit_preview(self):
+        """Scale the rendered preview to the card's current width, keeping the aspect ratio."""
+        if self._preview_pixmap is None:
+            return
+        width = max(self._preview_label.width(), 320)
+        scaled = self._preview_pixmap.scaledToWidth(width, Qt.TransformationMode.SmoothTransformation)
+        if self._preview_label.height() != scaled.height():
+            self._preview_label.setFixedHeight(scaled.height())
+            self._grow_to_fit()  # a taller preview must not squeeze the rest of the page
+        self._preview_label.setPixmap(scaled)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._fit_preview()
+
     def _on_text_ready(self, translated: str):
         """Handle translated text (banner mode)."""
         if not self._paused:
             self._banner_overlay.set_text(translated)
-            self._feed_add(translated)
-
-    def _feed_add(self, text: str):
-        """Append a translation to the feed (newest on top, consecutive duplicates skipped)."""
-        text = " ".join(text.split())
-        if not text or text == self._last_feed_text:
-            return
-        self._last_feed_text = text
-        self._feed.insertItem(0, text)
-        while self._feed.count() > 100:
-            self._feed.takeItem(self._feed.count() - 1)
 
     def _on_regions_ready(self, regions: list):
         """Handle translated regions (inplace mode)."""
@@ -1735,7 +1742,6 @@ class MainWindow(QMainWindow):
             if self._capture:
                 content_offset = self._capture.get_content_offset()
             self._inplace_overlay.set_regions(regions, content_offset)
-            self._feed_add(" / ".join(text for text, _ in regions if text))
 
     def _on_ocr_results_ready(self, results: list):
         """Handle raw OCR results (preview boxes and the OCR config dialog)."""
