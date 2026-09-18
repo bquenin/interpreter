@@ -1538,12 +1538,17 @@ class MainWindow(QMainWindow):
 
         except Exception as e:
             logger.error("failed to start wayland capture", error=str(e))
-            self.statusBar().showMessage("Wayland capture failed")
-            self._start_btn.setEnabled(True)
             self._wayland_selecting = False
-            if self._wayland_portal:
-                self._wayland_portal.close()
-                self._wayland_portal = None
+            self._stop_capture()
+            self.statusBar().showMessage("Wayland capture failed")
+            message = QMessageBox(self)
+            message.setIcon(QMessageBox.Icon.Warning)
+            message.setWindowTitle("Wayland capture failed")
+            message.setTextFormat(Qt.TextFormat.PlainText)
+            message.setText("Could not start screen capture.")
+            message.setInformativeText(str(e).split("\n", 1)[0])
+            message.setDetailedText(str(e))
+            message.exec()
 
     def _stop_capture(self):
         """Stop capturing."""
@@ -1764,7 +1769,7 @@ class MainWindow(QMainWindow):
             logger.info("capture source gone, stopping capture", error=error)
             self._stop_capture()
             if error:
-                self.statusBar().showMessage(f"Video device stopped: {error[:100]}")
+                self.statusBar().showMessage(f"Capture stopped: {error[:100]}")
             return
 
         # Get bounds (None on Wayland, dict on X11/Windows/macOS)

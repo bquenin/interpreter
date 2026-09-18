@@ -10,6 +10,91 @@ from interpreter.languages import SOURCE_LANGUAGES
 from interpreter.llm_translate import DEFAULT_SYSTEM_PROMPT, PROVIDER_LABELS, PROVIDERS
 
 
+@pytest.mark.parametrize("failure_at", ["portal", "stream"])
+def test_wayland_failure_displays_details_and_cleans_up_before_retry(qapp, monkeypatch, failure_at):
+    import sys
+    from types import SimpleNamespace
+
+    from PySide6.QtCore import QTimer
+    from PySide6.QtWidgets import QMainWindow, QMessageBox
+
+    calls = []
+    reason = "KDE screen capture requires OpenGL compositing. Update KDE and log in again.\nPortal Start failed: Other"
+
+    class Portal:
+        def select_window(self):
+            if failure_at == "portal":
+                raise RuntimeError(reason)
+            return (1, 2, 3, 4)
+
+        def close(self):
+            calls.append("portal closed")
+
+    class Stream:
+        def __init__(self, *args):
+            pass
+
+        def start(self):
+            raise RuntimeError(reason)
+
+        def stop(self):
+            calls.append("stream stopped")
+
+    monkeypatch.setitem(
+        sys.modules,
+        "interpreter.capture.linux_wayland",
+        SimpleNamespace(
+            WaylandPortalCapture=Portal,
+            WaylandCaptureStream=Stream,
+        ),
+    )
+    win = MainWindow.__new__(MainWindow)
+    QMainWindow.__init__(win)
+    win._wayland_selecting = False
+    win._wayland_portal = None
+    win._capture = None
+    win._process_timer = QTimer()
+    win._start_btn = QPushButton()
+    win._pause_btn = QPushButton()
+    win._ocr_config_btn = QPushButton()
+    win._preview_label = QLabel()
+    win._banner_overlay = win._inplace_overlay = SimpleNamespace(hide=lambda: None, clear_regions=lambda: None)
+    monkeypatch.setattr(win, "_set_banner_only", lambda enabled: None)
+
+    def show_error(message):
+        # Resources and the re-entry guard are cleared before the dialog opens.
+        assert win._capture is None and win._wayland_portal is None
+        assert not win._wayland_selecting and not win._capturing
+        assert win._start_btn.isEnabled()
+        assert message.informativeText() == reason.split("\n")[0]
+        assert message.detailedText() == reason
+        calls.append("error shown")
+        return QMessageBox.StandardButton.Ok
+
+    monkeypatch.setattr(QMessageBox, "exec", show_error)
+    win._start_wayland_capture()
+    expected = (["stream stopped"] if failure_at == "stream" else []) + ["portal closed", "error shown"]
+    assert calls == expected
+    assert win.statusBar().currentMessage() == "Wayland capture failed"
+    win._start_wayland_capture()
+    assert calls == expected * 2
+
+
+def test_background_capture_failure_is_shown_to_user(qapp, monkeypatch):
+    from types import SimpleNamespace
+
+    from PySide6.QtWidgets import QMainWindow
+
+    win = MainWindow.__new__(MainWindow)
+    QMainWindow.__init__(win)
+    win._capture = SimpleNamespace(get_frame=lambda: None, window_invalid=True, error="PipeWire connection failed")
+    stopped = []
+    monkeypatch.setattr(win, "_stop_capture", lambda: stopped.append(True))
+    win._capture_and_process()
+    assert stopped == [True]
+    assert win.statusBar().currentMessage() == "Capture stopped: PipeWire connection failed"
+
+
 @pytest.fixture(scope="module")
 def qapp():
     return QApplication.instance() or QApplication([])

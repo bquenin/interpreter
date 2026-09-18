@@ -169,6 +169,11 @@ class WaylandCaptureStream:
         """
         return self._stream.window_invalid
 
+    @property
+    def error(self) -> str | None:
+        """Return the capture failure reported by pipewire-capture."""
+        return self._stream.error
+
     def get_content_offset(self) -> tuple[int, int]:
         """Get content offset within window.
 
@@ -179,7 +184,6 @@ class WaylandCaptureStream:
 
     def stop(self) -> None:
         """Stop the capture stream and release resources."""
-        if self._started:
-            logger.debug("stopping wayland capture stream")
-            self._stream.stop()
-            self._started = False
+        logger.debug("stopping wayland capture stream")
+        self._stream.stop()
+        self._started = False
