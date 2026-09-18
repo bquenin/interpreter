@@ -31,12 +31,12 @@ def _get_display_server_info() -> str:
     return f"X11 ({display})" if display else "unknown"
 
 
-# Module-level display connection (reused for efficiency)
+# UI display connection. Background capture must use its own connection for all requests.
 _display: display.Display | None = None
 
 
 def _get_display() -> display.Display:
-    """Get or create a shared X11 display connection."""
+    """Get or create the UI's X11 display connection."""
     global _display
     if _display is None:
         try:
@@ -197,16 +197,18 @@ def find_window_by_title(title_substring: str) -> dict | None:
     return None
 
 
-def _get_window_bounds(window_id: int) -> dict | None:
+def _get_window_bounds(window_id: int, disp: display.Display | None = None) -> dict | None:
     """Get the current bounds of a window by its ID in absolute screen coordinates.
 
     Args:
         window_id: The X11 window ID (XID).
+        disp: Connection to use, or None for the UI's display.
 
     Returns:
         Bounds dictionary with x, y, width, height in root coordinates, or None if not found.
     """
-    disp = _get_display()
+    if disp is None:
+        disp = _get_display()
     try:
         window = disp.create_resource_object("window", window_id)
         geom = window.get_geometry()
@@ -226,7 +228,7 @@ def _get_window_bounds(window_id: int) -> dict | None:
         return None
 
 
-def _get_title_bar_height(window_id: int) -> int:
+def _get_title_bar_height(window_id: int, disp: display.Display) -> int:
     """Detect the title bar height for CSD (client-side decoration) windows.
 
     Only returns a non-zero value for GTK/CSD windows where the title bar
@@ -236,11 +238,11 @@ def _get_title_bar_height(window_id: int) -> int:
 
     Args:
         window_id: The X11 window ID (XID).
+        disp: The caller's X11 display connection.
 
     Returns:
         Title bar height in pixels for CSD windows, 0 for SSD windows.
     """
-    disp = _get_display()
     try:
         window = disp.create_resource_object("window", window_id)
 
@@ -296,27 +298,27 @@ def get_content_offset(window_id: int) -> tuple[int, int]:
 
         # No content child found - capture will crop title bar
         # unless window is fullscreen
-        if not _is_fullscreen(window_id):
-            title_bar = _get_title_bar_height(window_id)
+        if not _is_fullscreen(window_id, disp):
+            title_bar = _get_title_bar_height(window_id, disp)
             return (0, title_bar)
     except (BadWindow, BadDrawable):
         pass
     return (0, 0)
 
 
-def _is_fullscreen(window_id: int) -> bool:
+def _is_fullscreen(window_id: int, disp: display.Display) -> bool:
     """Check if a window is in fullscreen mode.
 
     Detects fullscreen by comparing window bounds to screen bounds.
 
     Args:
         window_id: The X11 window ID.
+        disp: The caller's X11 display connection.
 
     Returns:
         True if window appears to be fullscreen, False otherwise.
     """
-    disp = _get_display()
-    bounds = _get_window_bounds(window_id)
+    bounds = _get_window_bounds(window_id, disp)
     if bounds is None:
         return False
 
@@ -454,7 +456,9 @@ def _find_content_window(window) -> tuple | None:
         return None
 
 
-def _crop_title_bar_if_needed(frame: NDArray[np.uint8], window_id: int, crop_title_bar: bool) -> NDArray[np.uint8]:
+def _crop_title_bar_if_needed(
+    frame: NDArray[np.uint8], window_id: int, crop_title_bar: bool, disp: display.Display
+) -> NDArray[np.uint8]:
     """Crop title bar from frame if needed.
 
     Uses lazy evaluation - only fetches title bar height if actually needed.
@@ -463,14 +467,15 @@ def _crop_title_bar_if_needed(frame: NDArray[np.uint8], window_id: int, crop_tit
         frame: The captured numpy array (H, W, 4) in BGRA format.
         window_id: The X11 window ID.
         crop_title_bar: Whether cropping should be considered.
+        disp: The caller's X11 display connection, also used for metadata queries.
 
     Returns:
         Cropped frame if title bar was removed, original frame otherwise.
     """
-    if not crop_title_bar or _is_fullscreen(window_id):
+    if not crop_title_bar or _is_fullscreen(window_id, disp):
         return frame
 
-    title_bar = _get_title_bar_height(window_id)
+    title_bar = _get_title_bar_height(window_id, disp)
     if title_bar > 0 and frame.shape[0] > title_bar:
         return frame[title_bar:, :, :]
 
@@ -534,7 +539,7 @@ def capture_window(window_id: int) -> NDArray[np.uint8] | None:
         if frame is None:
             return None
 
-        return _crop_title_bar_if_needed(frame, window_id, crop_title_bar)
+        return _crop_title_bar_if_needed(frame, window_id, crop_title_bar, disp)
 
     except BadWindow:
         return None
@@ -698,7 +703,8 @@ class LinuxCaptureStream:
             if frame is None:
                 return None
 
-            return _crop_title_bar_if_needed(frame, self._window_id, crop_title_bar)
+            # Metadata queries must stay on this connection too: the UI uses its display concurrently.
+            return _crop_title_bar_if_needed(frame, self._window_id, crop_title_bar, disp)
 
         except (BadDrawable, BadWindow):
             self._window_invalid = True
