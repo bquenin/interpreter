@@ -63,7 +63,8 @@ def _posix(path: Path) -> str:
 
 def _create_file(path: Path, content: str = "test") -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
+    # Shell fixtures run through Git Bash on Windows too; echo must not include a CR.
+    path.write_text(content, encoding="utf-8", newline="\n")
 
 
 def _create_executable(path: Path, content: str) -> None:
