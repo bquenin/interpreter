@@ -104,6 +104,7 @@ class MainWindow(QMainWindow):
 
         # State
         self._capturing = False
+        self._capture_generation = 0
         self._last_ocr_results = []
         self._mode = config.overlay_mode
         self._windows_list: list[dict] = []
@@ -1364,13 +1365,14 @@ class MainWindow(QMainWindow):
         window_id = window.get("id")
         bounds = window.get("bounds")
 
-        self._capture = WindowCapture(title, window_id=window_id, bounds=bounds)
-        if not self._capture.find_window():
-            self.statusBar().showMessage("Window not found")
-            return
-
         try:
+            self._capture = WindowCapture(title, window_id=window_id, bounds=bounds)
+            if not self._capture.find_window():
+                self._stop_capture()
+                self.statusBar().showMessage("Window not found")
+                return
             if not self._capture.start_stream():
+                self._stop_capture()
                 self.statusBar().showMessage("Failed to start stream")
                 return
         except Exception as e:
@@ -1378,8 +1380,8 @@ class MainWindow(QMainWindow):
             log.get_logger().error("capture failed", error=error_msg)
             # Show truncated message in status bar (full message in logs)
             display_msg = error_msg.split("\n")[0][:100]  # First line, max 100 chars
+            self._stop_capture()
             self.statusBar().showMessage(f"Capture failed: {display_msg}")
-            self._capture = None
             return
 
         # Start single timer for capture + processing (fixed 2 FPS)
@@ -1423,8 +1425,8 @@ class MainWindow(QMainWindow):
         except Exception as e:
             logger.error("video device capture failed", device=name, error=str(e))
             first_line = (str(e).splitlines() or [""])[0]
+            self._stop_capture()
             self.statusBar().showMessage(f"Capture failed: {first_line[:100]}")
-            self._capture = None
             return
 
         self._process_timer.setInterval(PROCESS_INTERVAL_MS)
@@ -1479,7 +1481,7 @@ class MainWindow(QMainWindow):
         """Start Wayland capture using xdg-desktop-portal."""
         from ..capture.linux_wayland import WaylandCaptureStream, WaylandPortalCapture
 
-        # Guard against re-entry (portal releases GIL, allowing Qt events to process)
+        # Guard against duplicate selection requests.
         if self._wayland_selecting:
             return
         self._wayland_selecting = True
@@ -1553,23 +1555,32 @@ class MainWindow(QMainWindow):
     def _stop_capture(self):
         """Stop capturing."""
         self._process_timer.stop()
+        self._capturing = False
+        self._capture_generation += 1
+        self._process_worker.discard_pending_frames()
 
         # Stop capture using unified interface
-        if self._capture:
-            self._capture.stop()
-            self._capture = None
+        capture, self._capture = self._capture, None
+        if capture:
+            try:
+                capture.stop()
+            except Exception as e:
+                logger.warning("failed to stop capture", error=str(e))
 
         # No-signal notice belongs to the video device session that just ended
         self._frames_missing = 0
         self._waiting_for_signal = False
 
         # Close Wayland portal session if active
-        if self._wayland_portal:
-            self._wayland_portal.close()
-            self._wayland_portal = None
+        portal, self._wayland_portal = self._wayland_portal, None
+        if portal:
+            try:
+                portal.close()
+            except Exception as e:
+                logger.warning("failed to close capture portal", error=str(e))
 
-        self._capturing = False
-
+        self._last_frame = None
+        self._last_bounds = {}
         self._last_ocr_results = []
         self._paused = False
         self._pause_btn.setEnabled(False)
@@ -1586,6 +1597,7 @@ class MainWindow(QMainWindow):
 
         # Hide overlays and clear inplace labels
         self._banner_overlay.hide()
+        self._banner_overlay.set_text("")
         self._inplace_overlay.clear_regions()
         self._inplace_overlay.hide()
 
@@ -1761,7 +1773,14 @@ class MainWindow(QMainWindow):
             return
 
         # Get frame using unified capture interface
-        frame = self._capture.get_frame()
+        try:
+            frame = self._capture.get_frame()
+        except Exception as e:
+            logger.error("capture frame failed", error=str(e))
+            self._stop_capture()
+            first_line = str(e).split("\n", 1)[0]
+            self.statusBar().showMessage(f"Capture stopped: {first_line[:100]}")
+            return
 
         # Check if the window was closed or the video device went away
         if self._capture.window_invalid:
@@ -1854,7 +1873,7 @@ class MainWindow(QMainWindow):
 
         # Process through OCR and translation (on worker thread)
         if not self._paused:
-            self._process_worker.submit_frame(frame_for_ocr)
+            self._process_worker.submit_frame(frame_for_ocr, self._capture_generation)
 
     def _fit_preview(self):
         """Scale the rendered preview to the card's current width, keeping the aspect ratio."""
@@ -1869,22 +1888,24 @@ class MainWindow(QMainWindow):
         super().resizeEvent(event)
         self._fit_preview()
 
-    def _on_text_ready(self, translated: str):
+    def _on_text_ready(self, translated: str, generation: int):
         """Handle translated text (banner mode)."""
-        if not self._paused:
+        if self._capturing and generation == self._capture_generation and not self._paused:
             self._banner_overlay.set_text(translated)
 
-    def _on_regions_ready(self, regions: list):
+    def _on_regions_ready(self, regions: list, generation: int):
         """Handle translated regions (inplace mode)."""
-        if not self._paused:
+        if self._capturing and generation == self._capture_generation and not self._paused:
             # Get content offset from capture (accounts for window decorations)
             content_offset = (0, 0)
             if self._capture:
                 content_offset = self._capture.get_content_offset()
             self._inplace_overlay.set_regions(regions, content_offset)
 
-    def _on_ocr_results_ready(self, results: list):
+    def _on_ocr_results_ready(self, results: list, generation: int):
         """Handle raw OCR results (preview boxes and the OCR config dialog)."""
+        if not self._capturing or generation != self._capture_generation:
+            return
         self._last_ocr_results = results
         if self._ocr_config_dialog:
             self._ocr_config_dialog.update_ocr_results(results)

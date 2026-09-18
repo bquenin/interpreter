@@ -171,8 +171,8 @@ def _worker(source_language: str, regions: list[OCRResult], mode=OverlayMode.INP
     worker._ocr.extract_text_regions.return_value = regions
     worker._translator = _EchoTranslator()
     outputs = []
-    worker.regions_ready.connect(outputs.append)
-    worker.text_ready.connect(outputs.append)
+    worker.regions_ready.connect(lambda regions, generation: outputs.append(regions))
+    worker.text_ready.connect(lambda text, generation: outputs.append(text))
     return worker, outputs
 
 

@@ -10,13 +10,157 @@ from interpreter.languages import SOURCE_LANGUAGES
 from interpreter.llm_translate import DEFAULT_SYSTEM_PROMPT, PROVIDER_LABELS, PROVIDERS
 
 
+@pytest.fixture
+def capture_window(qapp, monkeypatch):
+    """Capture controls and a real processing worker, without loading any models."""
+    from unittest.mock import MagicMock
+
+    from PySide6.QtCore import QTimer
+    from PySide6.QtWidgets import QMainWindow
+
+    from interpreter.config import OverlayMode
+
+    win = MainWindow.__new__(MainWindow)
+    QMainWindow.__init__(win)
+    win._config = Config()
+    win._capturing = False
+    win._capture_generation = 0
+    win._paused = False
+    win._mode = OverlayMode.BANNER
+    win._capture = None
+    win._wayland_portal = None
+    win._wayland_selecting = False
+    win._last_frame = None
+    win._last_bounds = {}
+    win._last_ocr_results = []
+    win._ocr_config_dialog = None
+    win._process_timer = QTimer(win)
+    win._start_btn = QPushButton()
+    win._pause_btn = QPushButton()
+    win._ocr_config_btn = QPushButton()
+    win._preview_label = QLabel()
+    win._banner_overlay = MagicMock()
+    win._inplace_overlay = MagicMock()
+    win._process_worker = win._create_worker()
+    monkeypatch.setattr(win, "_set_banner_only", lambda enabled: None)
+    yield win
+    win._process_worker.stop()
+    win.close()
+
+
+@pytest.mark.parametrize("source", ["window", "device"])
+def test_failed_capture_start_releases_partial_source(capture_window, monkeypatch, source):
+    from unittest.mock import MagicMock
+
+    import interpreter.gui.main_window as module
+
+    win = capture_window
+    capture = MagicMock()
+    capture.start_stream.side_effect = capture.start.side_effect = RuntimeError("source unavailable")
+    if source == "window":
+        win._window_combo = QComboBox()
+        win._window_combo.addItem("Game", ("window", 0))
+        win._windows_list = [{"title": "Game", "id": 1}]
+        monkeypatch.setattr(module, "WindowCapture", lambda *args, **kwargs: capture)
+        start = win._start_capture
+    else:
+        monkeypatch.setattr(module, "find_video_device", lambda *args: object())
+        monkeypatch.setattr(module, "VideoDeviceCapture", lambda *args: capture)
+
+        def start():
+            win._start_video_capture("Card")
+
+    for attempt in range(2):
+        start()
+        assert capture.stop.call_count == attempt + 1
+        assert win._capture is None and not win._capturing
+        assert not win._process_timer.isActive()
+        assert win._start_btn.isEnabled()
+        assert win.statusBar().currentMessage() == "Capture failed: source unavailable"
+
+
+def test_capture_read_failure_stops_source(capture_window):
+    from unittest.mock import MagicMock
+
+    win = capture_window
+    win._capture = source = MagicMock()
+    win._capturing = True
+    source.get_frame.side_effect = RuntimeError("connection lost")
+    win._process_timer.start(500)
+
+    win._capture_and_process()
+
+    source.stop.assert_called_once()
+    assert win._capture is None and not win._capturing
+    assert not win._process_timer.isActive()
+    assert win.statusBar().currentMessage() == "Capture stopped: connection lost"
+
+
+def test_cleanup_failure_still_closes_portal_and_resets_controls(capture_window):
+    from unittest.mock import MagicMock
+
+    win = capture_window
+    win._capture = MagicMock()
+    win._capture.stop.side_effect = RuntimeError("stream already disconnected")
+    win._wayland_portal = portal = MagicMock()
+    win._capturing = True
+
+    win._stop_capture()
+
+    portal.close.assert_called_once()
+    assert win._capture is None and win._wayland_portal is None
+    assert not win._capturing and win._start_btn.isEnabled()
+
+
+@pytest.mark.parametrize("restart", [False, True])
+@pytest.mark.parametrize("mode", ["banner", "inplace"])
+def test_queued_results_from_stopped_capture_are_ignored(capture_window, restart, mode):
+    import threading
+    from unittest.mock import MagicMock
+
+    from interpreter.config import OverlayMode
+    from interpreter.ocr import OCRResult
+
+    win = capture_window
+    win._capturing = True
+    worker = win._process_worker
+    worker.set_mode(OverlayMode(mode))
+    worker._ocr = MagicMock()
+    worker._ocr.extract_text_regions.return_value = [OCRResult("こんにちは", None)]
+    worker._translator = MagicMock()
+    worker._translator.translate.return_value = ("Hello", False)
+
+    # Queue real Qt signals on the GUI thread, but stop before Qt delivers them.
+    thread = threading.Thread(target=worker._process_frame, args=("old frame",))
+    thread.start()
+    thread.join(5)
+    assert not thread.is_alive()
+    win._stop_capture()
+    win._capturing = restart
+    win._banner_overlay.reset_mock()
+    win._inplace_overlay.reset_mock()
+    QApplication.processEvents()
+
+    win._banner_overlay.set_text.assert_not_called()
+    win._inplace_overlay.set_regions.assert_not_called()
+    assert win._last_ocr_results == []
+
+    if restart:
+        # The new session can still display results; only the old generation was dropped.
+        worker._process_frame("new frame", win._capture_generation)
+        assert win._last_ocr_results == worker._ocr.extract_text_regions.return_value
+        if mode == "banner":
+            win._banner_overlay.set_text.assert_called_once_with("Hello")
+        else:
+            win._inplace_overlay.set_regions.assert_called_once_with([["Hello", None]], (0, 0))
+
+
 @pytest.mark.parametrize("failure_at", ["portal", "stream"])
-def test_wayland_failure_displays_details_and_cleans_up_before_retry(qapp, monkeypatch, failure_at):
+def test_wayland_failure_displays_details_and_cleans_up_before_retry(capture_window, monkeypatch, failure_at):
     import sys
     from types import SimpleNamespace
 
-    from PySide6.QtCore import QTimer
-    from PySide6.QtWidgets import QMainWindow, QMessageBox
+    from PySide6.QtWidgets import QMessageBox
 
     calls = []
     reason = "KDE screen capture requires OpenGL compositing. Update KDE and log in again.\nPortal Start failed: Other"
@@ -48,18 +192,7 @@ def test_wayland_failure_displays_details_and_cleans_up_before_retry(qapp, monke
             WaylandCaptureStream=Stream,
         ),
     )
-    win = MainWindow.__new__(MainWindow)
-    QMainWindow.__init__(win)
-    win._wayland_selecting = False
-    win._wayland_portal = None
-    win._capture = None
-    win._process_timer = QTimer()
-    win._start_btn = QPushButton()
-    win._pause_btn = QPushButton()
-    win._ocr_config_btn = QPushButton()
-    win._preview_label = QLabel()
-    win._banner_overlay = win._inplace_overlay = SimpleNamespace(hide=lambda: None, clear_regions=lambda: None)
-    monkeypatch.setattr(win, "_set_banner_only", lambda enabled: None)
+    win = capture_window
 
     def show_error(message):
         # Resources and the re-entry guard are cleared before the dialog opens.
@@ -485,6 +618,9 @@ def test_no_signal_state_is_reset_when_capture_stops(qapp, monkeypatch):
         def hide(self):
             pass
 
+        def set_text(self, text):
+            pass
+
         def clear_regions(self):
             pass
 
@@ -500,6 +636,7 @@ def test_no_signal_state_is_reset_when_capture_stops(qapp, monkeypatch):
     win._mode = OverlayMode.BANNER
     win._paused = True  # keep the loop away from the preview, overlays and the worker
     win._capturing = True
+    win._capture_generation = 0
     win._frames_missing = 0
     win._waiting_for_signal = False
     win._last_ocr_results = []
@@ -519,7 +656,9 @@ def test_no_signal_state_is_reset_when_capture_stops(qapp, monkeypatch):
     win._current_window_title = ""
     win._ocr_config_dialog = None
     win._last_bounds = {}
-    win._process_worker = type("W", (), {"submit_frame": lambda self, f: None})()
+    win._process_worker = type(
+        "W", (), {"submit_frame": lambda self, f, g: None, "discard_pending_frames": lambda self: None}
+    )()
 
     win._capture = NoSignalVideo()
     for _ in range(8):  # 4 s of ticks without a frame

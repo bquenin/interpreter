@@ -51,6 +51,11 @@ class FrameBuffer:
             self._closed = True
             self._condition.notify()
 
+    def clear(self):
+        """Discard a frame that has not been picked up by the worker yet."""
+        with self._condition:
+            self._frame = None
+
 
 class ProcessWorker(QObject):
     """Worker for OCR and translation processing.
@@ -61,14 +66,15 @@ class ProcessWorker(QObject):
     Frames are sent via FrameBuffer, results emitted via Qt signals.
     """
 
-    # Banner mode: single translated text
-    text_ready = Signal(str)
+    # Each frame result carries its capture generation so queued signals from a
+    # stopped session cannot update the next session's overlays.
+    text_ready = Signal(str, int)
 
     # Inplace mode: list of (text, bbox) regions
-    regions_ready = Signal(list)
+    regions_ready = Signal(list, int)
 
     # Raw OCR results (list of OCRResult) - emitted before translation for visualization
-    ocr_results_ready = Signal(list)
+    ocr_results_ready = Signal(list, int)
 
     # Emitted when models are loaded and ready
     models_ready = Signal()
@@ -151,10 +157,14 @@ class ProcessWorker(QObject):
         except RuntimeError:  # "Signal source has been deleted": raced with teardown
             logger.debug("signal dropped after teardown")
 
-    def submit_frame(self, frame):
+    def submit_frame(self, frame, generation: int = 0):
         """Send a frame for processing (non-blocking)."""
         if self._running:
-            self._frame_buffer.put(frame)
+            self._frame_buffer.put((frame, generation))
+
+    def discard_pending_frames(self):
+        """Drop queued work when capture stops; in-flight results retain their generation."""
+        self._frame_buffer.clear()
 
     def reload_ocr(self):
         """Rebuild the OCR engine from the current config (after a settings change).
@@ -207,10 +217,10 @@ class ProcessWorker(QObject):
                 self._load_translator()
                 self._emit_models_status()
 
-            frame = self._frame_buffer.get(timeout=0.5)
+            pending = self._frame_buffer.get(timeout=0.5)
             # Only process frames if both models loaded successfully
-            if frame is not None and not (self._ocr_failed or self._translation_failed):
-                self._process_frame(frame)
+            if pending is not None and not (self._ocr_failed or self._translation_failed):
+                self._process_frame(*pending)
 
         self._discard_ocr()
         logger.debug("worker thread stopped")
@@ -310,7 +320,7 @@ class ProcessWorker(QObject):
         else:
             self._emit(self.models_ready)
 
-    def _process_frame(self, frame):
+    def _process_frame(self, frame, generation: int = 0):
         """Process a frame through OCR and translation."""
         if self._ocr is None:
             return
@@ -338,13 +348,13 @@ class ProcessWorker(QObject):
             return  # stopped while the engine was busy: the receivers are being torn down
 
         # Emit raw OCR results for visualization (e.g., OCR config dialog)
-        self._emit(self.ocr_results_ready, regions)
+        self._emit(self.ocr_results_ready, regions, generation)
 
         if not text:
             if self._mode == OverlayMode.INPLACE:
-                self._emit(self.regions_ready, [])
+                self._emit(self.regions_ready, [], generation)
             else:
-                self._emit(self.text_ready, "")
+                self._emit(self.text_ready, "", generation)
             return
 
         # Skip translation when nothing looks like the source language (OCR garbage)
@@ -352,9 +362,9 @@ class ProcessWorker(QObject):
         if not contains_script(text, language):
             logger.debug("skipping translation - no source-language text detected", language=language)
             if self._mode == OverlayMode.INPLACE:
-                self._emit(self.regions_ready, [])
+                self._emit(self.regions_ready, [], generation)
             else:
-                self._emit(self.text_ready, "")
+                self._emit(self.text_ready, "", generation)
             return
 
         # Translation
@@ -385,7 +395,7 @@ class ProcessWorker(QObject):
             translate_ms = int((time.perf_counter() - translate_start) * 1000)
             was_cached = all_cached and len(translated_regions) > 0
 
-            self._emit(self.regions_ready, translated_regions)
+            self._emit(self.regions_ready, translated_regions, generation)
         else:
             if self._translator:
                 try:
@@ -399,7 +409,7 @@ class ProcessWorker(QObject):
                 translated = text
             translate_ms = int((time.perf_counter() - translate_start) * 1000)
 
-            self._emit(self.text_ready, translated)
+            self._emit(self.text_ready, translated, generation)
 
         total_ms = int((time.perf_counter() - frame_start) * 1000)
         translate_str = f"{translate_ms} (cached)" if was_cached else str(translate_ms)
