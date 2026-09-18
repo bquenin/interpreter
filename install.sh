@@ -176,14 +176,15 @@ if [[ "$(uname)" == "Linux" ]]; then
 	fi
 
 	# Qt Multimedia links the PulseAudio client library even on PipeWire desktops.
+	# The cache does not include every loader path (e.g. LD_LIBRARY_PATH), so a
+	# missing entry is advisory and must not abort an otherwise usable installation.
 	if ldconfig -p 2>/dev/null | grep 'libpulse\.so\.0' >/dev/null; then
 		echo -e "${GREEN}     PulseAudio client library available${NC}"
 	else
-		echo -e "${RED}     libpulse.so.0 not found. Qt Multimedia cannot load without it.${NC}"
-		echo -e "${YELLOW}     Install the PulseAudio client library and re-run this installer.${NC}"
+		echo -e "${YELLOW}     libpulse.so.0 is not listed in the system library cache.${NC}"
+		echo -e "${GRAY}     If Qt Multimedia fails to load, install the PulseAudio client library:${NC}"
 		echo -e "${CYAN}       sudo apt install libpulse0          ${GRAY}(Debian/Ubuntu/Mint)${NC}"
 		echo -e "${GRAY}     Only the client library is needed; keep your current audio server.${NC}"
-		exit 1
 	fi
 
 	# Qt 6.5+ requires libxcb-cursor for the xcb platform plugin used on X11/XWayland.

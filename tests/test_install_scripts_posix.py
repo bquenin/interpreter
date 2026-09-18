@@ -154,11 +154,11 @@ def test_default_install_keeps_previous_behavior(tmp_path: Path) -> None:
     assert "home directory" in result.stdout
 
 
-@pytest.mark.parametrize("pulse_available", [False, True])
-def test_linux_install_checks_qt_multimedia_runtime(tmp_path: Path, pulse_available: bool) -> None:
+@pytest.mark.parametrize("pulse_cached", [False, True])
+def test_linux_install_warns_without_rejecting_uncached_pulse(tmp_path: Path, pulse_cached: bool) -> None:
     environment, _, _, _ = _environment(tmp_path)
     libraries = "libpipewire-0.3.so.0\nlibxcb-cursor.so.0\nlibpulse-simple.so.0"
-    if pulse_available:
+    if pulse_cached:
         libraries += "\nlibpulse.so.0"
     # Override the probes in the shell itself, including when running through Git Bash.
     runtime_env = tmp_path / "runtime-env.sh"
@@ -167,14 +167,16 @@ def test_linux_install_checks_qt_multimedia_runtime(tmp_path: Path, pulse_availa
 
     result = _run(INSTALL_SCRIPT, environment)
 
-    if pulse_available:
-        assert result.returncode == 0, result.stdout + result.stderr
+    # The ldconfig cache is only a hint: LD_LIBRARY_PATH and other loader paths can
+    # provide libpulse even when there is no entry in the system cache.
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "Installation complete!" in result.stdout
+    assert "Skipping desktop entry (icon not found)" in result.stdout
+    if pulse_cached:
         assert "PulseAudio client library available" in result.stdout, result.stdout + result.stderr
     else:
-        assert result.returncode != 0, result.stdout + result.stderr
-        assert "libpulse.so.0 not found" in result.stdout
+        assert "libpulse.so.0 is not listed in the system library cache" in result.stdout
         assert "sudo apt install libpulse0" in result.stdout
-        assert "Installation complete!" not in result.stdout
 
 
 def test_install_to_custom_location(tmp_path: Path) -> None:
