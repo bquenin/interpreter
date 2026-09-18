@@ -26,7 +26,7 @@ jobs:
       - name: Install PipeWire and Qt runtimes
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libpipewire-0.3-0 libegl1 libopengl0 libxkbcommon0
+          sudo apt-get install -y --no-install-recommends libpipewire-0.3-0 libegl1 libopengl0 libxkbcommon0 libpulse0
 
       - name: Install uv
         run: python -m pip install uv==0.9.21

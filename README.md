@@ -26,6 +26,7 @@ Offline screen translator for Japanese retro games. Captures text from any windo
 - **KDE "Unsupported compositing type"** means KWin cannot provide a capture stream with its current compositing backend. Update KDE and your graphics drivers, then log out and back in. If it persists, check `qdbus6 org.kde.KWin /KWin org.kde.KWin.supportInformation` and the KWin logs. An X11 desktop session is a possible workaround.
 - **Inplace overlay** on Wayland only works with fullscreen windows (Wayland's security model prevents knowing window positions).
 - **Qt platform plugin** (`xcb`) requires `libxcb-cursor0` (Debian/Ubuntu/Mint) or `xcb-util-cursor` (Fedora/Arch). Without it the GUI will abort with `Could not load the Qt platform plugin "xcb"`.
+- **Qt Multimedia** requires the PulseAudio client library (`libpulse.so.0`, provided by `libpulse0` on Debian/Ubuntu/Mint), including on PipeWire desktops. The PulseAudio server is not required.
 
 ## Installation
 
