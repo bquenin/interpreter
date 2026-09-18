@@ -157,20 +157,21 @@ def test_default_install_keeps_previous_behavior(tmp_path: Path) -> None:
 @pytest.mark.parametrize("pulse_available", [False, True])
 def test_linux_install_checks_qt_multimedia_runtime(tmp_path: Path, pulse_available: bool) -> None:
     environment, _, _, _ = _environment(tmp_path)
-    fake_bin = tmp_path / "fake-bin"
-    _create_executable(fake_bin / "uname", "#!/bin/bash\necho Linux\n")
     libraries = "libpipewire-0.3.so.0\nlibxcb-cursor.so.0\nlibpulse-simple.so.0"
     if pulse_available:
         libraries += "\nlibpulse.so.0"
-    _create_executable(fake_bin / "ldconfig", f"#!/bin/bash\nprintf '%s\\n' '{libraries}'\n")
+    # Override the probes in the shell itself, including when running through Git Bash.
+    runtime_env = tmp_path / "runtime-env.sh"
+    _create_file(runtime_env, f"uname() {{ echo Linux; }}\nldconfig() {{ printf '%s\\n' '{libraries}'; }}\n")
+    environment["BASH_ENV"] = _posix(runtime_env)
 
     result = _run(INSTALL_SCRIPT, environment)
 
     if pulse_available:
         assert result.returncode == 0, result.stdout + result.stderr
-        assert "PulseAudio client library available" in result.stdout
+        assert "PulseAudio client library available" in result.stdout, result.stdout + result.stderr
     else:
-        assert result.returncode != 0
+        assert result.returncode != 0, result.stdout + result.stderr
         assert "libpulse.so.0 not found" in result.stdout
         assert "sudo apt install libpulse0" in result.stdout
         assert "Installation complete!" not in result.stdout
