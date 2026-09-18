@@ -9,6 +9,27 @@ permissions:
   contents: read
 
 jobs:
+  linux-x11-capture:
+    name: X11 capture
+    runs-on: ubuntu-latest
+    env:
+      XDG_SESSION_TYPE: x11
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install capture test dependencies
+        run: |
+          python -m pip install pytest numpy structlog python-xlib pipewire-capture
+          python -m pip install --no-deps -e .
+
+      - name: Test X11 capture without a display server
+        run: python -m pytest -q tests/test_linux_x11.py
+
   windows-install-scripts:
     name: Windows install scripts
     runs-on: windows-latest
