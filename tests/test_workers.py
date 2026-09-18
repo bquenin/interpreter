@@ -45,8 +45,8 @@ def worker():
     texts = []
     worker.translation_status.connect(statuses.append)
     worker.models_failed.connect(failures.append)
-    worker.text_ready.connect(texts.append)
-    worker.regions_ready.connect(texts.append)
+    worker.text_ready.connect(lambda text, generation: texts.append(text))
+    worker.regions_ready.connect(lambda regions, generation: texts.append(regions))
     worker._events = (statuses, failures, texts)
     return worker
 
@@ -155,9 +155,9 @@ def ocr_worker():
     outputs = []
     worker.ocr_status.connect(statuses.append)
     worker.models_failed.connect(failures.append)
-    worker.text_ready.connect(outputs.append)
-    worker.regions_ready.connect(outputs.append)
-    worker.ocr_results_ready.connect(outputs.append)
+    worker.text_ready.connect(lambda text, generation: outputs.append(text))
+    worker.regions_ready.connect(lambda regions, generation: outputs.append(regions))
+    worker.ocr_results_ready.connect(lambda regions, generation: outputs.append(regions))
     worker._events = (statuses, failures, outputs)
     return worker
 
@@ -273,6 +273,56 @@ def test_reload_ocr_sets_the_flag_for_the_worker_loop(ocr_worker):
     assert not ocr_worker._reload_ocr
     ocr_worker.reload_ocr()
     assert ocr_worker._reload_ocr
+
+
+def test_discard_pending_frames_keeps_inflight_generation(monkeypatch):
+    """Stopping capture drops queued frames and leaves the busy frame tagged as old."""
+    import threading
+
+    from PySide6.QtCore import Qt
+
+    started = threading.Event()
+    release = threading.Event()
+    finished = threading.Event()
+    processed = []
+    results = []
+
+    class SlowOCR(_FakeOCR):
+        def extract_text_regions(self, frame):
+            processed.append(frame)
+            started.set()
+            assert release.wait(5)
+            return super().extract_text_regions(frame)
+
+    healthy = _FlakyTranslator()
+    healthy.failing = False
+    monkeypatch.setattr("interpreter.gui.workers.create_ocr", lambda config: SlowOCR())
+    monkeypatch.setattr("interpreter.gui.workers.create_translator", lambda config: healthy)
+    worker = ProcessWorker(Config())
+
+    def on_text(text, generation):
+        results.append((text, generation))
+        finished.set()
+
+    worker.text_ready.connect(on_text, Qt.ConnectionType.DirectConnection)
+    worker.start(0.6)
+    try:
+        worker.submit_frame("busy frame", 7)
+        assert started.wait(5)
+        worker.submit_frame("queued frame", 7)
+        worker.discard_pending_frames()
+        assert worker._frame_buffer.get(timeout=0) is None
+        release.set()
+        assert finished.wait(5)
+        assert results == [("<こんにちは>", 7)]
+        finished.clear()
+        worker.submit_frame("new frame", 8)
+        assert finished.wait(5)
+        assert results[-1] == ("<こんにちは>", 8)
+        assert processed == ["busy frame", "new frame"]
+    finally:
+        release.set()
+        worker.stop()
 
 
 def test_reload_builds_a_fresh_engine_so_caches_do_not_leak_across_settings(monkeypatch):

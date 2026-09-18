@@ -63,7 +63,8 @@ def _posix(path: Path) -> str:
 
 def _create_file(path: Path, content: str = "test") -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
+    # Shell fixtures run through Git Bash on Windows too; echo must not include a CR.
+    path.write_text(content, encoding="utf-8", newline="\n")
 
 
 def _create_executable(path: Path, content: str) -> None:
@@ -151,6 +152,31 @@ def test_default_install_keeps_previous_behavior(tmp_path: Path) -> None:
     assert "UV_TOOL_DIR=" in lines
     assert not _pointer(home).exists()
     assert "home directory" in result.stdout
+
+
+@pytest.mark.parametrize("pulse_cached", [False, True])
+def test_linux_install_warns_without_rejecting_uncached_pulse(tmp_path: Path, pulse_cached: bool) -> None:
+    environment, _, _, _ = _environment(tmp_path)
+    libraries = "libpipewire-0.3.so.0\nlibxcb-cursor.so.0\nlibpulse-simple.so.0"
+    if pulse_cached:
+        libraries += "\nlibpulse.so.0"
+    # Override the probes in the shell itself, including when running through Git Bash.
+    runtime_env = tmp_path / "runtime-env.sh"
+    _create_file(runtime_env, f"uname() {{ echo Linux; }}\nldconfig() {{ printf '%s\\n' '{libraries}'; }}\n")
+    environment["BASH_ENV"] = _posix(runtime_env)
+
+    result = _run(INSTALL_SCRIPT, environment)
+
+    # The ldconfig cache is only a hint: LD_LIBRARY_PATH and other loader paths can
+    # provide libpulse even when there is no entry in the system cache.
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "Installation complete!" in result.stdout
+    assert "Skipping desktop entry (icon not found)" in result.stdout
+    if pulse_cached:
+        assert "PulseAudio client library available" in result.stdout, result.stdout + result.stderr
+    else:
+        assert "libpulse.so.0 is not listed in the system library cache" in result.stdout
+        assert "sudo apt install libpulse0" in result.stdout
 
 
 def test_install_to_custom_location(tmp_path: Path) -> None:
