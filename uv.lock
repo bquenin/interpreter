@@ -277,7 +277,7 @@ wheels = [
 
 [[package]]
 name = "interpreter-v2"
-version = "2.23.2"
+version = "2.23.3"
 source = { editable = "." }
 dependencies = [
     { name = "ctranslate2" },
