@@ -691,7 +691,9 @@ class WindowsCaptureStream:
                     f"  - Try running interpreter-v2 as Administrator"
                 ) from e
             else:
-                raise RuntimeError(f"Failed to start screen capture for window {hex(self._window_id)}: {error_msg}") from e
+                raise RuntimeError(
+                    f"Failed to start screen capture for window {hex(self._window_id)}: {error_msg}"
+                ) from e
 
         # Wait for first frame to arrive (up to 5 seconds)
         for _ in range(100):

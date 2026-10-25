@@ -51,6 +51,7 @@ class Capture(Protocol):
         """Stop capture and release resources."""
         ...
 
+
 logger = log.get_logger()
 
 
