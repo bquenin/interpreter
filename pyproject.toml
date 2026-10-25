@@ -34,8 +34,8 @@ dependencies = [
     "pyobjc-framework-Quartz>=10.0; sys_platform == 'darwin'",
     # Windows only - window capture
     "pygetwindow>=0.0.9; sys_platform == 'win32'",
-    # Fork with HWND support for reliable capture with dynamic window titles
-    "windows-capture-interpreter>=1.5.1; sys_platform == 'win32'",
+    # HWND-based capture (window_hwnd) landed upstream in 2.0
+    "windows-capture>=2.0.1; sys_platform == 'win32'",
     # Linux only - window capture (X11 fallback)
     "python-xlib>=0.33; sys_platform == 'linux'",
     # Linux only - window capture (Wayland via PipeWire portal)
