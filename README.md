@@ -2,6 +2,8 @@
 
 Offline screen translator for Japanese retro games. Captures text from any window, performs OCR, translates to English, and displays subtitles in a floating overlay.
 
+> **New: [ventris](https://github.com/bquenin/ventris)**, the counterpart to Interpreter. Where Interpreter shows a translation over the game as you play, ventris writes the translation into the game itself, in any alphabet, for the games it supports: so far Tales of Phantasia (Super Famicom) and Tales of Destiny 2 (PlayStation 2). The English packs are machine translated and are working samples.
+
 ![screenshot](screenshot.png)
 
 ## Features
