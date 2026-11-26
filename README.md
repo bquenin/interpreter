@@ -41,7 +41,7 @@ curl -LsSf https://raw.githubusercontent.com/bquenin/interpreter/main/install.sh
 
 **Windows (PowerShell):**
 ```powershell
-powershell -c "irm https://raw.githubusercontent.com/bquenin/interpreter/main/install.ps1 | iex"
+powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/bquenin/interpreter/main/install.ps1 | iex"
 ```
 
 Then run with `interpreter-v2`.
@@ -57,7 +57,7 @@ curl -LsSf https://raw.githubusercontent.com/bquenin/interpreter/main/install.sh
 
 **Windows (PowerShell):**
 ```powershell
-$env:INTERPRETER_HOME = "D:\interpreter"; powershell -c "irm https://raw.githubusercontent.com/bquenin/interpreter/main/install.ps1 | iex"
+$env:INTERPRETER_HOME = "D:\interpreter"; powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/bquenin/interpreter/main/install.ps1 | iex"
 ```
 
 The application, its Python runtime, and the downloaded models all go under that folder. The location is remembered in `~/.interpreter/install-dir`, so later upgrades and the uninstaller use it without setting the variable again. Only the small `interpreter-v2` launcher and your `config.yml` stay in your user profile.
@@ -79,7 +79,7 @@ curl -LsSf https://raw.githubusercontent.com/bquenin/interpreter/main/uninstall.
 
 **Windows (PowerShell):**
 ```powershell
-powershell -c "irm https://raw.githubusercontent.com/bquenin/interpreter/main/uninstall.ps1 | iex"
+powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/bquenin/interpreter/main/uninstall.ps1 | iex"
 ```
 
 This removes interpreter-v2, config files, and cached models.
