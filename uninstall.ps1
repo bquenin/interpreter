@@ -1,5 +1,5 @@
 # uninstall.ps1 - Uninstaller for interpreter-v2
-# Usage: powershell -c "irm https://raw.githubusercontent.com/bquenin/interpreter/main/uninstall.ps1 | iex"
+# Usage: powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/bquenin/interpreter/main/uninstall.ps1 | iex"
 
 $ErrorActionPreference = 'Stop'
 

@@ -1,9 +1,9 @@
 # install.ps1 - One-liner installer for interpreter-v2
-# Usage: powershell -c "irm https://raw.githubusercontent.com/bquenin/interpreter/main/install.ps1 | iex"
+# Usage: powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/bquenin/interpreter/main/install.ps1 | iex"
 #
 # To install somewhere other than your user profile (for example on a second
 # drive), set INTERPRETER_HOME first. The choice is remembered for upgrades:
-#   $env:INTERPRETER_HOME = "D:\interpreter"; powershell -c "irm https://raw.githubusercontent.com/bquenin/interpreter/main/install.ps1 | iex"
+#   $env:INTERPRETER_HOME = "D:\interpreter"; powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/bquenin/interpreter/main/install.ps1 | iex"
 
 $ErrorActionPreference = 'Stop'
 
@@ -73,6 +73,17 @@ Write-Host ""
 $uvPath = Get-Command uv -ErrorAction SilentlyContinue
 if (-not $uvPath) {
     Write-Host "[1/3] Installing uv package manager..." -ForegroundColor Yellow
+    # uv's installer refuses to run under the Windows 11 default execution
+    # policy (Restricted). Relax it for this PowerShell process only: no admin
+    # rights needed, nothing persists. A Group Policy setting still wins.
+    try {
+        Set-ExecutionPolicy Bypass -Scope Process -Force
+    } catch {
+        # Group Policy overrides the process scope, so uv's installer will
+        # refuse to run. Point at an install route that needs no script.
+        Write-Host "Your PowerShell execution policy is set by Group Policy and may block the uv installer." -ForegroundColor Yellow
+        Write-Host "If it fails, install uv with 'winget install astral-sh.uv', then run this installer again." -ForegroundColor Yellow
+    }
     Invoke-RestMethod https://astral.sh/uv/install.ps1 | Invoke-Expression
 
     # Refresh PATH to find uv
